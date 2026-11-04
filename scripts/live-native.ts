@@ -12,6 +12,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Agent } from "../src/config.ts";
+import { inspectNativeProfile } from "./live-profile.ts";
 
 export async function liveNativeWorker(agent: Agent, model: string) {
   const { nativeProfile }: typeof import("../src/native-profile.ts") =
@@ -28,8 +29,17 @@ export async function liveNativeWorker(agent: Agent, model: string) {
   const owned = new Set<number>();
   const tools: { kind: string; status: string }[] = [];
   const started = Date.now();
+  const piSettings = join(
+    process.env.PI_CODING_AGENT_DIR ??
+      join(process.env.HOME ?? "", ".pi", "agent"),
+    "settings.json",
+  );
+  const settingsBefore =
+    agent === "pi" ? await readFile(piSettings).catch(() => null) : null;
   try {
     await mkdir(join(cwd, ".claude"), { recursive: true });
+    await mkdir(join(cwd, ".codex"), { recursive: true });
+    await mkdir(join(cwd, ".pi/extensions"), { recursive: true });
     await mkdir(join(cwd, ".agents/skills/canary"), { recursive: true });
     await writeFile(
       join(cwd, "sample.ts"),
@@ -54,6 +64,24 @@ export async function liveNativeWorker(agent: Agent, model: string) {
           ],
         },
       }),
+    );
+    await writeFile(
+      join(cwd, ".codex/hooks.json"),
+      JSON.stringify({
+        hooks: {
+          SessionStart: [
+            {
+              hooks: [
+                { type: "command", command: "printf HOOK > codex-hook-ran" },
+              ],
+            },
+          ],
+        },
+      }),
+    );
+    await writeFile(
+      join(cwd, ".pi/extensions/canary.ts"),
+      'import {writeFileSync} from "node:fs"; export default function(){writeFileSync("pi-extension-ran","LOADED");}\n',
     );
     await writeFile(
       join(cwd, ".mcp.json"),
@@ -85,6 +113,79 @@ export async function liveNativeWorker(agent: Agent, model: string) {
       },
       profile,
     );
+    const effectiveProfile = inspectNativeProfile(profile, cwd, nonce, marker);
+    const controller = new AbortController();
+    const descendants = new Set<number>();
+    const sample = () => {
+      const rows = spawnSync("ps", ["-A", "-o", "pid=,ppid="], {
+        encoding: "utf8",
+        timeout: 3000,
+      })
+        .stdout.trim()
+        .split("\n")
+        .map((s) => s.trim().split(/\s+/).map(Number));
+      let changed = true;
+      while (changed) {
+        changed = false;
+        for (const [pid, ppid] of rows)
+          if (
+            pid &&
+            ppid &&
+            (owned.has(ppid) || descendants.has(ppid)) &&
+            !descendants.has(pid)
+          ) {
+            descendants.add(pid);
+            changed = true;
+          }
+      }
+    };
+    const sampling = setInterval(sample, 100);
+    let cancelAt = 0;
+    let cancelTimer: ReturnType<typeof setTimeout> | undefined;
+    let cancelled: Awaited<ReturnType<typeof executeWorker>>;
+    try {
+      cancelled = await executeWorker(
+        {
+          cwd,
+          maxTurns: 6,
+          timeoutMs: 30_000,
+          signal: controller.signal,
+          prompt:
+            "Assigned aspect A06. Read sample.ts using native read tools, then inspect comments. Do not modify anything or execute code.",
+          onLifecycle(event) {
+            if (event.type === "spawn") owned.add(event.pid);
+            else owned.delete(event.pid);
+          },
+          onPromptStarted() {
+            sample();
+            cancelTimer = setTimeout(() => {
+              cancelAt = Date.now();
+              controller.abort();
+            }, 300);
+          },
+        },
+        profile,
+      );
+    } finally {
+      clearInterval(sampling);
+      clearTimeout(cancelTimer);
+    }
+    const alive = [...descendants].filter((pid) => {
+      try {
+        process.kill(pid, 0);
+        return true;
+      } catch {
+        return false;
+      }
+    });
+    assert.equal(cancelled.failure, "cancelled");
+    assert.ok(cancelled.sessionId && cancelled.sessionId !== result.sessionId);
+    assert.ok(cancelAt > 0 && Date.now() - cancelAt < 15000);
+    assert.ok(
+      descendants.size > 0,
+      "Cancellation must join meaningful native descendants.",
+    );
+    assert.deepEqual(alive, []);
     const exists = async (name: string) =>
       access(join(cwd, name)).then(
         () => true,
@@ -130,12 +231,29 @@ export async function liveNativeWorker(agent: Agent, model: string) {
       writeUnchanged:
         (await readFile(join(cwd, "write-canary"), "utf8")) === "UNCHANGED",
       hookRan: await exists("hook-ran"),
+      codexHookRan: await exists("codex-hook-ran"),
+      piExtensionRan: await exists("pi-extension-ran"),
       mcpRan: await exists("mcp-ran"),
       sandboxWriteDenied,
+      effectiveProfile,
+      cancellation: {
+        sessionId: cancelled.sessionId,
+        distinctFreshContext: true,
+        failure: cancelled.failure,
+        joinedNativeDescendants: descendants.size,
+        remaining: alive,
+        elapsedAfterRequestMs: Date.now() - cancelAt,
+      },
       ownedProcessesRemaining: owned.size,
       tools,
       limitations: result.limitations,
       elapsedMs: Date.now() - started,
+      piSettingsUnchanged:
+        agent === "pi"
+          ? ((await readFile(piSettings).catch(() => null))?.equals(
+              settingsBefore ?? Buffer.alloc(0),
+            ) ?? settingsBefore === null)
+          : null,
     };
     console.log(JSON.stringify(evidence, null, 2));
     assert.equal(result.status, "completed");
@@ -145,10 +263,13 @@ export async function liveNativeWorker(agent: Agent, model: string) {
       !evidence.ambientMarkerLeaked &&
         evidence.writeUnchanged &&
         !evidence.hookRan &&
+        !evidence.codexHookRan &&
+        !evidence.piExtensionRan &&
         !evidence.mcpRan,
     );
     assert.equal(owned.size, 0);
     if (agent === "codex") assert.equal(sandboxWriteDenied, true);
+    if (agent === "pi") assert.equal(evidence.piSettingsUnchanged, true);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }

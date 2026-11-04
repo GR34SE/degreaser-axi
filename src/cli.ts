@@ -6,7 +6,14 @@ import {
   commandHelp,
   TOP_LEVEL_HELP,
 } from "./commands.js";
+import { loadConfig } from "./config.ts";
+import { repositoryRoot } from "./git.ts";
 import { CALLER_GUIDANCE, DESCRIPTION } from "./guidance.js";
+import { InputError } from "./input-error.ts";
+import { nativeProfile } from "./native-profile.ts";
+import { observedStatus } from "./report.ts";
+import { readCommand, review } from "./review.ts";
+import { loadRun, StateError } from "./storage.ts";
 import { VERSION } from "./version.js";
 
 function parseCommand(name: string, command: Command, args: string[]) {
@@ -50,21 +57,46 @@ function parseCommand(name: string, command: Command, args: string[]) {
 }
 
 function home() {
+  let local: Record<string, unknown>;
+  try {
+    const repository = repositoryRoot(process.cwd());
+    const config = loadConfig(repository);
+    local = { status: "configured", agent: config.agent, model: config.model };
+    try {
+      const run = loadRun(repository);
+      local = {
+        ...local,
+        run: run.id,
+        status: observedStatus(run),
+        next: `degreaser-axi report ${run.id}`,
+      };
+    } catch (error) {
+      if (error instanceof StateError)
+        local = { ...local, history: error.code, reason: error.message };
+      else throw error;
+    }
+  } catch (error) {
+    local = {
+      status: "unconfigured",
+      reason:
+        error instanceof InputError
+          ? error.message
+          : "Local repository context is unavailable.",
+    };
+  }
   return {
-    status: "development",
-    reason:
-      "Review execution and integrations are not implemented yet; no workers started.",
+    ...local,
     commands: Object.keys(COMMANDS),
     guidance: CALLER_GUIDANCE,
     help: ["degreaser-axi review --help", "degreaser-axi init --help"],
   };
 }
 
-function execute(
+async function execute(
   name: string,
   command: Command,
   args: string[],
-): string | Record<string, unknown> {
+): Promise<string | Record<string, unknown>> {
   if (name === "setup" && args[0] === "hooks") {
     const hooks = COMMANDS["setup hooks"];
     if (!hooks) throw new Error("Missing hooks command");
@@ -96,6 +128,31 @@ function execute(
   }
   if (name === "version") return VERSION;
   if (name === "home") return home();
+  if (name === "doctor") {
+    const config = loadConfig(repositoryRoot(process.cwd()));
+    try {
+      const profile = await nativeProfile(config);
+      return {
+        status: "ready",
+        agent: profile.agent,
+        model: profile.model,
+        adapterVersion: profile.adapterVersion,
+        nativeVersion: profile.nativeVersion,
+        limitations: profile.limitations,
+        modelAvailability: "Not checked; doctor does not call a model.",
+        integrations:
+          "Startup installation is not implemented in this development build.",
+      };
+    } catch {
+      throw new StateError(
+        "environment-blocked",
+        "Selected native harness is missing or incompatible. See the packaged native-profiles.md for supported versions; preserve managed host policy.",
+      );
+    }
+  }
+  if (name === "review") return review(args, process.cwd());
+  if (["wait", "report", "finding"].includes(name))
+    return readCommand(name, parsed.positionals, parsed.values, process.cwd());
   process.exitCode = 2;
   return {
     error: "environment-blocked",
@@ -111,10 +168,18 @@ export async function main(argv: string[]): Promise<void> {
   const commands = Object.fromEntries(
     Object.entries(COMMANDS).map(([name, command]) => [
       name,
-      (args: string[]) => {
+      async (args: string[]) => {
         try {
-          return execute(name, command, args);
+          return await execute(name, command, args);
         } catch (error) {
+          if (error instanceof InputError || error instanceof StateError) {
+            process.exitCode = 2;
+            return {
+              error: error.code,
+              reason: error.message,
+              help: [`degreaser-axi ${name} --help`],
+            };
+          }
           if (!(error instanceof AxiError)) throw error;
           process.exitCode = 2;
           return {

@@ -183,7 +183,7 @@ export async function executeWorker(
       handle,
       mode: "prompt",
       requestId: randomUUID(),
-      text: `${instruction}\n\n${request.prompt}`,
+      text: request.prompt,
       timeoutMs: request.timeoutMs,
       assertActive() {
         if (stopped) throw new Error("Worker admission cancelled.");

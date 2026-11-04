@@ -26,6 +26,12 @@ Each finding contains:
 - `recommendation`: a concise direction, not a patch.
 - `uncertainty`: any missing evidence affecting the finding.
 
+Every finding field above is a string except `location`. `uncertainty` is an
+optional string, not an array or null; omit it when there is no uncertainty.
+`reason` is an optional nonempty string except that it is required for
+`not-applicable`; omit it otherwise. Do not emit null for optional fields.
+No additional fields are accepted. The supplied JSON Schema is authoritative.
+
 All prose is English. Evidence is source-only. No score, minimum finding count,
 authorship claim or claim of executed tests is permitted. A malformed result
 or missing evidence must never be represented as a clean review.

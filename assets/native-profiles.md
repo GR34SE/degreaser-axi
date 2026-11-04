@@ -57,7 +57,20 @@ events. Codex additionally exercises native OS write denial separately; it does
 not claim the model attempted the denied write. Negative context canaries are not
 proof that all ambient metadata is absent.
 
+The same packaged native launchers also provide effective-profile observations:
+Codex's native prompt diagnostics show read-only/never approval, native MCP
+listing has no enabled servers, and feature listing confirms disabled
+hooks/apps/delegation and enabled code-mode. Claude's actual initialization
+advertises exactly Read/Grep/Glob, zero skills and zero MCP servers. Pi's native
+system messages advertise exactly read/grep/find/ls. Read nonces and inactive
+project hook/extension/instruction canaries accompany those checks.
+Each profile also creates a second fresh actual session, cancels it during a
+turn, and checks that observed owned native descendants have exited. Pi settings
+are byte-compared before/after without copying credentials.
+
 Deterministic fault fixtures are explicitly synthetic ACP servers exercising the
 real public runtime. They are not recordings of provider failures. Live evidence
 contains only selected identities, statuses, safe tool kinds and canary booleans.
-Public review/owner/report and native caller waiting flows are separate tests.
+The opt-in `review` scenario exercises compiled CLI/owner/report with one real
+approved model and no minimum finding count. Native caller startup/waiting flows
+remain separate integration work.

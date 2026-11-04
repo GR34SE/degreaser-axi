@@ -74,8 +74,12 @@ try {
     "catalog.md",
     "input-contract.md",
     "native-profiles.md",
+    "result-contract.md",
     "schemas/config-v1.json",
     "schemas/input-v1.json",
+    "schemas/result-v1.json",
+    "schemas/run-v1.json",
+    "schemas/state-v1.json",
     "skills/degreaser/SKILL.md",
   ]) {
     assert.ok(
@@ -97,7 +101,7 @@ const { prepareReview } = await import(pathToFileURL(join(installed, "dist/src/i
 const { validateReviewInput } = await import(pathToFileURL(join(installed, "dist/src/input-schema.js")));
 const cwd = mkdtempSync(join(process.argv[3], "input-repo-"));
 assert.equal(spawnSync("git", ["init"], { cwd }).status, 0);
-writeFileSync(join(cwd, ".gitignore"), ".degreaserrc.json\\n");
+writeFileSync(join(cwd, ".gitignore"), ".degreaserrc.json\\n/.degreaser/\\n");
 writeFileSync(join(cwd, ".degreaserrc.json"), JSON.stringify({ agent: "codex", model: "exact-fixture-id" }));
 writeFileSync(join(cwd, "source"), "installed input smoke\\n");
 const input = prepareReview(["--scope", "worktree", "--task", "Package smoke"], cwd);
@@ -106,6 +110,17 @@ assert.deepEqual(input.paths.map(p => p.path), [".gitignore", "source"]);
 assert.match(input.patch, /\\+installed input smoke/);
 assert.deepEqual(validateReviewInput(JSON.parse(JSON.stringify(input))), input);
 console.log("Installed input/config schemas and real-Git boundary passed.");
+const cli = join(installed, "dist/bin/degreaser-axi.js");
+for (const args of [
+  ["review", "--scope", "repository", "--task", "Installed coordinator-only audit", "--aspects", "A08"],
+  ["report", "--full"]
+]) {
+  const result = spawnSync(process.execPath, [cli, ...args], {cwd,encoding:"utf8",timeout:15000});
+  assert.equal(result.status,0,result.stdout + result.stderr);
+  assert.match(result.stdout,/status: completed/);
+  assert.match(result.stdout,/not-applicable/);
+}
+console.log("Installed detached owner, storage and report passed without model inference.");
 `,
   );
   run(process.execPath, [inputProbe, installed, temporary], temporary);

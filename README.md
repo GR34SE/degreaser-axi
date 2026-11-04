@@ -4,7 +4,7 @@ Focused slop review for coding agents.
 
 Degreaser gives your coding agent a second look at the feature it just built. It distributes the review across small models: each reviewer starts with a fresh context, investigates one kind of code slop, and returns evidence. Your coding agent decides what to fix.
 
-> Not released yet. This development build provides help, version, the public review catalog and native worker profiles. Public review execution and startup integrations are still under development. The workflow below describes the planned v1 interface.
+> Not released yet. This development build runs source-only reviews, waits for detached runs, and reads saved reports/findings. Init, startup integrations, public cancel/resume and full recovery are still under development.
 
 - **Review the change, understand the repository.** Reviewers assess your diff and can follow callers, tests, dependencies and existing helpers across the repo.
 - **One aspect per reviewer.** Sixteen focused reviews, each with examples of problems to report and justified code to preserve.
@@ -13,7 +13,7 @@ Degreaser gives your coding agent a second look at the feature it just built. It
 
 ## Get started
 
-The planned integrations cover Codex, Claude Code and Pi on macOS with Node 24+. Droid and Grok Build are deferred. Model calls will use your authenticated harness through [acpx](https://github.com/openclaw/acpx).
+Workers support Codex, Claude Code and Pi on macOS with Node 24+. Droid and Grok Build are deferred. Model calls use your authenticated harness through [acpx](https://github.com/openclaw/acpx).
 
 To inspect the current interface from a local checkout (pnpm 12.14.0):
 
@@ -25,6 +25,12 @@ node dist/bin/degreaser-axi.js --version
 ```
 
 There is no published npm installation or self-update path.
+
+For direct use now, put your explicitly selected `agent` and exact `model` in the
+target repository's root `.degreaserrc.json` and add `/.degreaser/` to its root
+`.gitignore`. From that repository, invoke the absolute path to this checkout's
+`dist/bin/degreaser-axi.js` with Node. The examples below use `degreaser-axi` as
+shorthand for that command. Use `--aspects A06` for a first one-aspect review.
 
 The worker profiles currently require Codex ACP 2.5.0 with bundled Codex 0.165.0,
 Claude Code 2.1.317, or Pi 1.4.0. See [native worker restrictions and limits](assets/native-profiles.md).
@@ -62,7 +68,7 @@ degreaser-axi review --scope repository --task "Review the repository for unnece
 
 Use `--task-file <path>` instead of `--task` for a longer brief. An empty diff finishes without starting reviewers.
 
-If a review returns `running`, use its supplied `degreaser-axi wait <run-id>` command. Keep the code unchanged until the run finishes. If some reviewers fail, their completed peers' results remain available; `resume <run-id>` continues unresolved work while the review input is unchanged.
+If a review returns `running`, use its supplied `degreaser-axi wait <run-id>` command. Keep the code unchanged until the run finishes. If some reviewers fail, their completed peers' results remain available. Public `resume` is not implemented yet.
 
 ## What it looks for
 
@@ -91,7 +97,7 @@ A loop, wrapper, validation check or smoke test is not automatically slop. Revie
 
 ## Configure the review
 
-Init saves your chosen harness and model in `.degreaserrc.json`. You can disable built-in aspects, set a concurrency limit, or override the model for individual aspects.
+The root `.degreaserrc.json` stores your chosen harness and model. You can disable built-in aspects, set a concurrency limit, or override the model for individual aspects. Init will write this file once onboarding is implemented.
 
 For example, after selecting Codex and Luna:
 
@@ -108,7 +114,7 @@ For example, after selecting Codex and Luna:
 
 Without a concurrency limit, all enabled aspects can run in parallel. A lower limit reduces simultaneous calls; it does not reduce the number of aspects reviewed. Retries and continuation keep your selected harness and model.
 
-The root RC follows the strict versioned schema in `dist/assets/schemas/config-v1.json`. Unknown fields and explicitly selected disabled aspects are errors. See `dist/assets/input-contract.md` in the built package for exact bounds, literal-path exclusions and Git representation limits. Public review execution is still under development.
+The root RC follows the strict versioned schema in `dist/assets/schemas/config-v1.json`. Unknown fields and explicitly selected disabled aspects are errors. See `dist/assets/input-contract.md` in the built package for exact bounds, literal-path exclusions and Git representation limits.
 
 To review only specific aspects for one run, without changing your configuration:
 
@@ -124,9 +130,15 @@ The CLI follows [AXI](https://axi.md/): a short summary, details on demand, and 
 degreaser-axi report          # Latest run and findings.
 degreaser-axi report --full   # Full evidence.
 degreaser-axi finding F1     # One finding from the latest run.
-degreaser-axi doctor         # Configuration and integration diagnostics.
+degreaser-axi doctor         # Local configuration/native-version diagnostics, no inference.
 ```
 
 Each finding explains what is wrong, where it occurs, why it matters and what would improve it. Incomplete reviews are marked explicitly. Reviewers inspect source; they do not run tests or claim runtime verification.
 
 Results and progress are saved locally in ignored `.degreaser/`. Review context is sent through your chosen harness to its model provider. Degreaser does not apply fixes; your coding agent decides which findings warrant changes.
+
+A real one-aspect Claude Haiku review returned `completed`, `aspects: 1/1` and a
+source-only finding quoting `// Return the sum of two numbers.` The literal quote
+passed validation; the caller still decides whether its recommendation applies.
+Zero findings is equally valid. See [result validation and local data limits](assets/result-contract.md).
+Stored tasks, patches and quotes can contain sensitive code; do not publish local run artifacts.
