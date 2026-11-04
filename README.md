@@ -18,7 +18,7 @@ The caller supplies the code scope, task and branch base when needed. Degreaser 
 
 Init prefills a recommended small model, and the user explicitly confirms or changes it. The same CLI must work from Codex, Claude Code, Droid and Pi without caller configuration. Worker execution uses [acpx](https://github.com/openclaw/acpx). Adapter behavior, account access and model availability still need integration validation in development.
 
-A portable skill teaches discovery and usage. The calling agent stays until review actually completes; each run is owned by a per-run background process, so a caller whose command timed out re-attaches with `degreaser-axi wait <run-id>`. Whether init should offer optional hooks remains open (D08).
+A portable skill teaches discovery and usage. The calling agent stays until review actually completes; each run is owned by a per-run background process, so a caller whose command timed out re-attaches with `degreaser-axi wait <run-id>`. Init installs the startup hook (or native lifecycle equivalent) and skill for each selected harness: Codex, Claude Code, Pi and Droid. There is no separate hook-versus-skill choice (D08).
 
 ## Working on this repository
 
