@@ -72,6 +72,9 @@ try {
     "worker.md",
     "response.md",
     "catalog.md",
+    "input-contract.md",
+    "schemas/config-v1.json",
+    "schemas/input-v1.json",
     "skills/degreaser/SKILL.md",
   ]) {
     assert.ok(
@@ -79,6 +82,32 @@ try {
         200,
     );
   }
+  const inputProbe = join(temporary, "input-probe.mjs");
+  await writeFile(
+    inputProbe,
+    `
+import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+const installed = process.argv[2];
+const { prepareReview } = await import(pathToFileURL(join(installed, "dist/src/input.js")));
+const { validateReviewInput } = await import(pathToFileURL(join(installed, "dist/src/input-schema.js")));
+const cwd = mkdtempSync(join(process.argv[3], "input-repo-"));
+assert.equal(spawnSync("git", ["init"], { cwd }).status, 0);
+writeFileSync(join(cwd, ".gitignore"), ".degreaserrc.json\\n");
+writeFileSync(join(cwd, ".degreaserrc.json"), JSON.stringify({ agent: "codex", model: "exact-fixture-id" }));
+writeFileSync(join(cwd, "source"), "installed input smoke\\n");
+const input = prepareReview(["--scope", "worktree", "--task", "Package smoke"], cwd);
+assert.equal(input.config.assignments.length, 16);
+assert.deepEqual(input.paths.map(p => p.path), [".gitignore", "source"]);
+assert.match(input.patch, /\\+installed input smoke/);
+assert.deepEqual(validateReviewInput(JSON.parse(JSON.stringify(input))), input);
+console.log("Installed input/config schemas and real-Git boundary passed.");
+`,
+  );
+  run(process.execPath, [inputProbe, installed, temporary], temporary);
   const minimumNode = process.env.DEGREASER_NODE24_MIN;
   if (minimumNode) {
     assert.match(run(minimumNode, ["--version"], temporary), /^v24\.0\.0\n$/);
@@ -88,7 +117,10 @@ try {
       run(minimumNode, [cli, "review", "--help"], temporary),
       /--task-file/,
     );
-    console.log("Installed compiled package: Node 24.0.0 version/help passed.");
+    run(minimumNode, [inputProbe, installed, temporary], temporary);
+    console.log(
+      "Installed compiled package: Node 24.0.0 version/help and real-Git input passed.",
+    );
   } else {
     console.log(
       "Minimum Node 24.0.0 check not run; set DEGREASER_NODE24_MIN to its executable.",

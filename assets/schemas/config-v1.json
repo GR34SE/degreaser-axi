@@ -1,0 +1,74 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://degreaser.dev/schemas/config-v1.json",
+  "title": "Degreaser project configuration v1",
+  "description": "Root .degreaserrc.json only. Omitted schemaVersion means v1. No coercion, custom aspects, global RC or automatic model selection.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["agent", "model"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "agent": { "$ref": "#/definitions/agent" },
+    "model": { "$ref": "#/definitions/model" },
+    "concurrency": { "$ref": "#/definitions/positiveInteger" },
+    "maxRetries": { "type": "integer", "minimum": 0, "maximum": 10 },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "workerTimeoutSeconds": { "$ref": "#/definitions/seconds" },
+        "maxTurns": { "$ref": "#/definitions/positiveInteger" },
+        "runTimeoutSeconds": { "$ref": "#/definitions/seconds" }
+      }
+    },
+    "aspects": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enable": { "$ref": "#/definitions/aspectList" },
+        "disable": { "$ref": "#/definitions/aspectList" },
+        "overrides": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/definitions/aspect" },
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["model"],
+            "properties": {
+              "agent": { "$ref": "#/definitions/agent" },
+              "model": { "$ref": "#/definitions/model" }
+            },
+            "allOf": [{ "$ref": "#/definitions/piIdentity" }]
+          }
+        }
+      }
+    },
+    "exclude": {
+      "description": "Literal repository-relative files or directory prefixes, not globs or Git pathspecs. Built-in exclusions cannot be undone.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^(?![!/])(?=.*\\S)(?!(?:\\.|\\.\\.)(?:/|$))[^/\\\\\\u0000*?\\[\\]{}]+(?:/(?!(?:\\.|\\.\\.)(?:/|$))[^/\\\\\\u0000*?\\[\\]{}]+)*$"
+      }
+    }
+  },
+  "allOf": [{ "$ref": "#/definitions/piIdentity" }],
+  "definitions": {
+    "agent": { "enum": ["codex", "claude", "pi"] },
+    "model": { "type": "string", "pattern": "^\\S+$" },
+    "positiveInteger": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+    "seconds": { "type": "integer", "minimum": 1, "maximum": 2147483 },
+    "aspect": { "type": "string", "pattern": "^A(?:0[1-9]|1[0-6])$" },
+    "aspectList": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/definitions/aspect" }
+    },
+    "piIdentity": {
+      "type": "object",
+      "if": { "properties": { "agent": { "const": "pi" } }, "required": ["agent"] },
+      "then": { "properties": { "model": { "type": "string", "pattern": "^[^/\\s]+/\\S+$" } } }
+    }
+  }
+}

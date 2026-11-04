@@ -1,0 +1,120 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://degreaser.dev/schemas/input-v1.json",
+  "title": "Resolved Degreaser review input v1",
+  "description": "Serializable coordinator input. The owner persists this before dispatch; this is not a live-context snapshot or an assembled-prompt identity.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "status", "repository", "scope", "baseRef", "task", "waitSeconds", "config", "base", "tree", "paths", "excludedPaths", "patch", "limitations", "workers", "coordinatorResults"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "status": { "enum": ["ready", "no-changes"] },
+    "repository": { "type": "string", "pattern": "^/" },
+    "scope": { "enum": ["worktree", "branch", "repository"] },
+    "baseRef": { "type": ["string", "null"] },
+    "task": { "type": "string", "pattern": "\\S" },
+    "waitSeconds": { "$ref": "config-v1.json#/definitions/seconds" },
+    "config": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["assignments", "concurrency", "maxRetries", "limits", "exclude"],
+      "properties": {
+        "assignments": { "type": "array", "minItems": 1, "maxItems": 16, "uniqueItems": true, "items": { "$ref": "#/definitions/assignment" } },
+        "concurrency": { "anyOf": [{ "type": "null" }, { "$ref": "config-v1.json#/definitions/positiveInteger" }] },
+        "maxRetries": { "$ref": "config-v1.json#/properties/maxRetries" },
+        "limits": {
+          "allOf": [
+            { "$ref": "config-v1.json#/properties/limits" },
+            { "type": "object", "required": ["workerTimeoutSeconds", "maxTurns", "runTimeoutSeconds"], "properties": { "workerTimeoutSeconds": {}, "maxTurns": {}, "runTimeoutSeconds": {} } }
+          ]
+        },
+        "exclude": { "$ref": "config-v1.json#/properties/exclude" }
+      }
+    },
+    "base": { "anyOf": [{ "type": "null" }, { "$ref": "#/definitions/oid" }] },
+    "tree": { "$ref": "#/definitions/oid" },
+    "paths": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "oldPath", "status", "oldMode", "newMode", "oldOid", "newOid", "binary"],
+        "properties": {
+          "path": { "$ref": "#/definitions/path" },
+          "oldPath": { "anyOf": [{ "type": "null" }, { "$ref": "#/definitions/path" }] },
+          "status": { "type": "string", "pattern": "^(?:audit|[ADMT]|R[0-9]{1,3})$" },
+          "oldMode": { "$ref": "#/definitions/mode" },
+          "newMode": { "$ref": "#/definitions/mode" },
+          "oldOid": { "anyOf": [{ "type": "null" }, { "$ref": "#/definitions/oid" }] },
+          "newOid": { "anyOf": [{ "type": "null" }, { "$ref": "#/definitions/oid" }] },
+          "binary": { "type": "boolean" }
+        }
+      }
+    },
+    "excludedPaths": { "$ref": "#/definitions/paths" },
+    "patch": { "type": ["string", "null"] },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "message"],
+        "properties": {
+          "code": { "type": "string", "minLength": 1 },
+          "message": { "type": "string", "minLength": 1 },
+          "paths": { "$ref": "#/definitions/paths" }
+        }
+      }
+    },
+    "workers": { "type": "array", "maxItems": 16, "uniqueItems": true, "items": { "$ref": "#/definitions/assignment" } },
+    "coordinatorResults": {
+      "type": "array",
+      "maxItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["aspect", "status", "findings", "limitations", "reason"],
+        "properties": {
+          "aspect": { "const": "A08" },
+          "status": { "const": "not-applicable" },
+          "findings": { "type": "array", "maxItems": 0 },
+          "limitations": { "type": "array", "maxItems": 0 },
+          "reason": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "scope": { "const": "repository" } }, "required": ["scope"] },
+      "then": { "properties": { "base": { "type": "null" }, "patch": { "type": "null" }, "status": { "const": "ready" } } },
+      "else": { "properties": { "base": { "$ref": "#/definitions/oid" }, "patch": { "type": "string" }, "coordinatorResults": { "type": "array", "maxItems": 0 } } }
+    },
+    {
+      "if": { "properties": { "scope": { "const": "branch" } }, "required": ["scope"] },
+      "then": { "properties": { "baseRef": { "type": "string", "pattern": "\\S" } } },
+      "else": { "properties": { "baseRef": { "type": "null" } } }
+    },
+    {
+      "if": { "properties": { "status": { "const": "no-changes" } }, "required": ["status"] },
+      "then": { "properties": { "paths": { "type": "array", "maxItems": 0 }, "workers": { "type": "array", "maxItems": 0 }, "patch": { "const": "" } } }
+    }
+  ],
+  "definitions": {
+    "oid": { "type": "string", "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$" },
+    "path": { "type": "string", "pattern": "^(?!(?:\\.|\\.\\.)(?:/|$))[^/\\u0000]+(?:/(?!(?:\\.|\\.\\.)(?:/|$))[^/\\u0000]+)*$" },
+    "paths": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/definitions/path" } },
+    "mode": { "enum": [null, "100644", "100755", "120000", "160000"] },
+    "assignment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["aspect", "agent", "model"],
+      "properties": {
+        "aspect": { "$ref": "config-v1.json#/definitions/aspect" },
+        "agent": { "$ref": "config-v1.json#/definitions/agent" },
+        "model": { "$ref": "config-v1.json#/definitions/model" }
+      },
+      "allOf": [{ "$ref": "config-v1.json#/definitions/piIdentity" }]
+    }
+  }
+}
