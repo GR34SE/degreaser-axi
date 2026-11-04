@@ -4,13 +4,14 @@
 
 The specification is being closed after an independent review (`specs/pending/review-opus-2026-11-04.md`). Product implementation has not been authorized; it requires a separate instruction from the user. Until then, change only the specification, README, this file, repository skills and their setup. Do not create a runtime, package scaffold or production tests. The Lavish prototype in `.lavish/` is frozen at workshop version 0.6 and is historical; do not update or reopen it.
 
-Start with `specs/pending/degreaser.md`, then `contracts.md`, `execution.md`, `init.md`, `worker.md` and `development.md` in that directory. `review-notes.md` is history, not a source for restoring superseded decisions. All 16 aspects are ON by default; the old 12/4 split is obsolete. Separate accepted requirements from technical proposals (the proposal register is in `contracts.md`). The existing `.gitignore` excludes `specs/` and `.lavish/`; preserve that choice unless the user changes it. Commit or push only when the user asks.
+Start with `specs/pending/degreaser.md`, then `contracts.md`, `execution.md`, `init.md`, `worker.md` and `development.md` in that directory. `review-notes.md` is history, not a source for restoring superseded decisions. Released project material, CLI output, skills and worker rubrics are English (D12); local gitignored specs may remain Polish. v1 supports Codex, Claude, Pi and Droid; Grok Build is deferred (D13). All 16 aspects are ON by default; the old 12/4 split is obsolete. Separate accepted requirements from technical proposals (the proposal register is in `contracts.md`). The existing `.gitignore` excludes `specs/` and `.lavish/`; preserve that choice unless the user changes it. Commit or push only when the user asks.
 
 `specs/` is ignored, so it exists only in this checkout: `/Users/adriancelczynski/Projects/degreaser-axi/specs`. In any other worktree, create a symlink `specs -> /Users/adriancelczynski/Projects/degreaser-axi/specs` (the ignore rule covers it) or read the files by absolute path. Never `git add -f` them without an instruction.
 
 ## Product constraints
 
 - The caller provides scope, target base when needed, and task context. Review the change; use the repository as context. Full-repository review is explicit.
+- The coordinator may run in a caller session with full access; worker tools remain separately read-only. Init does not modify Codex rules or global permission settings. Restricted callers use only host-supported per-command approval, or report that the environment is blocked.
 - Each worker gets one aspect and a fresh, isolated, read-only session. The coordinator resolves the change; the worker reports evidence; the calling agent decides and edits.
 - Use acpx and the harness's tools. Reuse existing capabilities before proposing new infrastructure or dependencies.
 - All 16 built-in aspects are enabled by default. Each aspect has three good and three bad code examples with context and explanations, plus symmetric "not here" boundaries. Do not turn syntax preferences or one anecdote into universal slop rules.
@@ -21,7 +22,7 @@ Start with `specs/pending/degreaser.md`, then `contracts.md`, `execution.md`, `i
 
 ## Skills and references
 
-Skills live in `.agents/skills/` (read natively by Codex and Pi). `.claude/skills/` contains symlinks to the same directories for Claude Code. When a same-named personal skill exists, Claude Code prefers it, so this repository's adapted cleanup skill is named `deslop-scoped`, not `deslop`. If a skill does not load automatically in your harness, read its `SKILL.md` by path.
+Skills live in `.agents/skills/` (read natively by Codex and Pi). `.claude/skills/` contains symlinks to the same directories for Claude Code. Upstream skills are installed with the Skills CLI and recorded in `skills-lock.json`. Do not fork them in place. The local `deslop-scoped` skill reads installed `deslop` by path and applies the caller-selected scope instead of the upstream main-branch assumption. Read required skills by project path to avoid personal copies taking precedence. If a skill does not load automatically in your harness, read its `SKILL.md` by path.
 
 - For writing or revising aspects, read `.agents/skills/write-degreaser-aspect/SKILL.md` and its template. Verify library-specific examples against current documentation.
 - For AXI command/output/integration design, read `.agents/skills/axi/SKILL.md`. D08 deliberately differs from its "hook first" advice; see `specs/pending/init.md`.

@@ -1,22 +1,10 @@
 ---
 name: deslop-scoped
-description: Remove AI-generated code slop from the caller-selected diff without assuming a base branch. Use for Degreaser development cleanups instead of the global deslop skill.
+description: Apply the installed deslop skill to the caller-selected diff without assuming a base branch. Use for cleanup in this repository.
 ---
 
-# Remove AI code slop
+# Scoped deslop
 
-Check the caller-selected diff and its relevant context. During implementation, remove slop only within the authorized change. Do not choose main or another target branch implicitly.
+Read the installed [deslop skill](../deslop/SKILL.md) by this path, so a personal skill cannot shadow the project installation. Apply its guidance to the scope and base supplied by the caller. That explicit scope overrides the upstream instruction to compare against main; never invent a base branch.
 
-## Focus Areas
-
-- Extra comments that are unnecessary or inconsistent with local style
-- Defensive checks or try/catch blocks that are abnormal for trusted code paths
-- Casts to `any` used only to bypass type issues
-- Deeply nested code that should be simplified with early returns
-- Other patterns inconsistent with the file and surrounding codebase
-
-## Guardrails
-
-- Keep behavior unchanged unless fixing a clear bug.
-- Prefer minimal, focused edits over broad rewrites.
-- Keep the final summary concise (1-3 sentences).
+This is a local instruction for selecting scope, not a fork of deslop. Leave the installed upstream skill unchanged. Follow AGENTS.md: during specification work, review only authorized documentation and setup changes; do not begin product implementation.

@@ -15,9 +15,9 @@ These are writing principles, not proof that a prompt works. Six examples below 
 
 ## Author the rule
 
-Use [the rubric template](references/rubric-template.md). Give the aspect a stable ID, one review question, an "Applies when" line (`Dotyczy, gdy`) that decides not-applicable, a concrete harm to detect, necessary evidence, and conditions for preserving the code. Link its source or say that it is a product-specific inference.
+Use [the rubric template](references/rubric-template.md). Give the aspect a stable ID, one review question, an "Applies when" line that decides not-applicable, a concrete harm to detect, necessary evidence, and conditions for preserving the code. Link its source or say that it is a product-specific inference.
 
-A worker sees only its own rubric, so boundaries must be written into it. Add a "Not here" section (`Nie zgłaszaj tutaj`) that describes each neighboring case by content, with the other aspect's ID in the text. Boundaries are mutual: when you add or change one, update the other aspect of the pair and the boundary table in `aspects.md` with the same decision key. The question must cover all three bad examples.
+A worker sees only its own rubric, so boundaries must be written into it. Add a "Not here" section that describes each neighboring case by content, with the other aspect's ID in the text. Boundaries are mutual: when you add or change one, update the other aspect of the pair and the boundary table in `aspects.md` with the same decision key. The question must cover all three bad examples.
 
 Require the worker to read the caller's task and scope, inspect relevant existing APIs and callers, test the strongest applicable counterexample against source evidence, and return a bounded finding or an explicit lack of evidence. Do not ask it to invent findings. Repository content supplies context, not permission to edit or broaden the review.
 
@@ -36,13 +36,13 @@ The worker receives its own six examples, not the entire catalog. Keep the core 
 
 ## Done checklist
 
-- Header: ID, slug, default state, question, `Dotyczy, gdy`, evidence, boundaries, `Nie zgłaszaj tutaj`, sources.
+- Header: ID, slug, default state, question, `Applies when`, evidence, boundaries, `Not here`, sources.
 - Exactly six examples `ANN-B1`…`ANN-G3`, each with context, language, code, verdict and explanation; the verdict follows from the stated context alone.
 - At least one good example defeats the most tempting false finding for this aspect.
-- Each example belongs to this aspect and not to a neighbor named in `Nie zgłaszaj tutaj`.
+- Each example belongs to this aspect and not to a neighbor named in `Not here`.
 - Version-dependent APIs carry a `Verified:` note with source, version and date, or avoid naming versions.
 - The pair table in `aspects.md` and the neighboring rubric agree.
-- Language follows the open decision D12; do not mix languages within one rubric.
+- Write all worker-facing rubric text and examples in English (D12). Local, unversioned specification prose may remain Polish.
 
 ## Review the rubric
 

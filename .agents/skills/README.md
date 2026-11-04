@@ -1,33 +1,35 @@
 # Repository skills
 
-These seven skills are instructions for developing Degreaser. They are not the skill installed in customer projects. Read the relevant skill before its workflow; AGENTS.md defines the current scope.
+External skills are installed with the [Skills CLI](https://skills.sh/docs/cli), not maintained as hand-copied forks. `skills-lock.json` records their sources and content hashes. Do not edit installed upstream files; keep repository-specific guidance in AGENTS.md or a small local skill.
 
-| Skill | Use |
+| Skill | Origin and use |
 | --- | --- |
-| [write-degreaser-aspect](write-degreaser-aspect/SKILL.md) | Rubrics, boundaries, evidence and six examples; authored for this repository. |
-| [axi](axi/SKILL.md) | Official AXI interface conventions. |
-| [lavish](lavish/SKILL.md) | Visual review when requested; the previous workshop is closed. |
-| [deslop-scoped](deslop-scoped/SKILL.md) | Clean the authorized implementation diff within the caller-selected scope. |
-| [thermo-nuclear-code-quality-review](thermo-nuclear-code-quality-review/SKILL.md) | Required structural quality review during development, applied to the caller-selected scope. |
-| [test-audit](test-audit/SKILL.md) | Required when adding or reviewing tests. |
-| [no-mistakes](no-mistakes/SKILL.md) | Required development validation pipeline; not initialized or run during preparation. |
+| [axi](axi/SKILL.md) | `kunchenguid/axi`: AXI interface conventions. |
+| [lavish](lavish/SKILL.md) | `kunchenguid/lavish-axi`: authorized visual workshops; the previous workshop is closed. |
+| [deslop](deslop/SKILL.md) | `cursor/plugins`: upstream cleanup guidance, invoked through deslop-scoped here. |
+| [thermo-nuclear-code-quality-review](thermo-nuclear-code-quality-review/SKILL.md) | `cursor/plugins`: required structural review during development. |
+| [no-mistakes](no-mistakes/SKILL.md) | `kunchenguid/no-mistakes`: required development validation pipeline. |
+| [deslop-scoped](deslop-scoped/SKILL.md) | Local scope instruction that reads installed deslop by path. |
+| [test-audit](test-audit/SKILL.md) | Existing custom local test-review instructions; not replaced with a different upstream skill. |
+| [write-degreaser-aspect](write-degreaser-aspect/SKILL.md) | Project-authored rubrics, boundaries, evidence and six teaching examples. |
 
-The future product skill is an [authoring template](../../specs/pending/templates/degreaser/SKILL.md), outside the active skills directory until the CLI exists.
+The future [product skill template](../../specs/pending/templates/degreaser/SKILL.md) stays outside the active skill directory until the CLI exists.
+
+## Install and update
+
+Run from the repository root. These commands install only project skills, with canonical files under `.agents/skills/` and Claude Code symlinks under `.claude/skills/`:
+
+```sh
+npx skills add kunchenguid/axi --skill axi --agent codex claude-code pi -y
+npx skills add kunchenguid/lavish-axi --skill lavish --agent codex claude-code pi -y
+npx skills add cursor/plugins --skill deslop thermo-nuclear-code-quality-review --agent codex claude-code pi -y
+npx skills add kunchenguid/no-mistakes --skill no-mistakes --agent codex claude-code pi -y
+```
+
+To restore locked installations, use `npx skills experimental_install --frozen-lockfile`; to update deliberately, use `npx skills update --project` and review the resulting changes. Installing a skill does not update its CLI or authorize executing its workflow. Check the installed CLI's current help before use; no-mistakes has not been initialized or run here.
 
 ## Discovery
 
-`.agents/skills/` is read natively by Codex and Pi. Claude Code reads only `.claude/skills/`, so that directory contains one symlink per skill pointing here; Claude Code supports symlinked skill directories. Claude Code prefers a personal skill over a project skill with the same name. The adapted cleanup skill is therefore named `deslop-scoped`, so a global `deslop` (which diffs against main) cannot shadow it. The other skills are identical to the user's global copies, so shadowing them changes nothing. Droid discovery (`.factory/skills`) is not set up; read skills by path there.
+Codex and Pi use `.agents/skills/`; Claude Code uses `.claude/skills/` symlinks to the same directories, including the three local skills. Read required skills by their project paths to avoid personal copies taking precedence. In particular, thermo-nuclear disables automatic model invocation, and deslop-scoped selects the installed deslop explicitly. Droid discovery is not configured in this developer checkout; read the files by path when using it.
 
-## Provenance and licenses
-
-Each copied skill has a `SOURCE.md` (source, fetch date, modifications, checksum) and, where the source is licensed, its `LICENSE`:
-
-- `axi`: kunchenguid/axi, MIT, unmodified.
-- `deslop-scoped`: cursor/plugins `cursor-team-kit/skills/deslop`, MIT (Cursor), modified.
-- `thermo-nuclear-code-quality-review`: cursor/plugins, MIT (Cursor), unmodified.
-- `lavish`: kunchenguid/lavish-axi, MIT (Kun Chen), unmodified.
-- `no-mistakes`: kunchenguid/no-mistakes, MIT (Kun Chen), version matching CLI v1.84.0.
-- `test-audit`: the user's local skill, inspired by openclaw's test-audit but not a copy of its text.
-- `write-degreaser-aspect` and the product template: authored for this project.
-
-Native metadata such as `disable-model-invocation` (thermo review) and `user-invocable` (no-mistakes) is preserved from the source. With `disable-model-invocation`, Claude Code does not load the skill automatically, so AGENTS.md routes the mandatory reviews by path.
+Project-facing text, skills and worker rubrics are English. Local, gitignored specifications and workshop history may remain Polish (D12). Keep upstream metadata and any files supplied by the installer unchanged. No additional hand-maintained SOURCE.md or LICENSE sidecars are needed for the local skills.

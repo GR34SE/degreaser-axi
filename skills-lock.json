@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "skills": {
+    "axi": {
+      "source": "kunchenguid/axi",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/axi/SKILL.md",
+      "computedHash": "b4294fa06402d65a8fce0528bd4bca9286d19fbcd9882717d0ebe8821c24a563"
+    },
+    "deslop": {
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "skillPath": "cursor-team-kit/skills/deslop/SKILL.md",
+      "computedHash": "8883a7d459c07a0b2ee06972e79baa634009aa3bab969a6650acbefac394ad41"
+    },
+    "lavish": {
+      "source": "kunchenguid/lavish-axi",
+      "sourceType": "github",
+      "skillPath": "skills/lavish/SKILL.md",
+      "computedHash": "7a82385996353d525e181bbcef8d95c4d43bfdbc666cd4e91d073d32201c5dcd"
+    },
+    "no-mistakes": {
+      "source": "kunchenguid/no-mistakes",
+      "sourceType": "github",
+      "skillPath": "skills/no-mistakes/SKILL.md",
+      "computedHash": "e19c5b1b51c46a1a704125aac44cd3492579c3743f37ce950e375f9c41b4bc24"
+    },
+    "thermo-nuclear-code-quality-review": {
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "skillPath": "cursor-team-kit/skills/thermo-nuclear-code-quality-review/SKILL.md",
+      "computedHash": "9052b01b46b1d8dbf94c45f9313ec1983443f9a460e83d49cdc7fe0f640ca476"
+    }
+  }
+}
