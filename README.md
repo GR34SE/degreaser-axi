@@ -4,7 +4,7 @@ Focused slop review for coding agents.
 
 Degreaser gives your coding agent a second look at the feature it just built. It distributes the review across small models: each reviewer starts with a fresh context, investigates one kind of code slop, and returns evidence. Your coding agent decides what to fix.
 
-> Not released yet. The workflow and commands below describe the planned v1 interface.
+> Not released yet. This development build provides help, version and the public review catalog. Review execution and integrations are not implemented yet. The workflow below describes the planned v1 interface.
 
 - **Review the change, understand the repository.** Reviewers assess your diff and can follow callers, tests, dependencies and existing helpers across the repo.
 - **One aspect per reviewer.** Sixteen focused reviews, each with examples of problems to report and justified code to preserve.
@@ -13,9 +13,20 @@ Degreaser gives your coding agent a second look at the feature it just built. It
 
 ## Get started
 
-The planned integrations cover Codex, Claude Code, Pi and Droid. Model calls use your authenticated harness through [acpx](https://github.com/openclaw/acpx).
+The planned integrations cover Codex, Claude Code and Pi on macOS with Node 24+. Droid and Grok Build are deferred. Model calls will use your authenticated harness through [acpx](https://github.com/openclaw/acpx).
 
-Run setup in your project:
+To inspect the current interface from a local checkout (pnpm 12.14.0):
+
+```sh
+pnpm install --frozen-lockfile --ignore-scripts
+pnpm build
+node dist/bin/degreaser-axi.js --help
+node dist/bin/degreaser-axi.js --version
+```
+
+There is no published npm installation or self-update path.
+
+Planned setup in your project:
 
 ```sh
 degreaser-axi init

@@ -3,3 +3,10 @@
 specs
 .references
 .degreaser
+node_modules/
+dist/
+*.tgz
+.env
+.env.*
+!.env.example
+coverage/
