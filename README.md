@@ -4,7 +4,7 @@ Focused slop review for coding agents.
 
 Degreaser gives your coding agent a second look at the feature it just built. It distributes the review across small models: each reviewer starts with a fresh context, investigates one kind of code slop, and returns evidence. Your coding agent decides what to fix.
 
-> Not released yet. This development build provides help, version and the public review catalog. Review execution and integrations are not implemented yet. The workflow below describes the planned v1 interface.
+> Not released yet. This development build provides help, version, the public review catalog and native worker profiles. Public review execution and startup integrations are still under development. The workflow below describes the planned v1 interface.
 
 - **Review the change, understand the repository.** Reviewers assess your diff and can follow callers, tests, dependencies and existing helpers across the repo.
 - **One aspect per reviewer.** Sixteen focused reviews, each with examples of problems to report and justified code to preserve.
@@ -25,6 +25,9 @@ node dist/bin/degreaser-axi.js --version
 ```
 
 There is no published npm installation or self-update path.
+
+The worker profiles currently require Codex ACP 2.5.0 with bundled Codex 0.165.0,
+Claude Code 2.1.317, or Pi 1.4.0. See [native worker restrictions and limits](assets/native-profiles.md).
 
 Planned setup in your project:
 

@@ -1,6 +1,8 @@
 packages:
   - .
 minimumReleaseAge: 10080
+minimumReleaseAgeExclude:
+  - '@agentclientprotocol/codex-acp@2.5.0'
 ignoreScripts: true
 allowBuilds:
   esbuild@0.28.2: false

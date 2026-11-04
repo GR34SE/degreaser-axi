@@ -30,9 +30,12 @@
     "test:live": "node scripts/test-live.ts"
   },
   "dependencies": {
+    "@agentclientprotocol/claude-agent-acp": "0.95.0",
+    "@agentclientprotocol/codex-acp": "2.5.0",
     "acpx": "0.21.1",
     "ajv": "8.20.0",
-    "axi-sdk-js": "0.1.13"
+    "axi-sdk-js": "0.1.13",
+    "pi-acp": "0.0.33"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.3",
