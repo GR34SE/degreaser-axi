@@ -2,7 +2,7 @@
 
 Focused slop review for coding agents: one aspect per fresh, isolated, read-only worker, repository context, evidence returned through an AXI CLI. A better deslop: the calling agent gets evidence from 16 specialised reviewers and decides what to fix.
 
-**Status: specification being closed; product development has not started.** There is no working Degreaser CLI or installable product yet.
+**Status: specification ready for implementation handoff; product development has not started.** There is no working Degreaser CLI or installable product yet.
 
 Start with the [specification](specs/pending/degreaser.md) and [development handoff](specs/pending/development.md). The package includes:
 
