@@ -10,6 +10,7 @@ Start with `specs/pending/degreaser.md`, then `contracts.md`, `execution.md`, `i
 
 ## Product constraints
 
+- The root README is for Degreaser users: purpose, setup, usage, configuration and results. Keep development handoff, internal decisions and local spec links in `specs/` and this file, not in the README. Until release, label planned usage honestly; do not invent installation instructions for an unpublished package.
 - The caller provides scope, target base when needed, and task context. Review the change; use the repository as context. Full-repository review is explicit.
 - The coordinator may run in a caller session with full access; worker tools remain separately read-only. Init does not modify Codex rules or global permission settings. Restricted callers use only host-supported per-command approval, or report that the environment is blocked.
 - Each worker gets one aspect and a fresh, isolated, read-only session. The coordinator resolves the change; the worker reports evidence; the calling agent decides and edits.
