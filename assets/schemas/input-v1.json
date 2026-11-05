@@ -13,6 +13,7 @@
     "scope": { "enum": ["worktree", "branch", "repository"] },
     "baseRef": { "type": ["string", "null"] },
     "task": { "type": "string", "pattern": "\\S" },
+    "taskFile": { "type": "string", "pattern": "^/" },
     "waitSeconds": { "$ref": "config-v1.json#/definitions/seconds" },
     "config": {
       "type": "object",

@@ -14,7 +14,7 @@ import { CALLER_GUIDANCE, DESCRIPTION } from "./guidance.js";
 import { InputError } from "./input-error.ts";
 import { nativeProfile } from "./native-profile.ts";
 import { observedStatus } from "./report.ts";
-import { cancel, readCommand, review } from "./review.ts";
+import { cancel, readCommand, resume, review } from "./review.ts";
 import { loadInput, loadRun, StateError } from "./storage.ts";
 import { VERSION } from "./version.js";
 
@@ -159,6 +159,8 @@ async function execute(
   }
   if (name === "review") return review(args, process.cwd());
   if (name === "cancel") return cancel(parsed.positionals[0], process.cwd());
+  if (name === "resume")
+    return resume(parsed.positionals[0] ?? "", parsed.values, process.cwd());
   if (["wait", "report", "finding"].includes(name))
     return readCommand(name, parsed.positionals, parsed.values, process.cwd());
   process.exitCode = 2;

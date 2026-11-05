@@ -4,7 +4,7 @@ Focused slop review for coding agents.
 
 Degreaser gives your coding agent a second look at the feature it just built. It distributes the review across small models: each reviewer starts with a fresh context, investigates one kind of code slop, and returns evidence. Your coding agent decides what to fix.
 
-> Not released yet. This development build runs source-only reviews, waits for detached runs, cancels active runs, and reads saved reports/findings. Init, startup integrations, public resume and full recovery are still under development.
+> Not released yet. This development build runs source-only reviews, waits for detached runs, cancels active runs, resumes unresolved unchanged work, and reads saved reports/findings. Init and startup integrations are still under development.
 
 - **Review the change, understand the repository.** Reviewers assess your diff and can follow callers, tests, dependencies and existing helpers across the repo.
 - **One aspect per reviewer.** Sixteen focused reviews, each with examples of problems to report and justified code to preserve.
@@ -68,7 +68,7 @@ degreaser-axi review --scope repository --task "Review the repository for unnece
 
 Use `--task-file <path>` instead of `--task` for a longer brief. An empty diff finishes without starting reviewers.
 
-If a review returns `running`, use its supplied `degreaser-axi wait <run-id>` command. Keep the code unchanged until the run finishes. If some reviewers fail, their completed peers' results remain available. Public `resume` is not implemented yet.
+If a review returns `running`, use its supplied `degreaser-axi wait <run-id>` command. Keep the code unchanged until the run finishes. If some reviewers fail, their completed peers' results remain available.
 
 `review` and `wait` accept `--wait <seconds>` (default 480). A short wait returns
 `running` with exit 3, not success. A caller timeout or killed waiting command
@@ -80,6 +80,25 @@ verified owner, stops queued work and retries, and waits for owned worker cleanu
 Useful results and attempt history remain available: cancellation returns
 `partial` or `failed` with exit 1. A run that finished first remains completed
 with exit 0. No permanent background service remains after cleanup.
+
+Use `degreaser-axi resume <run-id>` after partial failure, cancellation or owner
+interruption. It rechecks source, task-file contents, resolved base, prompts and
+selected agent/model before continuing only unresolved aspects. Successful
+results stay intact, and earlier attempts (including incomplete evidence) remain
+in `report --full`. Changed input requires a new review. Unchanged completed runs
+return `already-completed` without starting anything.
+
+Resume accepts `--concurrency <n>` and `--wait <seconds>`. It keeps the original
+absolute deadline unless you explicitly supply `--deadline <seconds>`, which
+starts a new budget at the resumed owner's start. An expired deadline requires
+this deliberate override. Prefer these invocation controls to editing an RC
+that is itself part of the reviewed source.
+
+A live owner cannot be evicted just because its heartbeat is old. Recovery
+checks process birth identities and joins verified old work before replacement
+attempts. If a lock or PID is ambiguous, it refuses takeover rather than
+signalling unrelated processes. Follow the reported local inspection guidance;
+do not remove locks while an owner or worker is still active.
 
 ## What it looks for
 

@@ -238,7 +238,7 @@ export function commandHelp(name: string, command: Command) {
 
 export const TOP_LEVEL_HELP = [
   "degreaser-axi: focused source-only code review",
-  "Development build: review/wait/report/finding/cancel work. Init, integrations and resume remain under development.",
+  "Development build: review/wait/report/finding/cancel/resume work. Init and integrations remain under development.",
   "Commands:",
   ...Object.entries(COMMANDS).map(
     ([name, command]) => `  ${name}: ${command.description}`,

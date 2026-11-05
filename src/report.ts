@@ -1,16 +1,11 @@
+import { ownerAlive } from "./ownership.ts";
 import { loadInput, type Run, resolved } from "./storage.ts";
 
 export function observedStatus(run: Run) {
   if (run.status !== "running") return run.status;
   if (!run.owner)
     return Date.now() - run.createdAt < 10_000 ? "running" : "interrupted";
-  try {
-    process.kill(run.owner.pid, 0);
-  } catch (error) {
-    if (error instanceof Error && "code" in error && error.code === "ESRCH")
-      return "interrupted";
-  }
-  return "running";
+  return ownerAlive(run.owner) ? "running" : "interrupted";
 }
 export function findings(run: Run) {
   return run.tasks
@@ -79,6 +74,7 @@ export function renderReport(run: Run, full = false) {
             rejections: t.rejections,
             usage: t.usage ?? "unknown",
           })),
+          controls: run.executions ?? [],
         }
       : {}),
     usage: run.tasks.every((t) => t.usage !== null)
@@ -89,6 +85,11 @@ export function renderReport(run: Run, full = false) {
         ? [`degreaser-axi wait ${run.id}`]
         : [
             `degreaser-axi report ${run.id} --full`,
+            ...(status !== "completed"
+              ? [
+                  `degreaser-axi resume ${run.id}${Date.now() >= run.deadline ? " --deadline 900" : ""}`,
+                ]
+              : []),
             ...(all.length ? [`degreaser-axi finding F1 --run ${run.id}`] : []),
             ...(run.tasks.some(
               (task) => task.attempts.at(-1)?.failure === "rate-limited",

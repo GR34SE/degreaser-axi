@@ -21,6 +21,7 @@ export interface WorkerRequest {
   timeoutMs: number;
   signal?: AbortSignal;
   onPromptStarted?: () => void;
+  onSessionReady?: (id: string) => void;
   onLifecycle?: (event: { type: "spawn" | "exit"; pid: number }) => void;
   onTool?: (event: { kind: string; status: string }) => void;
 }
@@ -136,7 +137,10 @@ export async function executeWorker(
       },
     });
     const sessionId = handle.agentSessionId ?? handle.backendSessionId;
-    if (sessionId) outcome.sessionId = sessionId;
+    if (sessionId) {
+      outcome.sessionId = sessionId;
+      request.onSessionReady?.(sessionId);
+    }
     const advertised = await runtime.getStatus({ handle });
     if (!advertised.models?.availableModelIds.includes(profile.model)) {
       outcome.failure = "model-unavailable";

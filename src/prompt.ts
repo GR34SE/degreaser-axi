@@ -5,6 +5,24 @@ import type { ReviewInput } from "./input.ts";
 
 export const hash = (text: string) =>
   createHash("sha256").update(text).digest("hex");
+/** Attachment and scheduling controls do not describe the code being reviewed. */
+export function reviewIdentity(input: ReviewInput, prompts: (string | null)[]) {
+  return hash(
+    JSON.stringify({
+      repository: input.repository,
+      scope: input.scope,
+      baseRef: input.baseRef,
+      base: input.base,
+      tree: input.tree,
+      paths: input.paths,
+      excludedPaths: input.excludedPaths,
+      patch: input.patch,
+      task: input.task,
+      assignments: input.config.assignments,
+      prompts,
+    }),
+  );
+}
 const data = (value: unknown) =>
   JSON.stringify(value).replace(
     /[<>&]/g,

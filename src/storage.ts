@@ -17,7 +17,7 @@ import type { Assignment } from "./config.ts";
 import { git } from "./git.ts";
 import type { ReviewInput } from "./input.ts";
 import { InputError } from "./input-error.ts";
-import { assemblePrompt, hash } from "./prompt.ts";
+import { assemblePrompt, hash, reviewIdentity } from "./prompt.ts";
 import type { Rejection, WorkerResult } from "./results.ts";
 
 export interface RunTask {
@@ -36,6 +36,10 @@ export interface RunTask {
     endedAt: number | null;
     sessionId: string | null;
     failure: string | null;
+    result?: WorkerResult | null;
+    rejections?: Rejection[];
+    limitations?: string[];
+    usage?: Record<string, number> | null;
   }[];
   limitations: string[];
   usage: Record<string, number> | null;
@@ -47,9 +51,25 @@ export interface Run {
   createdAt: number;
   deadline: number;
   status: "running" | "completed" | "partial" | "failed";
-  owner: { pid: number; heartbeat: number } | null;
+  owner: {
+    pid: number;
+    heartbeat: number;
+    started?: string;
+    processes?: ProcessIdentity[];
+  } | null;
+  executions?: {
+    startedAt: number;
+    deadline: number;
+    concurrency: number | null;
+    waitSeconds: number;
+  }[];
   identity: string;
   tasks: RunTask[];
+}
+export interface ProcessIdentity {
+  pid: number;
+  started: string;
+  group: number;
 }
 export const resolved = (task: RunTask) =>
   ["findings", "no-findings", "not-applicable"].includes(task.status);
@@ -201,17 +221,25 @@ function checkedRun(
   id: string,
 ): Run {
   const run = checked(value, runSchema, path);
+  if (run.repository !== repository)
+    throw new StateError(
+      "invalid-input",
+      `Run belongs to another repository: ${path}`,
+    );
   if (
-    run.repository !== repository ||
     run.id !== id ||
     new Set(run.tasks.map((t) => t.assignment.aspect)).size !==
       run.tasks.length ||
     run.tasks.some(
       (t) =>
         ((resolved(t) || t.status === "incomplete") && !t.result) ||
+        t.attempts.some(
+          (a) => a.result && a.result.aspect !== t.assignment.aspect,
+        ) ||
         (t.result &&
           (t.result.aspect !== t.assignment.aspect ||
-            t.result.status !== t.status)),
+            (t.result.status !== t.status &&
+              !(t.result.status === "incomplete" && !resolved(t))))),
     ) ||
     (run.status !== "running" && run.status !== terminalStatus(run.tasks))
   )
@@ -238,10 +266,12 @@ export function loadInput(run: Run): ReviewInput {
       JSON.stringify(input.config.assignments)
     )
       throw new Error("Assignment identity mismatch");
+    const prompts = run.tasks.map((t) => t.promptHash);
+    // Keep earlier development results readable, but never migrate their evidence.
+    // Resume requires the current fingerprint and recorded task source.
     if (
-      hash(
-        JSON.stringify({ input, prompts: run.tasks.map((t) => t.promptHash) }),
-      ) !== run.identity
+      reviewIdentity(input, prompts) !== run.identity &&
+      hash(JSON.stringify({ input, prompts })) !== run.identity
     )
       throw new Error("Input identity mismatch");
     const patch = statePath(
@@ -324,8 +354,9 @@ export function createRun(input: ReviewInput): Run {
     deadline: Date.now() + input.config.limits.runTimeoutSeconds * 1000,
     status: "running",
     owner: null,
-    identity: hash(
-      JSON.stringify({ input, prompts: tasks.map((t) => t.promptHash) }),
+    identity: reviewIdentity(
+      input,
+      tasks.map((t) => t.promptHash),
     ),
     tasks,
   };

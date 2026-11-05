@@ -12,7 +12,11 @@ import { repositoryRoot } from "./git.ts";
 import { InputError } from "./input-error.ts";
 import { resolveScope, type Scope } from "./scope.ts";
 
-function positiveInteger(value: string, name: string, maximum: number): number {
+export function positiveInteger(
+  value: string,
+  name: string,
+  maximum: number,
+): number {
   const number = Number(value);
   if (
     !/^[0-9]+$/.test(value) ||
@@ -31,6 +35,7 @@ interface ReviewRequest {
   scope: Scope;
   baseRef: string | undefined;
   task: string;
+  taskFile?: string;
   controls: ReviewControls;
   waitSeconds: number;
 }
@@ -111,6 +116,7 @@ export function parseReviewArguments(
     scope,
     baseRef,
     task,
+    ...(file !== undefined ? { taskFile: resolve(cwd, file) } : {}),
     controls: {
       ...(aspects !== undefined ? { aspects: aspects.split(",") } : {}),
       ...(concurrency !== undefined
@@ -165,6 +171,7 @@ export function prepareReview(args: string[], cwd: string) {
     scope: request.scope,
     baseRef: request.baseRef ?? null,
     task: request.task,
+    ...(request.taskFile ? { taskFile: request.taskFile } : {}),
     waitSeconds: request.waitSeconds,
     config,
     ...scope,

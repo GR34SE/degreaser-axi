@@ -1,6 +1,6 @@
 // Synthetic ACP server uses the installed public protocol SDK; it does not
 // implement review, validation, state, ownership or queue transitions.
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -59,6 +59,11 @@ const connection = new AgentSideConnection(
     async initialize(params) {
       record({
         type: "initialize",
+        workerMarker: process.env.DEGREASER_WORKER,
+        initialMode: process.env.INITIAL_AGENT_MODE,
+        codexConfig: process.env.CODEX_CONFIG
+          ? JSON.parse(process.env.CODEX_CONFIG)
+          : null,
         capabilities: params.clientCapabilities,
         inheritedAuth: Object.keys(process.env).filter((key) =>
           /^(ACPX_AUTH_|OPENAI_API_KEY)/.test(key),
@@ -124,6 +129,30 @@ const connection = new AgentSideConnection(
         (event) => event.aspect === aspect,
       ).length;
       const step = settings.attempts?.[attempt] ?? settings;
+      if (plan.nestedCli) {
+        const { latestRunId } = JSON.parse(
+          readFileSync(".degreaser/state.json", "utf8"),
+        );
+        for (const args of [
+          ["review", "--scope", "worktree", "--task", "Nested review"],
+          ["resume", latestRunId],
+        ]) {
+          const result = spawnSync(
+            process.execPath,
+            [plan.nestedCli, ...args],
+            {
+              encoding: "utf8",
+              timeout: 10000,
+            },
+          );
+          record({
+            type: "nested",
+            command: args[0],
+            code: result.status,
+            stdout: result.stdout,
+          });
+        }
+      }
       appendFileSync(
         plan.log,
         `${JSON.stringify({

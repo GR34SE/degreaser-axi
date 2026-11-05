@@ -1,11 +1,13 @@
-import { spawn, spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { setTimeout } from "node:timers/promises";
-import { fileURLToPath } from "node:url";
 import { assertSupportedModels } from "./config.ts";
+import { assertFresh } from "./freshness.ts";
 import { repositoryRoot } from "./git.ts";
-import { prepareReview } from "./input.ts";
+import { positiveInteger, prepareReview } from "./input.ts";
 import { InputError } from "./input-error.ts";
 import { discoverModels } from "./model-discovery.ts";
+import type { ResumeControls } from "./owner.ts";
+import { assertAvailable, ownerPath, verifyOwner } from "./ownership.ts";
 import { findings, observedStatus, renderReport } from "./report.ts";
 import {
   checkHistory,
@@ -13,12 +15,9 @@ import {
   loadInput,
   loadRun,
   type Run,
+  resolved,
   StateError,
 } from "./storage.ts";
-
-const ownerPath = fileURLToPath(
-  new URL("../bin/run-owner.js", import.meta.url),
-);
 
 function waitSeconds(value: unknown): number {
   if (value === undefined) return 480;
@@ -41,12 +40,64 @@ async function waitFor(run: Run, seconds: number) {
   }
   return renderReport(run);
 }
-export async function review(args: string[], cwd: string) {
+function nestedGuard() {
   if (process.env.DEGREASER_WORKER === "1")
     throw new StateError(
       "nested-review",
-      "Workers cannot start nested reviews.",
+      "Workers cannot start nested reviews or resume runs.",
     );
+}
+async function startOwner(run: Run, controls?: ResumeControls) {
+  const owner = spawn(
+    process.execPath,
+    [...process.execArgv, ownerPath, run.repository, run.id],
+    {
+      cwd: run.repository,
+      detached: true,
+      stdio: ["ignore", "ignore", "ignore", "ipc"],
+    },
+  );
+  try {
+    await new Promise<void>((resolve, reject) => {
+      owner.once("error", reject);
+      owner.once("exit", () =>
+        reject(
+          new StateError(
+            "owner-failed",
+            `Owner admission failed. Use degreaser-axi report ${run.id}.`,
+          ),
+        ),
+      );
+      owner.once("message", (message: { code?: string; message?: string }) => {
+        if (message.code)
+          reject(
+            new StateError(
+              message.code,
+              message.message ?? "Owner admission refused.",
+            ),
+          );
+        else resolve();
+      });
+      owner.once("spawn", () =>
+        owner.send({ controls }, (error) => {
+          if (error)
+            reject(
+              new StateError(
+                "owner-failed",
+                `Could not deliver owner admission. Use degreaser-axi report ${run.id}.`,
+              ),
+            );
+        }),
+      );
+    });
+  } finally {
+    if (owner.connected) owner.disconnect();
+    owner.unref();
+  }
+  return loadRun(run.repository, run.id);
+}
+export async function review(args: string[], cwd: string) {
+  nestedGuard();
   const input = prepareReview(args, cwd);
   checkHistory(input.repository);
   if (input.status === "no-changes")
@@ -75,25 +126,55 @@ export async function review(args: string[], cwd: string) {
     );
     checked.add(key);
   }
-  const run = createRun(input);
-  const owner = spawn(
-    process.execPath,
-    [...process.execArgv, ownerPath, run.repository, run.id],
-    {
-      cwd: run.repository,
-      detached: true,
-      stdio: "ignore",
-    },
-  );
-  await new Promise<void>((resolve, reject) => {
-    owner.once("spawn", resolve);
-    owner.once("error", reject);
-  });
-  owner.unref();
+  const run = await startOwner(createRun(input));
   process.stderr.write(
     `run: ${run.id}; workers: ${input.workers.length}; identities: ${[...new Set(input.workers.map((w) => `${w.agent}/${w.model}`))].join(",") || "coordinator-only"}; concurrency: ${input.config.concurrency ?? "all"}; deadline: ${new Date(run.deadline).toISOString()}\n`,
   );
   return waitFor(run, input.waitSeconds);
+}
+
+export async function resume(
+  id: string,
+  values: Record<string, unknown>,
+  cwd: string,
+) {
+  nestedGuard();
+  const seconds = waitSeconds(values.wait);
+  const controls: ResumeControls = { waitSeconds: seconds };
+  for (const [flag, key, maximum] of [
+    ["concurrency", "concurrency", Number.MAX_SAFE_INTEGER],
+    ["deadline", "deadlineSeconds", 2147483],
+  ] as const) {
+    const value = values[flag];
+    if (value !== undefined) {
+      if (typeof value !== "string")
+        throw new InputError(`--${flag} requires a positive integer.`);
+      controls[key] = positiveInteger(value, `--${flag}`, maximum);
+    }
+  }
+  const run = loadRun(repositoryRoot(cwd), id);
+  const input = loadInput(run);
+  if (run.status !== "completed") assertAvailable(run);
+  assertFresh(run, input);
+  const completed = {
+    run: id,
+    status: "already-completed",
+    help: [`degreaser-axi report ${id}`],
+  };
+  if (run.status === "completed") return completed;
+  let resumed: Run;
+  try {
+    resumed = await startOwner(run, controls);
+  } catch (error) {
+    if (error instanceof StateError && error.code === "already-completed")
+      return completed;
+    throw error;
+  }
+  const unresolved = run.tasks.filter((t) => !resolved(t));
+  process.stderr.write(
+    `run: ${id}; resume unresolved: ${unresolved.length}; identities: ${[...new Set(unresolved.map((t) => `${t.assignment.agent}/${t.assignment.model}`))].join(",")}; concurrency: ${resumed.executions?.at(-1)?.concurrency ?? "all"}; deadline: ${new Date(resumed.deadline).toISOString()}\n`,
+  );
+  return waitFor(resumed, seconds);
 }
 
 export async function cancel(id: string | undefined, cwd: string) {
@@ -118,19 +199,13 @@ export async function cancel(id: string | undefined, cwd: string) {
       `No owner is ready. Run degreaser-axi wait ${id}.`,
     );
   // A live PID alone is not ownership: it may have been reused for another run.
-  const processInfo = spawnSync(
-    "/bin/ps",
-    ["-ww", "-p", String(owner.pid), "-o", "command="],
-    { encoding: "utf8", timeout: 1000 },
-  );
-  const command = processInfo.stdout?.trim() ?? "";
+  const verified = verifyOwner(run);
   run = loadRun(run.repository, id);
   if (observedStatus(run) !== "running") return renderReport(run);
   if (
-    processInfo.status !== 0 ||
-    !command.startsWith(`${process.execPath} `) ||
-    !command.endsWith(` ${ownerPath} ${run.repository} ${id}`) ||
-    run.owner?.pid !== owner.pid
+    !verified ||
+    run.owner?.pid !== owner.pid ||
+    run.owner?.started !== owner.started
   )
     throw new StateError(
       "owner-unverified",

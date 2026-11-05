@@ -1,12 +1,45 @@
 #!/usr/bin/env node
-import { ownRun } from "../src/owner.ts";
+import { once } from "node:events";
+import { ownRun, type ResumeControls } from "../src/owner.ts";
+import { StateError } from "../src/storage.ts";
 
 const [repository, id] = process.argv.slice(2);
 if (!repository || !id) process.exitCode = 2;
 else {
   try {
-    await ownRun(repository, id);
-  } catch {
+    if (!process.connected)
+      throw new StateError(
+        "owner-failed",
+        "Owner admission requires its caller's request.",
+      );
+    const request: { controls?: ResumeControls } = (
+      await Promise.race([
+        once(process, "message"),
+        once(process, "disconnect").then(() => {
+          throw new StateError(
+            "owner-failed",
+            "Caller disconnected before owner admission.",
+          );
+        }),
+      ])
+    )[0];
+    await ownRun(repository, id, request.controls, () => {
+      if (process.connected) process.send?.({}, () => {});
+    });
+  } catch (error) {
+    if (process.connected)
+      process.send?.(
+        {
+          code: error instanceof StateError ? error.code : "owner-failed",
+          message:
+            error instanceof StateError
+              ? error.message
+              : "Owner could not start safely.",
+        },
+        () => {},
+      );
     process.exitCode = 1;
+  } finally {
+    if (process.connected) process.disconnect();
   }
 }

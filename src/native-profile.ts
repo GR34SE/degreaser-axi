@@ -58,6 +58,7 @@ async function nativeVersion(
   executable: string,
   env: Record<string, string>,
   signal?: AbortSignal,
+  spawned?: () => void,
 ): Promise<string> {
   signal?.throwIfAborted();
   return new Promise((resolve, reject) => {
@@ -84,6 +85,14 @@ async function nativeVersion(
       failure ??= signal?.reason;
       stop();
     };
+    child.once("spawn", () => {
+      try {
+        spawned?.();
+      } catch (error) {
+        failure = error;
+        stop();
+      }
+    });
     const timer = setTimeout(() => {
       failure ??= Object.assign(new Error("Native version check timed out."), {
         code: "ETIMEDOUT",
@@ -120,6 +129,7 @@ async function nativeExecutable(
   agent: "claude" | "pi",
   env: Record<string, string>,
   signal?: AbortSignal,
+  spawned?: () => void,
 ): Promise<{ path: string; version: string }> {
   let executable: string | undefined;
   for (const directory of (env.PATH ?? "").split(":").filter(isAbsolute)) {
@@ -136,7 +146,7 @@ async function nativeExecutable(
     throw new Error(
       `Install ${agent} and authenticate its subscription before review.`,
     );
-  const stdout = await nativeVersion(executable, env, signal);
+  const stdout = await nativeVersion(executable, env, signal, spawned);
   const [version = ""] = stdout.trim().split(" ");
   // These exact native interfaces were exercised. Refuse unverified flag semantics.
   const supported = agent === "claude" ? "2.1.317" : "1.4.0";
@@ -151,6 +161,7 @@ export async function nativeProfile(
   identity: Identity,
   purpose: "review" | "model-discovery" = "review",
   signal?: AbortSignal,
+  spawned?: () => void,
 ): Promise<NativeProfile> {
   if (
     !identity.model ||
@@ -192,7 +203,12 @@ export async function nativeProfile(
     environment.INITIAL_AGENT_MODE = "read-only";
     environment.CODEX_CONFIG = JSON.stringify(codexConfig);
   } else {
-    const native = await nativeExecutable(identity.agent, environment, signal);
+    const native = await nativeExecutable(
+      identity.agent,
+      environment,
+      signal,
+      spawned,
+    );
     environment.DEGREASER_NATIVE_EXECUTABLE = native.path;
     nativeVersion = native.version;
     if (identity.agent === "claude") {

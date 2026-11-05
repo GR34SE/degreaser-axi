@@ -8,6 +8,6 @@ export const CALLER_GUIDANCE = [
   "Claude Code: allow --wait plus 60 seconds in Bash (maximum 600000 ms); follow a background completion notification. Codex: poll the same command session. Pi: use the normal command tool.",
   "Completed and no-changes exit 0; findings alone are not failure. Partial, failed or interrupted exit 1; inspect missing coverage. Usage, decision and environment errors exit 2.",
   "Inspect evidence with `degreaser-axi finding <id>` or `degreaser-axi report --full`. Not-applicable is not a quality certificate. Decide justified fixes yourself; Degreaser never applies patches.",
-  "Resume only unchanged review input. After edits, start a new review, optionally narrowing --aspects.",
+  "Use `degreaser-axi resume <run-id>` only for unchanged partial, failed or interrupted work. Successful aspects and attempt history remain. --concurrency and --wait may change; --deadline <seconds> explicitly starts a new budget. Without it the original deadline remains. After edits, start a new review.",
   "If DEGREASER_WORKER is set, do not invoke Degreaser or use this skill. Never change global permissions, install Codex rules or bypass host restrictions.",
 ];

@@ -1,6 +1,14 @@
-import { closeSync, openSync, rmSync } from "node:fs";
 import { join } from "node:path";
+import { assertFresh } from "./freshness.ts";
 import { nativeProfile } from "./native-profile.ts";
+import {
+  admissionLock,
+  assertAvailable,
+  captureOwner,
+  checkOwnerLock,
+  cleanInterruptedOwner,
+  replaceOwnerLock,
+} from "./ownership.ts";
 import { assemblePrompt } from "./prompt.ts";
 import { ingestResult, ResultError } from "./results.ts";
 import {
@@ -17,11 +25,76 @@ import { workerFailure } from "./worker-failure.ts";
 import { executeWorker } from "./worker-runtime.ts";
 
 /** Sole writer after admission. Every child is joined before the owner exits. */
-export async function ownRun(repository: string, id: string) {
-  const run = loadRun(repository, id);
+export interface ResumeControls {
+  concurrency?: number;
+  waitSeconds?: number;
+  deadlineSeconds?: number;
+}
+export async function ownRun(
+  repository: string,
+  id: string,
+  controls?: ResumeControls,
+  ready: () => void = () => {},
+) {
+  const startedAt = Date.now();
+  let run = loadRun(repository, id);
+  let input = loadInput(run);
   const dir = runDirectory(repository, id);
-  const lockPath = join(dir, "owner.lock");
-  const lock = openSync(lockPath, "wx", 0o600);
+  const unlockAdmission = admissionLock(run);
+  let unlockOwner: () => void;
+  try {
+    run = loadRun(repository, id);
+    input = loadInput(run);
+    assertAvailable(run, controls === undefined);
+    if (controls) {
+      assertFresh(run, input);
+      if (run.status === "completed")
+        throw new StateError(
+          "already-completed",
+          `Run is complete. Use degreaser-axi report ${id}.`,
+        );
+      if (controls.deadlineSeconds === undefined && Date.now() >= run.deadline)
+        throw new StateError(
+          "deadline-expired",
+          `Original deadline expired. Deliberately renew it with degreaser-axi resume ${id} --deadline 900, or start a new review.`,
+        );
+    }
+    checkOwnerLock(run);
+    await cleanInterruptedOwner(run);
+    const ownership = replaceOwnerLock(run);
+    unlockOwner = ownership.release;
+    if (controls?.deadlineSeconds !== undefined)
+      run.deadline = startedAt + controls.deadlineSeconds * 1000;
+    const concurrency =
+      controls?.concurrency ??
+      run.executions?.at(-1)?.concurrency ??
+      input.config.concurrency;
+    input.config.concurrency = concurrency;
+    run.executions ??= [];
+    run.executions.push({
+      startedAt,
+      deadline: run.deadline,
+      concurrency,
+      waitSeconds: controls?.waitSeconds ?? input.waitSeconds,
+    });
+    for (const task of run.tasks.filter((t) => !resolved(t))) {
+      const last = task.attempts.at(-1);
+      if (last && last.endedAt === null) {
+        last.endedAt = Date.now();
+        last.failure = "interrupted";
+      }
+    }
+    run.status = "running";
+    run.owner = ownership.owner;
+    try {
+      saveRun(run);
+    } catch (error) {
+      unlockOwner();
+      throw error;
+    }
+  } finally {
+    unlockAdmission();
+  }
   const abort = new AbortController();
   const active = new Set<Promise<void>>();
   let stopReason = "cancelled";
@@ -43,8 +116,8 @@ export async function ownRun(repository: string, id: string) {
   let fatalError: StateError | undefined;
   const persist = () => {
     if (persistenceError) throw persistenceError;
-    run.owner = { pid: process.pid, heartbeat: Date.now() };
     try {
+      run.owner = captureOwner(run.owner);
       saveRun(run);
     } catch (error) {
       persistenceError =
@@ -73,8 +146,7 @@ export async function ownRun(repository: string, id: string) {
     }
   }, 2000);
   try {
-    const input = loadInput(run);
-    persist();
+    ready();
     async function work(task: RunTask, started: () => void = () => {}) {
       const prompt = assemblePrompt(
         input,
@@ -92,11 +164,12 @@ export async function ownRun(repository: string, id: string) {
           break;
         }
         task.status = "running";
-        const record = {
+        const record: RunTask["attempts"][number] = {
           startedAt: Date.now(),
-          endedAt: null as number | null,
-          sessionId: null as string | null,
-          failure: null as string | null,
+          endedAt: null,
+          sessionId: null,
+          failure: null,
+          usage: null,
         };
         task.attempts.push(record);
         persist();
@@ -108,11 +181,13 @@ export async function ownRun(repository: string, id: string) {
         const signal = AbortSignal.any([abort.signal, profileTimeout.signal]);
         const attemptDeadline =
           record.startedAt + input.config.limits.workerTimeoutSeconds * 1000;
+        let receivedResult = false;
         try {
           const profile = await nativeProfile(
             task.assignment,
             "review",
             signal,
+            persist,
           );
           if (stopped()) abort.signal.throwIfAborted();
           if (Date.now() >= attemptDeadline) profileTimeout.abort();
@@ -126,6 +201,11 @@ export async function ownRun(repository: string, id: string) {
               timeoutMs: Math.max(1, attemptDeadline - Date.now()),
               signal: abort.signal,
               onPromptStarted: started,
+              onLifecycle: () => persist(),
+              onSessionReady: (id) => {
+                record.sessionId = id;
+                persist();
+              },
             },
             profile,
           );
@@ -148,6 +228,7 @@ export async function ownRun(repository: string, id: string) {
               )
             : null;
           if (task.usage && !Object.keys(task.usage).length) task.usage = null;
+          record.usage = task.usage;
           if (
             !record.failure ||
             [
@@ -165,6 +246,7 @@ export async function ownRun(repository: string, id: string) {
                 input,
               );
               task.result = validated.result;
+              receivedResult = true;
               task.rejections = validated.rejections;
               task.status = validated.result.status;
               if (!record.failure || record.failure === "environment-blocked")
@@ -200,9 +282,14 @@ export async function ownRun(repository: string, id: string) {
         }
         if (task.status === "failed" && stopped()) task.status = "cancelled";
         record.endedAt = Date.now();
+        record.result = receivedResult ? structuredClone(task.result) : null;
+        record.rejections = receivedResult
+          ? structuredClone(task.rejections)
+          : [];
+        record.limitations = [...task.limitations];
         persist();
         if (
-          task.result ||
+          receivedResult ||
           (record.failure !== "invalid-output" && record.failure !== "timeout")
         )
           break;
@@ -265,7 +352,6 @@ export async function ownRun(repository: string, id: string) {
     clearTimeout(deadline);
     process.off("SIGTERM", stop);
     process.off("SIGINT", stop);
-    closeSync(lock);
-    rmSync(lockPath);
+    unlockOwner();
   }
 }

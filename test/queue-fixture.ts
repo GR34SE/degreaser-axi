@@ -37,6 +37,17 @@ export interface Event {
   time: number;
   meta?: { claudeCode?: { options?: { maxTurns?: number } } };
   outcome?: { outcome: string; optionId?: string };
+  workerMarker?: string;
+  initialMode?: string;
+  codexConfig?: {
+    sandbox_mode: string;
+    approval_policy: string;
+    web_search: string;
+    features: { multi_agent: boolean; hooks: boolean };
+  };
+  command?: string;
+  code?: number;
+  stdout?: string;
 }
 export function alive(pid: number) {
   try {

@@ -118,6 +118,39 @@ explained not-applicable results. Any useful result plus unresolved coverage is
 partial/1, including all-incomplete results with zero findings. Zero useful
 results is failed/1. Process exit 0 alone never establishes reviewed coverage.
 
-This development slice has a per-run detached owner, exclusive ownership,
-heartbeat, bounded attempts/deadline and same-ID waiting. Public cancellation,
-continuation and full stale-owner recovery are still under development.
+## Exclusive continuation
+
+`resume <run-id>` checks live source, the stored task-file when supplied, resolved
+base, assembled instruction/response/rubrics and selected aspect agent/model.
+Changed review input is refused without rewriting prior evidence. Wait,
+concurrency and deadline are execution controls, not review identity. Input and
+patch artifacts stay unchanged; `run.json` records each owner's start, effective
+concurrency, wait and absolute deadline. Only explicit `--deadline <seconds>`
+starts a new budget. Expired original budgets are not silently renewed.
+
+Resolved findings/no-findings/not-applicable tasks are never replayed. Pending,
+interrupted, failed, cancelled and incomplete tasks get fresh attempts. A usable
+new result replaces the current incomplete result; attempt records retain earlier
+validated evidence, rejection reasons, limitations, session identities and known
+usage. A failed replacement does not erase the previous incomplete evidence.
+Full reports expose this history. A completed unchanged resume is a no-op.
+
+Only the owner writes progress. A short-lived exclusive `admission.lock`
+serializes owner replacement; `owner.lock` identifies the active owner.
+Heartbeat age alone never authorizes eviction. After confirmed death, recovery
+checks recorded OS birth identities and process groups before stopping old
+workers, and waits for cleanup before admitting replacements. Process identities
+are local PID/start/group metadata, not command transcripts or environment values.
+Unverified PIDs or ambiguous locks refuse recovery without signalling strangers.
+If a process dies during the short admission critical section, its admission lock
+requires explicit local inspection before removal; it is never stolen on age alone.
+These checks do not supervise deliberately escaped, unobservable daemons.
+
+Earlier development runs with the old whole-input fingerprint remain readable.
+They require a new review rather than automatic continuation: those inputs did
+not record whether their task came from a file, so freshness cannot be fully
+rechecked. Their saved evidence is not migrated or overwritten.
+
+Worker-marked callers cannot review or resume; ordinary wait/cancel remain
+available. Killed callers do not own the detached run. Killed owners produce
+interrupted/1 and same-run resume guidance, retaining committed evidence.
