@@ -364,6 +364,10 @@ local-tarball installation check on your current Node and exactly Node 24.0.0.
 Supply a verified minimum-version executable; a missing runtime fails the check
 rather than skipping it. It needs no model account.
 
+The GitHub Actions workflow is configured to run this gate on macOS for pull requests and main.
+The check is named `macOS deterministic`; live model tests are not part of it.
+Local checks do not establish a hosted CI pass.
+
 `pnpm qa` runs just the isolated init → review → report → partial failure →
 same-run resume scenario. Its external adapter and faults are synthetic; the
 compiled CLI, Git, owner and saved results are real. Live model reviews are

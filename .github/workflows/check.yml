@@ -1,0 +1,53 @@
+name: Checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  check:
+    name: macOS deterministic
+    runs-on: macos-15
+    timeout-minutes: 15
+    env:
+      CI: "true"
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - name: Set up minimum Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "24.0.0"
+          package-manager-cache: false
+      - name: Retain minimum Node path
+        run: echo "DEGREASER_NODE24_MIN=$(node -p process.execPath)" >> "$GITHUB_ENV"
+      - name: Set up current Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "24.21.0"
+          package-manager-cache: false
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          run_install: false
+      - name: Initialize disposable runner Git identity
+        run: |
+          if ! git config user.name >/dev/null; then
+            git config --global user.name 'github-actions[bot]'
+          fi
+          if ! git config user.email >/dev/null; then
+            git config --global user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          fi
+      - name: Install locked dependencies without lifecycle scripts
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Run deterministic gates and installed package matrix
+        run: pnpm check

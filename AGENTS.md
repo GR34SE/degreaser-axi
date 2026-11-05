@@ -71,7 +71,44 @@ Commands from the repository root:
 - `pnpm qa` (repeatable isolated init/review/report/partial/resume; synthetic external adapter, no model account)
 - `pnpm package:check` (separate installed tarballs; requires `DEGREASER_NODE24_MIN` pointing to a verified Node 24.0.0 executable unless running that exact version)
 - `pnpm check` (all deterministic gates)
+- `pnpm release:notes --since <commit-or-tag>` (local draft from an explicit Git range)
+- `pnpm release:prepare --since <commit-or-tag> --output <new-directory>` (clean checkout, build, minimum/current Node tarball installs, checksum and draft notes; never publishes)
 - `pnpm test:live --help` (opt-in tooling, outside ordinary CI; unimplemented scenarios return nonzero and never count as passes)
+
+### CI and local release preparation
+
+`.github/workflows/check.yml` runs `pnpm check` on macOS with pinned Node 24 and
+pnpm from `packageManager`. It saves the exact minimum Node 24.0.0 path before
+switching to the current pinned Node 24 for the aggregate gate. The single
+stable check name is **macOS deterministic**. Require that actual hosted check
+when configuring protection; local success or workflow validation is not a
+hosted pass. PRs have no path filters; pushes to main recheck the merged result.
+The ephemeral runner initializes a Git fixture identity only if none is
+configured. No model credentials, native logins or live tests belong in CI.
+
+After `pnpm check` passes, prepare a candidate from a clean committed checkout:
+
+```sh
+export DEGREASER_NODE24_MIN=/absolute/path/to/node-v24.0.0/bin/node
+pnpm release:prepare --since <commit-or-tag> --output /absolute/path/to/new-candidate
+```
+
+The output directory must not exist and its parent must exist. It contains the
+same tarball exercised by `package:check`, `SHA256SUMS` and `RELEASE_NOTES.md`.
+Use an external or ignored output location. The script does not bump versions,
+tag, push, upload, publish npm or create a GitHub release. Notes contain only
+commit subjects and IDs from the explicit ancestor-to-HEAD range, not bodies or
+authors; review them before sharing. Preparation reruns build/package acceptance,
+not the full test/type/lint gate. Keep `private: true` until publication is
+separately authorized.
+
+Dependabot checks npm/pnpm and SHA-pinned Actions weekly with bounded open PRs
+and a seven-day version-update cooldown. It does not auto-merge. Security updates
+can bypass Dependabot's cooldown, but our frozen install still enforces the
+repository's age/build/script policy. Review package, lockfile and tool pins
+together; preserve exact versions and the minimum Node baseline. Adapter/native
+compatibility changes also need the relevant opt-in live checks, never model
+accounts in ordinary CI. Do not approve dependency skills automatically.
 
 Use meaningful failing tests before behavior changes. Test public CLI/process boundaries and real disposable Git repositories with independent expected outcomes. Preserve failed/unrun results. Source text assertions protect prompt/asset interfaces only, not model interpretation. Live subscription tests use synthetic code, exact confirmed models and a fresh quota check, without paid API fallback. No servers or ports are needed. Stop only processes owned by the test.
 

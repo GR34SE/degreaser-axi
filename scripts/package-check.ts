@@ -12,8 +12,12 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseArgs } from "node:util";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
+const { values } = parseArgs({
+  options: { "pack-destination": { type: "string" } },
+});
 const temporary = await mkdtemp(join(tmpdir(), "degreaser-package-"));
 let retainInstallation = false;
 
@@ -38,7 +42,15 @@ function run(command: string, args: string[], cwd: string, runtime?: string) {
 }
 
 try {
-  const tarballs = join(temporary, "tarballs");
+  const tarballs = values["pack-destination"]
+    ? resolve(values["pack-destination"])
+    : join(temporary, "tarballs");
+  await mkdir(tarballs, { recursive: true });
+  assert.equal(
+    (await readdir(tarballs)).length,
+    0,
+    "Pack destination must be empty.",
+  );
   run("pnpm", ["pack", "--pack-destination", tarballs], root);
   const packed = await readdir(tarballs);
   assert.equal(packed.length, 1);
