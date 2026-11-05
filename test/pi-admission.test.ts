@@ -73,8 +73,41 @@ function setup(t: TestContext) {
       .trim()
       .split("\n")
       .map((line) => JSON.parse(line));
-  return { ...f, config, run, events, plan };
+  return { ...f, home, config, run, events, plan };
 }
+
+test("unselected Pi discovery uses the real profile and adapter without a model or persistent setter", (t) => {
+  const f = setup(t);
+  const module = new URL("../dist/src/model-discovery.js", import.meta.url)
+    .href;
+  const result = spawnSync(
+    process.execPath,
+    [
+      "--input-type=module",
+      "-e",
+      `import {discoverModels} from ${JSON.stringify(module)};
+     console.log(JSON.stringify(await discoverModels({agent:"pi"}, process.cwd(), 5000)));`,
+    ],
+    {
+      cwd: f.root,
+      env: { HOME: f.home, PATH: `${f.home}:${process.env.PATH}` },
+      encoding: "utf8",
+      timeout: 10000,
+    },
+  );
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(JSON.parse(result.stdout).availableModelIds, [
+    "openai/gpt-6-luna",
+  ]);
+  assert.ok(f.events().some((event) => event.type === "get_available_models"));
+  assert.ok(
+    f
+      .events()
+      .every((event) => event.type !== "prompt" && event.type !== "set_model"),
+  );
+  for (const event of f.events().filter((e) => e.type === "launch"))
+    assert.ok(!event.args.includes("--model"));
+});
 
 for (const override of [false, true]) {
   test(`public Pi ${override ? "override" : "pair"} uses independent native metadata before admission`, (t) => {

@@ -8,7 +8,11 @@ import { fileURLToPath } from "node:url";
 import type { Agent } from "../src/config.ts";
 import type { Run } from "../src/storage.ts";
 
-export async function liveReview(agent: Agent, model: string) {
+export async function liveReview(
+  agent: Agent,
+  model: string,
+  initialize = false,
+) {
   const cwd = await realpath(
     await mkdtemp(join(tmpdir(), "degreaser-live-review-")),
   );
@@ -30,15 +34,57 @@ export async function liveReview(agent: Agent, model: string) {
       join(cwd, ".gitignore"),
       "/.degreaser/\n.degreaserrc.json\n",
     );
-    await writeFile(
-      join(cwd, ".degreaserrc.json"),
-      JSON.stringify({
+    if (initialize) {
+      const selected = [
+        "--agent",
+        agent,
+        "--model",
+        model,
+        "--harnesses",
+        agent,
+      ];
+      for (const args of [[], selected.slice(0, 4), selected.slice(4)]) {
+        const result = runCommand(process.execPath, [cli, "init", ...args]);
+        assert.equal(result.status, 2, result.stdout);
+        assert.match(result.stdout, /decision-required/);
+        assert.ok(
+          result.stdout.includes(`${agent},${model},`),
+          `Missing selected native candidate ${agent}/${model}`,
+        );
+        await assert.rejects(readFile(join(cwd, ".degreaserrc.json")), {
+          code: "ENOENT",
+        });
+        console.log(result.stdout);
+      }
+      const init = runCommand(process.execPath, [cli, "init", ...selected]);
+      assert.equal(init.status, 0, init.stdout);
+      console.log(init.stdout);
+      const confirmed = await readFile(join(cwd, ".degreaserrc.json"), "utf8");
+      assert.deepEqual(JSON.parse(confirmed), {
+        schemaVersion: 1,
         agent,
         model,
-        maxRetries: 0,
-        limits: { workerTimeoutSeconds: 120, runTimeoutSeconds: 150 },
-      }),
-    );
+      });
+      const reinit = runCommand(process.execPath, [cli, "init"]);
+      assert.equal(reinit.status, 2, reinit.stdout);
+      assert.match(reinit.stdout, /decision-required/);
+      assert.equal(
+        await readFile(join(cwd, ".degreaserrc.json"), "utf8"),
+        confirmed,
+      );
+      console.log(
+        JSON.stringify({ reinitExit: 2, confirmedRcUnchanged: true }),
+      );
+    } else
+      await writeFile(
+        join(cwd, ".degreaserrc.json"),
+        JSON.stringify({
+          agent,
+          model,
+          maxRetries: 0,
+          limits: { workerTimeoutSeconds: 120, runTimeoutSeconds: 150 },
+        }),
+      );
     await writeFile(
       join(cwd, "sum.ts"),
       "// Return the sum of two numbers.\nexport const sum = (a: number, b: number) => a + b;\n",
@@ -102,6 +148,11 @@ export async function liveReview(agent: Agent, model: string) {
     assert.equal(report.status, 0, report.stdout);
     assert.equal(saved.status, "completed");
     assert.equal(saved.tasks.length, 1);
+    assert.deepEqual(saved.tasks[0]?.assignment, {
+      aspect: "A06",
+      agent,
+      model,
+    });
     assert.ok(saved.tasks[0]?.attempts[0]?.sessionId);
     assert.ok(saved.tasks[0]?.result);
     if (saved.tasks[0].result.findings.length) {

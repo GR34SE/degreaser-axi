@@ -12,7 +12,7 @@ description: Review a code change with focused source-only reviewers, inspect ev
 ${DESCRIPTION}
 
 Development build: all sixteen review aspects, bounded retries/deadlines and same-run waiting are available.
-Public cancel stops the run's owned workers and retains useful results. Resume continues only unresolved unchanged input. Init and integrations remain under development.
+Public cancel stops the run's owned workers and retains useful results. Resume continues only unresolved unchanged input. Init discovers and confirms models and writes the project RC; native startup/skill installation and automatic gitignore setup remain under development.
 Use an explicitly installed local package, not an unverified registry download.
 Run \`degreaser-axi --help\` or \`degreaser-axi review --help\` for the current interface.
 If the binary is unavailable, ask for the local package path; do not install a published version.

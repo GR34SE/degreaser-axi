@@ -200,7 +200,10 @@ test("Pi launcher pins argv model, removes discovery and cannot inherit metered 
       "--offline",
     ])
       assert.ok(args.includes(flag));
-    const discovery = invoke({ DEGREASER_MODEL_DISCOVERY: "1" });
+    const discovery = invoke({
+      DEGREASER_MODEL_DISCOVERY: "1",
+      DEGREASER_MODEL: "",
+    });
     assert.equal(discovery.status, 0, discovery.stderr);
     assert.deepEqual(
       JSON.parse(discovery.stdout),

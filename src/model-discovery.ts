@@ -6,12 +6,15 @@ import { StateError } from "./storage.ts";
 
 /** Metadata only: no prompt, model setter, runtime store or review attempt. */
 export async function discoverModels(
-  identity: Identity,
+  identity: Pick<Identity, "agent"> & Partial<Pick<Identity, "model">>,
   cwd: string,
   timeoutMs = 120_000,
 ) {
   try {
-    const profile = await nativeProfile(identity, "model-discovery");
+    const profile = await nativeProfile(
+      { ...identity, model: identity.model ?? "" },
+      "model-discovery",
+    );
     const models = await inspectAgentModels({
       agentCommand: isolatedCommand(profile),
       agentProcessEnvAllow: [],

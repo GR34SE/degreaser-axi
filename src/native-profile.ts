@@ -165,12 +165,17 @@ export async function nativeProfile(
   spawned?: () => void,
 ): Promise<NativeProfile> {
   if (
-    !identity.model ||
-    /[\s\0]/.test(identity.model) ||
-    identity.model.startsWith("-")
+    purpose === "review" &&
+    (!identity.model ||
+      /[\s\0]/.test(identity.model) ||
+      identity.model.startsWith("-"))
   )
     throw new Error("An exact model ID is required.");
-  if (identity.agent === "pi" && !/^[^/]+\/[^/]+$/.test(identity.model))
+  if (
+    purpose === "review" &&
+    identity.agent === "pi" &&
+    !/^[^/]+\/[^/]+$/.test(identity.model)
+  )
     throw new Error("Pi requires a provider-qualified model ID.");
   const [pkg, version] = adapters[identity.agent];
   const manifestPath = require.resolve(`${pkg}/package.json`);

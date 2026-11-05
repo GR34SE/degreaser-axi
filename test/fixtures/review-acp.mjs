@@ -83,7 +83,7 @@ const connection = new AgentSideConnection(
     },
     async newSession(params) {
       record({ type: "session", admitted, meta: params._meta });
-      if (plan.metadataFailure)
+      if (plan.metadataFailure || plan.metadataFailureAgents?.includes(agent))
         throw new RequestError(
           -32000,
           "Synthetic metadata failure, private diagnostic must not leak",

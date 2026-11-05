@@ -4,7 +4,7 @@ Focused slop review for coding agents.
 
 Degreaser gives your coding agent a second look at the feature it just built. It distributes the review across small models: each reviewer starts with a fresh context, investigates one kind of code slop, and returns evidence. Your coding agent decides what to fix.
 
-> Not released yet. This development build runs source-only reviews, waits for detached runs, cancels active runs, resumes unresolved unchanged work, and reads saved reports/findings. Init and startup integrations are still under development.
+> Not released yet. This development build runs source-only reviews, waits for detached runs, cancels active runs, resumes unresolved unchanged work, and reads saved reports/findings. Init discovers and confirms worker models. Startup integrations are still under development.
 
 - **Review the change, understand the repository.** Reviewers assess your diff and can follow callers, tests, dependencies and existing helpers across the repo.
 - **One aspect per reviewer.** Sixteen focused reviews, each with examples of problems to report and justified code to preserve.
@@ -26,22 +26,37 @@ node dist/bin/degreaser-axi.js --version
 
 There is no published npm installation or self-update path.
 
-For direct use now, put your explicitly selected `agent` and exact `model` in the
-target repository's root `.degreaserrc.json` and add `/.degreaser/` to its root
-`.gitignore`. From that repository, invoke the absolute path to this checkout's
+For direct use now, run `init` in the target repository to confirm its worker
+model and write `.degreaserrc.json`. Add `/.degreaser/` to its root `.gitignore`
+before review; automatic ignore setup is still under development.
+From that repository, invoke the absolute path to this checkout's
 `dist/bin/degreaser-axi.js` with Node. The examples below use `degreaser-axi` as
 shorthand for that command. Use `--aspects A06` for a first one-aspect review.
 
 The worker profiles currently require Codex ACP 2.5.0 with bundled Codex 0.165.0,
 Claude Code 2.1.317, or Pi 1.4.0. See [native worker restrictions and limits](assets/native-profiles.md).
 
-Planned setup in your project:
+Discover and confirm a model in your project:
 
 ```sh
 degreaser-axi init
 ```
 
-Choose the harnesses you use and confirm or change the suggested small model. Init installs their startup integrations and the Degreaser skill, writes `.degreaserrc.json`, and adds `/.degreaser/` to your project's `.gitignore`.
+Choose the harnesses you use and confirm or change the suggested small model.
+Every init, including reinit, requires your decision. In a terminal, Enter
+confirms the displayed prefill; enter a candidate number to change it. Without
+a terminal, missing decisions return `decision-required` (exit 2) with exact
+candidates and example commands, without writing product files. After the user
+chooses, provide `--agent`, `--model` and `--harnesses` explicitly. The existing
+RC is not consent for a later invocation.
+
+Init reads native catalogs without inference. It shows the credential source,
+not private account identities, and does not guarantee later provider availability.
+Invalid choices or failed discovery never silently select a replacement.
+This build writes only the project RC and preserves its other settings.
+Selected harnesses are reported as **not installed**. The planned complete
+setup will install their native startup integrations and skill and update
+the root `.gitignore`; it will not change global permission settings.
 
 Then ask your coding agent:
 

@@ -8,13 +8,14 @@ description: Review a code change with focused source-only reviewers, inspect ev
 Review code changes with focused, read-only reviewers and source evidence.
 
 Development build: all sixteen review aspects, bounded retries/deadlines and same-run waiting are available.
-Public cancel stops the run's owned workers and retains useful results. Resume continues only unresolved unchanged input. Init and integrations remain under development.
+Public cancel stops the run's owned workers and retains useful results. Resume continues only unresolved unchanged input. Init discovers and confirms models and writes the project RC; native startup/skill installation and automatic gitignore setup remain under development.
 Use an explicitly installed local package, not an unverified registry download.
 Run `degreaser-axi --help` or `degreaser-axi review --help` for the current interface.
 If the binary is unavailable, ask for the local package path; do not install a published version.
 
 - Provide the actual task and explicit worktree, branch or repository scope. Branch requires the base supplied by the user; never guess it.
 - Every init requires the user's confirmed agent/model and selected Codex, Claude or Pi harnesses. Do not choose or switch models for the user.
+- Run `degreaser-axi init` to discover exact candidates. Without a terminal, decision-required (exit 2) writes nothing. Show choices to the user, then run `degreaser-axi init --agent <confirmed-agent> --model <confirmed-exact-id> --harnesses <confirmed-targets>`. RC and recommendations are prefill, never consent for a later init.
 - Do not edit code while a run is active. On running (exit 3) or a caller-tool timeout, run `degreaser-axi wait <run-id>` until a terminal result.
 - Claude Code: allow --wait plus 60 seconds in Bash (maximum 600000 ms); follow a background completion notification. Codex: poll the same command session. Pi: use the normal command tool.
 - Completed and no-changes exit 0; findings alone are not failure. Partial, failed or interrupted exit 1; inspect missing coverage. Usage, decision and environment errors exit 2.

@@ -6,8 +6,9 @@ import {
 } from "../src/native-launch.ts";
 
 try {
-  const model = selectedModel();
-  if (!/^[^/]+\/[^/]+$/.test(model))
+  const discovery = process.env.DEGREASER_MODEL_DISCOVERY === "1";
+  const model = discovery ? "" : selectedModel();
+  if (!discovery && !/^[^/]+\/[^/]+$/.test(model))
     throw new Error("Provider-qualified model required.");
   const args = replaceOptions(process.argv.slice(2), {
     "--model": "value",
@@ -22,9 +23,7 @@ try {
   });
   launchNative([
     ...args,
-    ...(process.env.DEGREASER_MODEL_DISCOVERY === "1"
-      ? []
-      : ["--model", model]),
+    ...(discovery ? [] : ["--model", model]),
     "--tools",
     "read,grep,find,ls",
     "--no-skills",

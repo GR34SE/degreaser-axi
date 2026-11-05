@@ -11,12 +11,13 @@ const { values } = parseArgs({
 });
 if (values.help) {
   console.log(
-    "pnpm test:live --run --case <native-worker|review|models> --agent <codex|claude|pi> --model <exact-id>\nOpt-in subscription-backed synthetic-file and public review pilots. The models case reads native metadata without inference. Build and check quota first. Other scenarios are not implemented.",
+    "pnpm test:live --run --case <native-worker|review|init|models> --agent <codex|claude|pi> --model <exact-id>\nOpt-in subscription-backed synthetic-file and public review pilots. Init exercises decisions before the same real review; models reads native metadata without inference. Build and check quota first. Other scenarios are not implemented.",
   );
 } else if (
   values.run &&
   (values.case === "native-worker" ||
     values.case === "review" ||
+    values.case === "init" ||
     values.case === "models") &&
   values.agent &&
   values.model
@@ -34,7 +35,11 @@ if (values.help) {
     await liveModels(values.agent as "codex" | "claude" | "pi", values.model);
   } else {
     const { liveReview } = await import("./live-review.ts");
-    await liveReview(values.agent as "codex" | "claude" | "pi", values.model);
+    await liveReview(
+      values.agent as "codex" | "claude" | "pi",
+      values.model,
+      values.case === "init",
+    );
   }
 } else {
   console.error(

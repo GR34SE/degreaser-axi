@@ -12,6 +12,7 @@ import {
 import { loadConfig } from "./config.ts";
 import { repositoryRoot } from "./git.ts";
 import { CALLER_GUIDANCE, DESCRIPTION } from "./guidance.js";
+import { init } from "./init.ts";
 import { InputError } from "./input-error.ts";
 import { nativeProfile } from "./native-profile.ts";
 import { observedStatus } from "./report.ts";
@@ -155,6 +156,7 @@ async function execute(
   }
   if (name === "version") return VERSION;
   if (name === "home") return home();
+  if (name === "init") return init(parsed.values, process.cwd());
   if (name === "doctor") {
     const config = loadConfig(repositoryRoot(process.cwd()));
     try {
