@@ -1,0 +1,8 @@
+packages:
+  - .
+minimumReleaseAge: 10080
+ignoreScripts: true
+allowBuilds:
+  esbuild@0.28.2: false
+  pnpm@12.14.0: false
+verifyDepsBeforeRun: error

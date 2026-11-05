@@ -13,7 +13,7 @@ External skills are installed with the [Skills CLI](https://skills.sh/docs/cli),
 | [test-audit](test-audit/SKILL.md) | Existing custom local test-review instructions; not replaced with a different upstream skill. |
 | [write-degreaser-aspect](write-degreaser-aspect/SKILL.md) | Project-authored rubrics, boundaries, evidence and six teaching examples. |
 
-The future [product skill template](../../specs/pending/templates/degreaser/SKILL.md) stays outside the active skill directory until the CLI exists.
+The generated [product skill](../../assets/skills/degreaser/SKILL.md) stays outside active development skill directories. It ships as a package asset; development never installs it into the actual user's projects or global harness directories.
 
 ## Install and update
 
@@ -26,7 +26,7 @@ npx skills add cursor/plugins --skill deslop thermo-nuclear-code-quality-review 
 npx skills add kunchenguid/no-mistakes --skill no-mistakes --agent codex claude-code pi -y
 ```
 
-To restore locked installations, use `npx skills experimental_install --frozen-lockfile`; to update deliberately, use `npx skills update --project` and review the resulting changes. Installing a skill does not update its CLI or authorize executing its workflow. Check the installed CLI's current help before use; no-mistakes has not been initialized or run here.
+To restore locked installations, use `npx skills experimental_install --frozen-lockfile`; to update deliberately, use `npx skills update --project` and review the resulting changes. Installing a skill does not update its CLI or authorize executing its workflow. Check the installed CLI's current help and local `no-mistakes axi` state before starting or resuming delivery.
 
 ## Discovery
 

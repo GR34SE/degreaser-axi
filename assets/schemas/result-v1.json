@@ -1,0 +1,49 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://degreaser.dev/schemas/result-v1.json",
+  "title": "Worker result v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["aspect", "status", "findings", "limitations"],
+  "properties": {
+    "aspect": { "type": "string", "pattern": "^A(?:0[1-9]|1[0-6])$" },
+    "status": { "enum": ["findings", "no-findings", "not-applicable", "incomplete"] },
+    "findings": { "type": "array", "items": { "$ref": "#/definitions/finding" } },
+    "limitations": { "type": "array", "items": { "$ref": "#/definitions/text" } },
+    "reason": { "$ref": "#/definitions/text" }
+  },
+  "allOf": [
+    { "if": { "properties": { "status": { "const": "findings" } } }, "then": { "properties": { "findings": { "type": "array", "minItems": 1 } } } },
+    { "if": { "properties": { "status": { "enum": ["no-findings", "not-applicable"] } } }, "then": { "properties": { "findings": { "type": "array", "maxItems": 0 } } } },
+    { "if": { "properties": { "status": { "const": "not-applicable" } } }, "then": { "required": ["reason"], "properties": { "reason": {} } } },
+    { "if": { "properties": { "status": { "const": "incomplete" } } }, "then": { "properties": { "limitations": { "type": "array", "minItems": 1 } } } }
+  ],
+  "definitions": {
+    "text": { "type": "string", "pattern": "\\S" },
+    "line": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["location", "quote", "title", "evidence", "consequence", "countercheck", "recommendation"],
+      "properties": {
+        "location": {
+          "type": "object", "additionalProperties": false,
+          "required": ["path", "side", "startLine", "endLine"],
+          "properties": {
+            "path": { "type": "string", "pattern": "^(?!(?:\\.|\\.\\.)(?:/|$))[^/\\u0000]+(?:/(?!(?:\\.|\\.\\.)(?:/|$))[^/\\u0000]+)*$" },
+            "side": { "enum": ["old", "new"] },
+            "startLine": { "$ref": "#/definitions/line" },
+            "endLine": { "$ref": "#/definitions/line" }
+          }
+        },
+        "quote": { "$ref": "#/definitions/text" },
+        "title": { "$ref": "#/definitions/text" },
+        "evidence": { "$ref": "#/definitions/text" },
+        "consequence": { "$ref": "#/definitions/text" },
+        "countercheck": { "$ref": "#/definitions/text" },
+        "recommendation": { "$ref": "#/definitions/text" },
+        "uncertainty": { "type": "string" }
+      }
+    }
+  }
+}

@@ -1,0 +1,8 @@
+agent: claude
+commands:
+  prepare: pnpm install --frozen-lockfile --ignore-scripts
+  test: pnpm test && pnpm typecheck
+  lint: pnpm lint
+  format: pnpm format
+pr:
+  publish_intent: false

@@ -1,0 +1,11 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://degreaser.dev/schemas/state-v1.json",
+  "title": "Latest local Degreaser run v1",
+  "type": "object", "additionalProperties": false,
+  "required": ["schemaVersion", "latestRunId"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "latestRunId": { "type": "string", "pattern": "^r-[0-9]{8}-[0-9]{4}-[a-f0-9]{4}$" }
+  }
+}

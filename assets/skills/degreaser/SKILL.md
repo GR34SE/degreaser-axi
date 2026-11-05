@@ -1,0 +1,26 @@
+---
+name: degreaser
+description: Review a code change with focused source-only reviewers, inspect evidence and choose justified fixes. Use when asked to deslop or degrease. Not for Degreaser workers.
+---
+
+# Degreaser
+
+Review code changes with focused, read-only reviewers and source evidence.
+
+- Development build: all sixteen review aspects, bounded retries and deadlines, and same-run waiting are available. Cancel stops the run's owned workers and retains useful results; resume continues unresolved unchanged input.
+- Init discovers models, writes the project RC, adds the root ignore entry, and installs selected harness startup integrations and skills. Setup hooks can install, repair or remove selected targets.
+- Use an explicitly installed local package; this package is unpublished. If the binary is unavailable, ask for the local package path; do not install from a registry. Run `degreaser-axi --help` or `degreaser-axi review --help` for the current interface.
+- Provide the actual task and explicit worktree, branch or repository scope. Branch requires the base supplied by the user; never guess it.
+- For example, `degreaser-axi review --scope worktree --task "Add CSV import"` reviews the worktree. For a branch, set USER_PROVIDED_BASE to the base explicitly supplied by the user and replace the example task: `degreaser-axi review --scope branch --base "$USER_PROVIDED_BASE" --task "Add CSV import"`.
+- Every init requires the user's confirmed agent/model and selected Codex, Claude or Pi harnesses. Do not choose or switch models for the user.
+- Run `degreaser-axi init` to discover exact candidates. Without a terminal, decision-required (exit 2) writes nothing. Show choices to the user, then run `degreaser-axi init --agent <confirmed-agent> --model <confirmed-exact-id> --harnesses <confirmed-targets>`. RC and recommendations are prefill, never consent for a later init.
+- Do not edit code while a run is active. On running (exit 3) or a caller-tool timeout, continue with `degreaser-axi wait <run-id>` for the same run until a terminal result; start no replacement review after a caller timeout. If the run ID is lost, recover it with `degreaser-axi home` or `degreaser-axi report`.
+- Codex: poll the yielded same command session until it exits, then use same-run wait if needed. Claude Code: set the foreground Bash timeout to --wait seconds plus 60 seconds, at most 600000 ms. If it yields a tracked background task, use Read on its output file and follow its completion notification in the same caller; TaskOutput was removed in Claude Code 2.1.277. A background handle is not completion: recover the run ID and personally wait for its terminal report, without finishing the task early. Pi: use the normal command tool; do not assume an invented default timeout.
+- An already authorized caller runs the normal review command without escalation. After an actual permission denial, use only host-supported per-command approval, without persistent rules, or ask for an authorized session/terminal. Sandbox names and network hints alone do not establish blocking. Do not retry the fleet or change global policy. Local home/report/finding/wait reads remain usable where permitted.
+- Doctor checks local installation and exact native version compatibility without model calls; installed files do not prove trust, reload or effective hook delivery. An unsupported native version needs the supported executable on PATH or a revalidated Degreaser release, never a silent global update, downgrade or model switch.
+- Completed and no-changes exit 0; findings alone are not failure. Partial, failed or interrupted exit 1; inspect missing coverage. Usage, decision and environment errors exit 2.
+- Inspect evidence with `degreaser-axi finding <id>` or `degreaser-axi report --full`. Not-applicable is not a quality certificate. Decide justified fixes yourself; Degreaser never applies patches.
+- Use `degreaser-axi resume <run-id>` only for unchanged partial, failed or interrupted work. Successful aspects and attempt history remain. --concurrency and --wait may change; --deadline <seconds> explicitly starts a new budget. Without it the original deadline remains. After edits, start a new review.
+- Rate limits may need lower-concurrency resume after the limit clears. A disabled or suspended account needs access restored with its provider, not waiting or lower concurrency. Never switch account, provider or model as a fallback. Inspect attempt failures separately from the run's stopReason.
+- Cancel can refuse during ownership admission: cancellation was not applied; retry the supplied cancel command after admission. For owner-unverified, use the original Node executable and inspect local PID/start/group identities. Never signal reused PIDs or remove ambiguous locks. Start a new review only after confirming old work has stopped.
+- If DEGREASER_WORKER is set, do not invoke Degreaser or use this skill. Never change global permissions, install Codex rules or bypass host restrictions.

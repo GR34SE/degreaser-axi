@@ -1,0 +1,49 @@
+{
+  "name": "degreaser-axi",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Focused source-only code review for coding agents",
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "os": [
+    "darwin"
+  ],
+  "packageManager": "pnpm@12.14.0",
+  "bin": {
+    "degreaser-axi": "dist/bin/degreaser-axi.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "test": "pnpm build && node --test --test-concurrency=2 test/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome ci",
+    "format": "biome check --write",
+    "build": "node scripts/build.ts",
+    "skill:generate": "node scripts/generate-skill.ts",
+    "skill:check": "node scripts/generate-skill.ts --check",
+    "package:check": "pnpm build && node scripts/package-check.ts",
+    "release:notes": "node scripts/release-notes.ts",
+    "release:prepare": "node scripts/prepare-release.ts",
+    "qa": "pnpm build && node scripts/qa/scenario.mjs",
+    "check": "pnpm test && pnpm typecheck && pnpm lint && pnpm build && pnpm package:check",
+    "test:live": "node scripts/test-live.ts"
+  },
+  "dependencies": {
+    "@agentclientprotocol/claude-agent-acp": "0.95.0",
+    "@agentclientprotocol/codex-acp": "2.5.0",
+    "acpx": "0.21.1",
+    "ajv": "8.20.0",
+    "axi-sdk-js": "0.1.13",
+    "pi-acp": "0.0.33"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.6.3",
+    "@types/node": "24.19.2",
+    "typescript": "7.0.2",
+    "yaml": "2.9.1"
+  }
+}

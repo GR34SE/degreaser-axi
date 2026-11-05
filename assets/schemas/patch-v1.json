@@ -1,0 +1,7 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://degreaser.dev/schemas/patch-v1.json",
+  "title": "Degreaser file-backed patch v1",
+  "description": "JSON-encoded literal patch, or null for a repository audit. Its version is established by the containing input-v1 record; it must equal that record's patch.",
+  "type": ["string", "null"]
+}
