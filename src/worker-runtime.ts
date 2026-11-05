@@ -8,6 +8,7 @@ import {
   createAgentRegistry,
   isAcpRuntimeError,
 } from "acpx/runtime";
+import { isolatedCommand } from "./native-environment.ts";
 import type { NativeProfile } from "./native-profile.ts";
 
 export type WorkerFailure =
@@ -84,16 +85,6 @@ export async function executeWorker(
   };
   if (request.signal?.aborted) return { ...outcome, failure: "cancelled" };
   const records = new Map<string, AcpSessionRecord>();
-  // acpx preserves/promotes ACPX_AUTH_* even with an env block list. Clear the
-  // child environment before Node/adapter startup, not after possible injection.
-  const command = [
-    "/usr/bin/env",
-    "-i",
-    ...Object.entries(profile.environment).map(
-      ([key, value]) => `${key}=${value}`,
-    ),
-    ...profile.command,
-  ];
   const runtime = createAcpRuntime({
     cwd: request.cwd,
     sessionStore: {
@@ -105,7 +96,7 @@ export async function executeWorker(
       },
     },
     agentRegistry: createAgentRegistry({
-      overrides: { [profile.agent]: command },
+      overrides: { [profile.agent]: isolatedCommand(profile) },
     }),
     agentProcessEnvAllow: [],
     permissionMode: "approve-reads",

@@ -30,8 +30,9 @@ try {
   });
   launchNative([
     ...args,
-    "--model",
-    selectedModel(),
+    ...(process.env.DEGREASER_MODEL_DISCOVERY === "1"
+      ? []
+      : ["--model", selectedModel()]),
     "--tools",
     "Read,Grep,Glob",
     "--setting-sources",

@@ -26,6 +26,22 @@ export function workerEnvironment(
   return env;
 }
 
+export function isolatedCommand(profile: {
+  command: string[];
+  environment: Record<string, string>;
+}): string[] {
+  // acpx promotes inherited ACPX_AUTH_* before filtering. Clear the child
+  // environment before adapter startup, for both discovery and review.
+  return [
+    "/usr/bin/env",
+    "-i",
+    ...Object.entries(profile.environment).map(
+      ([key, value]) => `${key}=${value}`,
+    ),
+    ...profile.command,
+  ];
+}
+
 export function assertSubscriptionEnvironment(env: NodeJS.ProcessEnv): void {
   if (
     Object.entries(env).some(

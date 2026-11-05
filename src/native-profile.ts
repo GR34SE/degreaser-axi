@@ -92,6 +92,7 @@ async function nativeExecutable(
 
 export async function nativeProfile(
   identity: Identity,
+  purpose: "review" | "model-discovery" = "review",
 ): Promise<NativeProfile> {
   if (
     !identity.model ||
@@ -137,6 +138,10 @@ export async function nativeProfile(
     environment.DEGREASER_NATIVE_EXECUTABLE = native.path;
     nativeVersion = native.version;
     if (identity.agent === "claude") {
+      // Claude advertises an arbitrary --model as a custom catalog entry.
+      // Discovery must read its catalog without seeding the requested value.
+      if (purpose === "model-discovery")
+        environment.DEGREASER_MODEL_DISCOVERY = "1";
       environment.CLAUDE_CODE_EXECUTABLE = launcher;
       environment.CLAUDE_CODE_DISABLE_AUTO_MEMORY = "1";
       environment.CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION = "false";

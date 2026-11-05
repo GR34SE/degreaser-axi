@@ -5,6 +5,14 @@ No adapter is downloaded at review time. Each attempt creates a fresh session,
 checks that the exact selected model is advertised and selected before sending
 a prompt, and shuts down and joins the runtime's owned process tree.
 
+Before run admission, metadata-only sessions discover the catalogs needed for
+the selected identities. They use the same isolation and environment, never
+send prompts, and await owned transport cleanup. Claude discovery omits the
+native `--model` flag because it would advertise even an unsupported requested
+ID as a custom model. This does not change the exact selection for review turns.
+Pi discovery retains native argv pinning and never calls a persistent model
+setter. See [input-contract.md](input-contract.md) for refusal semantics.
+
 | Harness | Adapter / native version | Effective restriction |
 | --- | --- | --- |
 | Codex | codex-acp 2.5.0 / bundled Codex 0.165.0 | Read-only filesystem sandbox, never approval, code mode for reads; project documentation, hooks, delegation, apps, web search and MCP disabled by the profile |
@@ -60,7 +68,10 @@ proof that all ambient metadata is absent.
 The same packaged native launchers also provide effective-profile observations:
 Codex's native prompt diagnostics show read-only/never approval, native MCP
 listing has no enabled servers, and feature listing confirms disabled
-hooks/apps/delegation and enabled code-mode. Claude's actual initialization
+hooks/apps/delegation and enabled code-mode. A bounded native stdio
+`config/read` check confirms effective `web_search: disabled` even over a
+disposable user configuration requesting live search; it sends no model turn
+and opens no listening port. Claude's actual initialization
 advertises exactly Read/Grep/Glob, zero skills and zero MCP servers. Pi's native
 system messages advertise exactly read/grep/find/ls. Read nonces and inactive
 project hook/extension/instruction canaries accompany those checks.

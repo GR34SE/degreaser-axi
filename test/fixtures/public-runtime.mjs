@@ -15,7 +15,7 @@ registerHooks({
       export const PROFILE_LIMITATIONS = {codex: [], claude: [], pi: []};
       export async function nativeProfile(identity) {
         return {...identity, command: [process.execPath, ${JSON.stringify(adapter)}, process.env.SYNTHETIC_PLAN],
-          environment: {PATH: process.env.PATH, HOME: process.env.HOME, DEGREASER_WORKER: "1", SYNTHETIC_MODEL: identity.model},
+          environment: {PATH: process.env.PATH, HOME: process.env.HOME, DEGREASER_WORKER: "1", SYNTHETIC_AGENT: identity.agent, SYNTHETIC_MODEL: identity.model},
           adapterVersion: "synthetic", nativeVersion: "synthetic", limitations: ["Synthetic external adapter; not a live provider result."]};
       }`,
     };

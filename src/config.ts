@@ -159,7 +159,7 @@ export function resolveConfig(
 }
 
 export function assertSupportedModels(
-  config: EffectiveConfig,
+  config: Pick<EffectiveConfig, "assignments">,
   available: readonly Identity[],
 ): void {
   for (const { aspect, agent, model } of config.assignments) {

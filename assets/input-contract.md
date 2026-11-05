@@ -12,7 +12,7 @@ The repository root comes from Git, including nested invocations and linked work
 
 [config-v1.json](schemas/config-v1.json) is a strict draft-07 JSON Schema. An omitted `schemaVersion` means version 1, keeping the minimal `{ "agent": "codex", "model": "<exact-id>" }` form valid. Explicit unsupported versions and unknown fields at any depth are errors. No values are coerced.
 
-- Agents: `codex`, `claude`, `pi`. Models are exact, whitespace-free IDs, with `provider/model` required for Pi. Syntax checks do not establish model availability. Before inference, execution must check each selected pair against the adapter's exact available-model list; no prefix matching, substitution or fallback.
+- Agents: `codex`, `claude`, `pi`. Models are exact, whitespace-free IDs, with `provider/model` required for Pi. Syntax checks do not establish model availability. Before creating a run, owner or aspect attempt, `review` discovers the exact catalogs needed by selected workers and rejects unsupported pairs (including overrides) as `invalid-input` / 2. No prefix matching, substitution or fallback.
 - All A01–A16 start enabled. `aspects.disable` removes IDs; `aspects.enable` explicitly affirms IDs from that default, not an allowlist. An ID in both lists, duplicate/unknown IDs or an empty effective selection is invalid.
 - `--aspects` is a comma-separated one-run subset of enabled IDs, sorted into catalog order. Explicit disabled IDs are errors, not silently re-enabled. No slugs or custom rubrics.
 - `aspects.overrides` maps built-in IDs to `{ "model": "<exact-id>" }` or `{ "agent": "...", "model": "..." }`. Model-only overrides retain the configured agent; an agent override always requires an explicit model.
@@ -21,6 +21,10 @@ The repository root comes from Git, including nested invocations and linked work
 - Only `--aspects`, `--concurrency` and `--wait` control this review invocation. They never rewrite the RC.
 
 These numeric defaults, retry ceiling, version-omission rule and exclusion spelling are implementation choices, not additional product requirements.
+
+Model discovery uses the same restricted native profiles and environment as workers, with no prompt or model-setting RPC. Each distinct selected identity is inspected once. Claude discovery omits the native model flag so an arbitrary requested ID cannot add itself to the catalog; Pi keeps its provider-qualified argv selection without changing defaults. Metadata sessions may create native harness history, but never Degreaser run history or aspect attempts. Discovery is bounded to at most 120 seconds per identity (or the shorter worker timeout), plus native version checks and joined cleanup. Missing metadata or failed discovery returns `environment-blocked` / 2, not automatic acceptance.
+
+Invalid syntax fails before discovery. Empty change scopes and coordinator-only A08 repository audits need no catalog or reviewer. Unselected overrides are syntax-checked but do not trigger discovery. Actual review sessions still recheck the exact model before inference: later availability/account changes can fail an admitted run as `model-unavailable`, without fallback or blind retry.
 
 ## Assessed paths and exclusions
 

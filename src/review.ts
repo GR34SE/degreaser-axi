@@ -1,9 +1,11 @@
 import { spawn } from "node:child_process";
 import { setTimeout } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
+import { assertSupportedModels } from "./config.ts";
 import { repositoryRoot } from "./git.ts";
 import { prepareReview } from "./input.ts";
 import { InputError } from "./input-error.ts";
+import { discoverModels } from "./model-discovery.ts";
 import { findings, observedStatus, renderReport } from "./report.ts";
 import { createRun, loadRun, type Run, StateError } from "./storage.ts";
 
@@ -43,6 +45,24 @@ export async function review(args: string[], cwd: string) {
       reason:
         "No change was reviewed. No reviewer was started; this is not a repository audit or a model quality verdict.",
     };
+  const checked = new Set<string>();
+  for (const assignment of input.workers) {
+    const key = JSON.stringify([assignment.agent, assignment.model]);
+    if (checked.has(key)) continue;
+    const models = await discoverModels(
+      assignment,
+      input.repository,
+      Math.min(120_000, input.config.limits.workerTimeoutSeconds * 1000),
+    );
+    assertSupportedModels(
+      { assignments: [assignment] },
+      models.availableModelIds.map((model) => ({
+        agent: assignment.agent,
+        model,
+      })),
+    );
+    checked.add(key);
+  }
   const run = createRun(input);
   const owner = spawn(
     process.execPath,
