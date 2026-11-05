@@ -28,6 +28,9 @@ export function fixture(t: TestContext, committed = true) {
     writeFileSync(join(root, path), contents);
   };
   git("init", "--initial-branch=main");
+  // Newer Git detaches auto maintenance after commit; it would mutate .git
+  // asynchronously and race repository snapshots.
+  git("config", "maintenance.auto", "false");
   write(".gitignore", ".degreaserrc.json\nignored/\n.degreaser/\n");
   write(
     ".degreaserrc.json",
