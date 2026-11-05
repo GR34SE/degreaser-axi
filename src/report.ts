@@ -90,6 +90,13 @@ export function renderReport(run: Run, full = false) {
         : [
             `degreaser-axi report ${run.id} --full`,
             ...(all.length ? [`degreaser-axi finding F1 --run ${run.id}`] : []),
+            ...(run.tasks.some(
+              (task) => task.attempts.at(-1)?.failure === "rate-limited",
+            )
+              ? [
+                  `After the selected account limit clears, keep the same model and run: degreaser-axi resume ${run.id} --concurrency 1`,
+                ]
+              : []),
           ],
   };
 }

@@ -1,15 +1,13 @@
-import { execFile } from "node:child_process";
+import { spawn } from "node:child_process";
 import { constants } from "node:fs";
 import { access, readFile, realpath } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { dirname, isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { promisify } from "node:util";
 import type { Agent, Identity } from "./config.ts";
 import { workerEnvironment } from "./native-environment.ts";
 
 const require = createRequire(import.meta.url);
-const execute = promisify(execFile);
 export const codexConfig = {
   sandbox_mode: "read-only",
   approval_policy: "never",
@@ -56,9 +54,72 @@ export const PROFILE_LIMITATIONS: Record<Agent, string[]> = {
   ],
 };
 
+async function nativeVersion(
+  executable: string,
+  env: Record<string, string>,
+  signal?: AbortSignal,
+): Promise<string> {
+  signal?.throwIfAborted();
+  return new Promise((resolve, reject) => {
+    const child = spawn(executable, ["--version"], {
+      env,
+      detached: true,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let output = "",
+      bytes = 0,
+      failure: unknown;
+    const stop = () => {
+      if (!child.pid) return;
+      try {
+        process.kill(-child.pid, "SIGKILL");
+      } catch (error) {
+        if (
+          !(error instanceof Error && "code" in error && error.code === "ESRCH")
+        )
+          failure ??= error;
+      }
+    };
+    const abort = () => {
+      failure ??= signal?.reason;
+      stop();
+    };
+    const timer = setTimeout(() => {
+      failure ??= Object.assign(new Error("Native version check timed out."), {
+        code: "ETIMEDOUT",
+      });
+      stop();
+    }, 10_000);
+    const collect = (chunk: Buffer, stdout: boolean) => {
+      bytes += chunk.length;
+      if (bytes > 4096) {
+        failure ??= new Error("Native version output exceeded its limit.");
+        stop();
+      } else if (stdout) output += chunk.toString("utf8");
+    };
+    child.stdout.on("data", (chunk: Buffer) => collect(chunk, true));
+    child.stderr.on("data", (chunk: Buffer) => collect(chunk, false));
+    child.on("error", (error) => {
+      failure ??= error;
+    });
+    // The group belongs only to this probe, including any native helper processes.
+    child.on("exit", stop);
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", abort);
+      if (failure) reject(failure);
+      else if (code !== 0) reject(new Error("Native version check failed."));
+      else resolve(output);
+    });
+    signal?.addEventListener("abort", abort, { once: true });
+    if (signal?.aborted) abort();
+  });
+}
+
 async function nativeExecutable(
   agent: "claude" | "pi",
   env: Record<string, string>,
+  signal?: AbortSignal,
 ): Promise<{ path: string; version: string }> {
   let executable: string | undefined;
   for (const directory of (env.PATH ?? "").split(":").filter(isAbsolute)) {
@@ -75,11 +136,7 @@ async function nativeExecutable(
     throw new Error(
       `Install ${agent} and authenticate its subscription before review.`,
     );
-  const { stdout } = await execute(executable, ["--version"], {
-    env,
-    timeout: 10_000,
-    maxBuffer: 4096,
-  });
+  const stdout = await nativeVersion(executable, env, signal);
   const [version = ""] = stdout.trim().split(" ");
   // These exact native interfaces were exercised. Refuse unverified flag semantics.
   const supported = agent === "claude" ? "2.1.317" : "1.4.0";
@@ -93,6 +150,7 @@ async function nativeExecutable(
 export async function nativeProfile(
   identity: Identity,
   purpose: "review" | "model-discovery" = "review",
+  signal?: AbortSignal,
 ): Promise<NativeProfile> {
   if (
     !identity.model ||
@@ -134,7 +192,7 @@ export async function nativeProfile(
     environment.INITIAL_AGENT_MODE = "read-only";
     environment.CODEX_CONFIG = JSON.stringify(codexConfig);
   } else {
-    const native = await nativeExecutable(identity.agent, environment);
+    const native = await nativeExecutable(identity.agent, environment, signal);
     environment.DEGREASER_NATIVE_EXECUTABLE = native.path;
     nativeVersion = native.version;
     if (identity.agent === "claude") {

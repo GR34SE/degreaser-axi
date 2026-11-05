@@ -7,7 +7,8 @@ description: Review a code change with focused source-only reviewers, inspect ev
 
 Review code changes with focused, read-only reviewers and source evidence.
 
-Development build: review execution and integrations are not implemented yet.
+Development build: all sixteen review aspects, bounded retries/deadlines and same-run waiting are available.
+Init, integrations, public cancel and resume remain under development.
 Use an explicitly installed local package, not an unverified registry download.
 Run `degreaser-axi --help` or `degreaser-axi review --help` for the current interface.
 If the binary is unavailable, ask for the local package path; do not install a published version.

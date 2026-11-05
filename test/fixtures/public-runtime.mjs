@@ -13,9 +13,14 @@ registerHooks({
       shortCircuit: true,
       source: `
       export const PROFILE_LIMITATIONS = {codex: [], claude: [], pi: []};
-      export async function nativeProfile(identity) {
+      export async function nativeProfile(identity, purpose = "review", signal) {
+        const {readFileSync} = await import("node:fs");
+        const {setTimeout} = await import("node:timers/promises");
+        const plan = JSON.parse(readFileSync(process.env.SYNTHETIC_PLAN, "utf8"));
+        if (purpose === "review" && plan.profileDelayMs)
+          await setTimeout(plan.profileDelayMs, undefined, {signal});
         return {...identity, command: [process.execPath, ${JSON.stringify(adapter)}, process.env.SYNTHETIC_PLAN],
-          environment: {PATH: process.env.PATH, HOME: process.env.HOME, DEGREASER_WORKER: "1", SYNTHETIC_AGENT: identity.agent, SYNTHETIC_MODEL: identity.model},
+          environment: {PATH: process.env.PATH, HOME: process.env.HOME, DEGREASER_WORKER: "1", SYNTHETIC_AGENT: identity.agent, SYNTHETIC_MODEL: identity.model, SYNTHETIC_ASPECT: identity.aspect ?? "", SYNTHETIC_PURPOSE: purpose},
           adapterVersion: "synthetic", nativeVersion: "synthetic", limitations: ["Synthetic external adapter; not a live provider result."]};
       }`,
     };

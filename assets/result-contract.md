@@ -42,6 +42,47 @@ per-aspect rejection reasons, attempts and exact selected identities.
 Missing usage is unknown, not zero. No-findings and not-applicable are distinct;
 neither a partial review nor an all-not-applicable review certifies clean code.
 
+## Execution and lifecycle outcomes
+
+All sixteen aspects run by default. The owner admits one worker at a time until
+the first prompt has been accepted by the model transport, not merely until a
+process or session is ready. It then fills all selected slots, or the explicitly
+configured positive concurrency cap. A pre-invocation failure advances to the
+next worker without releasing a still-cold fleet.
+
+Only missing/malformed results and whole-attempt timeouts without valid evidence
+receive up to `maxRetries` additional attempts. Each uses a fresh session, the
+same assignment and exact model, and keeps its slot until cleanup finishes.
+Valid incomplete results await explicit resume. Authentication, unavailable-model,
+permission, account/quota/rate-limit and cleanup failures do not trigger blind
+retries or fallback. Rate-limit reports name the same run and suggest explicit
+resume with concurrency 1 after the selected account becomes available.
+
+The original run deadline includes queued work and all attempts; errors never
+reset it. Attempt limits include profile/adapter startup and inference. Cleanup
+can outlast the deadline while owned processes are stopped and joined; no new
+attempt starts during that join. Codex and Pi receive an advisory turn budget
+and report that native max-turn enforcement is unavailable. Claude receives the
+supported native limit.
+
+Lifecycle disposition is separate from finding count:
+
+- A valid denial-terminated result remains usable and can resolve the aspect.
+  A denial without a valid result is an unresolved permission failure.
+- Unsupported adapter close (including Pi) is normalized only after shutdown
+  succeeds and is joined. The limitation is disclosed without losing evidence.
+- A genuine close/shutdown failure is `cleanup`, never clean completion. Any
+  schema-valid, quote-checked evidence is retained as `incomplete`, with the
+  lifecycle cause in limitations and attempt history. No automatic retry follows.
+- Valid evidence followed by timeout, cancellation or deadline also remains
+  `incomplete`. It is useful but unresolved and requires explicit continuation.
+  Without valid evidence, these stops cannot manufacture a no-findings result.
+
+All selected aspects resolved means completed/0, even with findings or only
+explained not-applicable results. Any useful result plus unresolved coverage is
+partial/1, including all-incomplete results with zero findings. Zero useful
+results is failed/1. Process exit 0 alone never establishes reviewed coverage.
+
 This development slice has a per-run detached owner, exclusive ownership,
 heartbeat, bounded attempts/deadline and same-ID waiting. Public cancellation,
 continuation and full stale-owner recovery are still under development.

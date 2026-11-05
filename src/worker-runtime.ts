@@ -10,17 +10,9 @@ import {
 } from "acpx/runtime";
 import { isolatedCommand } from "./native-environment.ts";
 import type { NativeProfile } from "./native-profile.ts";
+import { type WorkerFailure, workerFailure } from "./worker-failure.ts";
 
-export type WorkerFailure =
-  | "model-unavailable"
-  | "authentication"
-  | "rate-limited"
-  | "environment-blocked"
-  | "timeout"
-  | "cancelled"
-  | "runtime"
-  | "cleanup"
-  | "output-limit";
+export type { WorkerFailure } from "./worker-failure.ts";
 export interface WorkerRequest {
   cwd: string;
   /** Assembled assignment, task/scope and response contract. Never ambient caller history. */
@@ -40,23 +32,6 @@ export interface WorkerOutcome {
   failure?: WorkerFailure;
   usage: AcpRuntimeUsageBreakdown | null;
   limitations: string[];
-}
-
-function failureKind(error: unknown): WorkerFailure {
-  const message = error instanceof Error ? error.message : String(error);
-  if (
-    /model.*(unavailable|unsupported|not found)|ACP_MODEL_UNSUPPORTED/i.test(
-      message,
-    )
-  )
-    return "model-unavailable";
-  if (/auth|login|credential|unauthorized/i.test(message))
-    return "authentication";
-  if (/rate.?limit|quota|429/i.test(message)) return "rate-limited";
-  if (/permission denied|EACCES|sandbox|policy/i.test(message))
-    return "environment-blocked";
-  if (/timeout|timed out/i.test(message)) return "timeout";
-  return "runtime";
 }
 
 /** One fresh runtime/session per attempt. acpx, not this module, owns the process tree. */
@@ -83,6 +58,10 @@ export async function executeWorker(
     usage: null,
     limitations: [...profile.limitations],
   };
+  if (profile.agent !== "claude")
+    outcome.limitations.push(
+      `${profile.agent} does not natively enforce maxTurns (${request.maxTurns}); the instruction budget is advisory. Attempt and run deadlines are enforced.`,
+    );
   if (request.signal?.aborted) return { ...outcome, failure: "cancelled" };
   const records = new Map<string, AcpSessionRecord>();
   const runtime = createAcpRuntime({
@@ -207,13 +186,13 @@ export async function executeWorker(
         outcome.failure =
           result.status === "cancelled"
             ? "cancelled"
-            : failureKind(new Error(result.error.message));
+            : workerFailure(result.error);
     }
   } catch (error) {
-    outcome.failure ??= failureKind(error);
+    outcome.failure ??= workerFailure(error);
   } finally {
     clearTimeout(timer);
-    request.signal?.removeEventListener("abort", abort);
+    let unsupportedClose = false;
     if (handle && !shutdown) {
       try {
         await runtime.close({
@@ -226,14 +205,21 @@ export async function executeWorker(
           isAcpRuntimeError(error) &&
           error.code === "ACP_BACKEND_UNSUPPORTED_CONTROL"
         ) {
-          outcome.limitations.push(
-            "Adapter session close is unsupported; owned processes were shut down and joined.",
-          );
-        } else outcome.failure ??= "cleanup";
+          unsupportedClose = true;
+        } else outcome.failure = "cleanup";
       }
     }
-    if (stopped) outcome.failure = stopped;
     if (!(await join())) outcome.failure = "cleanup";
+    if (stopped && outcome.failure !== "cleanup") outcome.failure = stopped;
+    if (unsupportedClose && outcome.failure !== "cleanup")
+      outcome.limitations.push(
+        "Adapter session close is unsupported; owned processes were shut down and joined.",
+      );
+    if (outcome.failure === "cleanup")
+      outcome.limitations.push(
+        "Worker cleanup failed. Any validated evidence is retained as incomplete, not clean completion.",
+      );
+    request.signal?.removeEventListener("abort", abort);
     if (outcome.failure) outcome.status = "failed";
     records.clear();
   }

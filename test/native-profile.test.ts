@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { once } from "node:events";
+import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
+import { alive, until } from "./queue-fixture.ts";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 
@@ -75,6 +77,8 @@ test("packaged Claude launcher replaces conflicting profile flags and preserves 
         "other",
         "--resume",
         "control-id",
+        "--max-turns",
+        "3",
       ],
       {
         cwd,
@@ -101,6 +105,7 @@ test("packaged Claude launcher replaces conflicting profile flags and preserves 
     assert.equal(option("--permission-mode"), "default");
     assert.equal(option("--model"), "exact-model");
     assert.equal(option("--resume"), "control-id");
+    assert.equal(option("--max-turns"), "3");
     assert.equal(option("--input-format"), "stream-json");
     assert.equal(option("--output-format"), "stream-json");
     assert.equal(args.filter((a: string) => a === "--tools").length, 1);
@@ -337,6 +342,56 @@ test("native effective configuration disables web under the production Codex pro
     assert.equal(effective?.approval_policy, "never");
     assert.equal(await readFile(join(home, "config.toml"), "utf8"), config);
   } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("aborting native profile startup joins the owned version process and its descendant", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "degreaser-version-abort-"));
+  const path = process.env.PATH;
+  const pids: number[] = [];
+  try {
+    const log = join(cwd, "pids.json");
+    await writeFile(
+      join(cwd, "claude"),
+      `#!${process.execPath}
+import {spawn} from "node:child_process";
+import {writeFileSync} from "node:fs";
+process.on("SIGTERM", () => {});
+const child = spawn(process.execPath, ["-e", "process.on('SIGTERM',()=>{});setInterval(()=>{},1000)"], {stdio: "ignore"});
+writeFileSync(${JSON.stringify(log)}, JSON.stringify([process.pid, child.pid]));
+child.on("exit", () => process.exit());
+setInterval(()=>{},1000);
+`,
+      { mode: 0o755 },
+    );
+    process.env.PATH = `${cwd}:${path}`;
+    const { nativeProfile } = await import("../src/native-profile.ts");
+    const controller = new AbortController();
+    const pending = nativeProfile(
+      { agent: "claude", model: "claude-haiku-4-5-20251001" },
+      "review",
+      controller.signal,
+    );
+    const outcome = pending.then(
+      () => false,
+      () => true,
+    );
+    await until(() => existsSync(log), "Version probe spawned");
+    pids.push(...JSON.parse(await readFile(log, "utf8")));
+    controller.abort();
+    assert.equal(await outcome, true);
+    await until(
+      () => pids.every((pid) => !alive(pid)),
+      "Aborted version processes must be joined",
+      1000,
+    );
+  } finally {
+    process.env.PATH = path;
+    for (const pid of [...pids].reverse()) {
+      if (alive(pid)) process.kill(pid, "SIGKILL");
+    }
+    await until(() => pids.every((pid) => !alive(pid)), "Version test cleanup");
     await rm(cwd, { recursive: true, force: true });
   }
 });

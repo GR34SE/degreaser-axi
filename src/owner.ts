@@ -12,6 +12,7 @@ import {
   saveRun,
   terminalStatus,
 } from "./storage.ts";
+import { workerFailure } from "./worker-failure.ts";
 import { executeWorker } from "./worker-runtime.ts";
 
 /** Sole writer after admission. Every child is joined before the owner exits. */
@@ -24,15 +25,19 @@ export async function ownRun(repository: string, id: string) {
   const active = new Set<Promise<void>>();
   let stopReason = "cancelled";
   const stop = () => abort.abort();
-  process.on("SIGTERM", stop);
-  process.on("SIGINT", stop);
-  const deadline = setTimeout(
-    () => {
+  const expire = () => {
+    if (!abort.signal.aborted) {
       stopReason = "deadline";
       stop();
-    },
-    Math.max(1, run.deadline - Date.now()),
-  );
+    }
+  };
+  const stopped = () => {
+    if (Date.now() >= run.deadline) expire();
+    return abort.signal.aborted;
+  };
+  process.on("SIGTERM", stop);
+  process.on("SIGINT", stop);
+  const deadline = setTimeout(expire, Math.max(1, run.deadline - Date.now()));
   const persist = () => {
     run.owner = { pid: process.pid, heartbeat: Date.now() };
     saveRun(run);
@@ -58,7 +63,7 @@ export async function ownRun(repository: string, id: string) {
       if (prompt.promptHash !== task.promptHash)
         throw new Error("Persisted prompt identity changed.");
       for (let attempt = 0; attempt <= input.config.maxRetries; attempt++) {
-        if (abort.signal.aborted) {
+        if (stopped()) {
           task.status = "cancelled";
           break;
         }
@@ -71,23 +76,42 @@ export async function ownRun(repository: string, id: string) {
         };
         task.attempts.push(record);
         persist();
+        const profileTimeout = new AbortController();
+        const profileTimer = setTimeout(
+          () => profileTimeout.abort(),
+          input.config.limits.workerTimeoutSeconds * 1000,
+        );
+        const signal = AbortSignal.any([abort.signal, profileTimeout.signal]);
+        const attemptDeadline =
+          record.startedAt + input.config.limits.workerTimeoutSeconds * 1000;
         try {
-          const profile = await nativeProfile(task.assignment);
+          const profile = await nativeProfile(
+            task.assignment,
+            "review",
+            signal,
+          );
+          if (stopped()) abort.signal.throwIfAborted();
+          if (Date.now() >= attemptDeadline) profileTimeout.abort();
+          signal.throwIfAborted();
+          clearTimeout(profileTimer);
           const outcome = await executeWorker(
             {
               cwd: repository,
               prompt: prompt.text,
               maxTurns: input.config.limits.maxTurns,
-              timeoutMs: input.config.limits.workerTimeoutSeconds * 1000,
+              timeoutMs: Math.max(1, attemptDeadline - Date.now()),
               signal: abort.signal,
               onPromptStarted: started,
             },
             profile,
           );
           record.sessionId = outcome.sessionId ?? null;
-          record.failure = abort.signal.aborted
-            ? stopReason
-            : (outcome.failure ?? null);
+          record.failure =
+            outcome.failure === "cleanup"
+              ? "cleanup"
+              : stopped()
+                ? stopReason
+                : (outcome.failure ?? null);
           task.limitations = outcome.limitations;
           task.usage = outcome.usage
             ? Object.fromEntries(
@@ -100,7 +124,16 @@ export async function ownRun(repository: string, id: string) {
               )
             : null;
           if (task.usage && !Object.keys(task.usage).length) task.usage = null;
-          if (!record.failure || record.failure === "environment-blocked") {
+          if (
+            !record.failure ||
+            [
+              "environment-blocked",
+              "cleanup",
+              "timeout",
+              "cancelled",
+              "deadline",
+            ].includes(record.failure)
+          ) {
             try {
               const validated = ingestResult(
                 outcome.output,
@@ -110,27 +143,44 @@ export async function ownRun(repository: string, id: string) {
               task.result = validated.result;
               task.rejections = validated.rejections;
               task.status = validated.result.status;
-              record.failure = null;
+              if (!record.failure || record.failure === "environment-blocked")
+                record.failure = null;
+              else {
+                task.result.status = "incomplete";
+                task.result.limitations.push(
+                  `Worker lifecycle did not finish successfully: ${record.failure}.`,
+                );
+                task.status = "incomplete";
+              }
             } catch (error) {
               if (!record.failure) throw error;
-              task.status = "failed";
+              task.status = stopped() ? "cancelled" : "failed";
             }
           } else task.status = abort.signal.aborted ? "cancelled" : "failed";
         } catch (error) {
           task.status = "failed";
-          record.failure =
-            error instanceof ResultError
-              ? "invalid-output"
-              : "environment-blocked";
+          record.failure = stopped()
+            ? stopReason
+            : profileTimeout.signal.aborted
+              ? "timeout"
+              : error instanceof ResultError
+                ? "invalid-output"
+                : workerFailure(error);
           task.limitations.push(
             error instanceof ResultError
               ? error.message
               : "Worker could not start or complete safely. Check the selected harness installation, subscription and native policy.",
           );
+        } finally {
+          clearTimeout(profileTimer);
         }
+        if (task.status === "failed" && stopped()) task.status = "cancelled";
         record.endedAt = Date.now();
         persist();
-        if (record.failure !== "invalid-output" && record.failure !== "timeout")
+        if (
+          task.result ||
+          (record.failure !== "invalid-output" && record.failure !== "timeout")
+        )
           break;
       }
       if (task.status === "cancelled") {
@@ -139,11 +189,14 @@ export async function ownRun(repository: string, id: string) {
       }
     }
     const pending = run.tasks.filter((t) => !resolved(t));
-    const first = pending.shift();
-    if (first) {
+    if (pending.length) {
+      let warmed = false;
       let release = () => {};
       const warm = new Promise<void>((resolve) => {
-        release = resolve;
+        release = () => {
+          warmed = true;
+          resolve();
+        };
       });
       const launch = (task: RunTask, started?: () => void) => {
         const promise = work(task, started)
@@ -157,15 +210,24 @@ export async function ownRun(repository: string, id: string) {
         active.add(promise);
         return promise;
       };
-      const firstWork = launch(first, release);
-      // Failure before inference also releases admission; never deadlock warmup.
-      await Promise.race([warm, firstWork]);
       const limit = input.config.concurrency ?? run.tasks.length;
       for (const task of pending) {
+        if (stopped()) break;
         if (active.size >= limit) await Promise.race(active);
-        launch(task);
+        if (stopped()) break;
+        const work = launch(task, release);
+        // A cold failure advances one task, not the entire still-cold fleet.
+        if (!warmed) await Promise.race([warm, work]);
       }
       await Promise.all(active);
+    }
+    if (stopped()) {
+      for (const task of run.tasks.filter(
+        (task) => task.status === "pending",
+      )) {
+        task.status = "cancelled";
+        task.limitations.push(`Unexamined aspect: ${stopReason}.`);
+      }
     }
     if (storageFailed) throw new Error("Storage heartbeat failed");
     run.status = terminalStatus(run.tasks);

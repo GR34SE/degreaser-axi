@@ -1,9 +1,11 @@
 // Synthetic ACP server uses the installed public protocol SDK; it does not
 // implement review, validation, state, ownership or queue transitions.
+import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { Readable, Writable } from "node:stream";
+import { setTimeout } from "node:timers/promises";
 
 const require = createRequire(import.meta.url);
 const sdk = createRequire(require.resolve("acpx/runtime"));
@@ -20,12 +22,25 @@ const catalog = {
   pi: ["openai/gpt-6-luna"],
 };
 const admitted = existsSync(".degreaser/state.json");
+const reviewing = process.env.SYNTHETIC_PURPOSE === "review";
+const assigned = process.env.SYNTHETIC_ASPECT;
+const settings = reviewing
+  ? (plan.workers?.[assigned] ?? plan.worker ?? {})
+  : {};
+const gate = async (path) => {
+  if (!path) return;
+  while (!existsSync(path)) await setTimeout(20);
+};
+const fault = (error) => {
+  if (error)
+    throw new RequestError(error.code ?? -32000, error.message, error.data);
+};
 const models = (admitted && plan.runtimeModels) || catalog[agent];
 const record = (event) => {
   if (plan.lifecycleLog)
     appendFileSync(
       plan.lifecycleLog,
-      `${JSON.stringify({ agent, model, pid: process.pid, ...event })}\n`,
+      `${JSON.stringify({ agent, model, aspect: assigned, reviewing, pid: process.pid, time: Date.now(), ...event })}\n`,
     );
 };
 let current = model;
@@ -49,14 +64,20 @@ const connection = new AgentSideConnection(
           /^(ACPX_AUTH_|OPENAI_API_KEY)/.test(key),
         ),
       });
+      await gate(settings.initializeGate);
+      if (settings.startupHang) await new Promise(() => {});
+      fault(settings.startupError);
       return {
         protocolVersion: 1,
-        agentCapabilities: { sessionCapabilities: {} },
+        agentCapabilities: {
+          sessionCapabilities:
+            settings.closeError || settings.closeHang ? { close: {} } : {},
+        },
         authMethods: [],
       };
     },
-    async newSession() {
-      record({ type: "session", admitted });
+    async newSession(params) {
+      record({ type: "session", admitted, meta: params._meta });
       if (plan.metadataFailure)
         throw new RequestError(
           -32000,
@@ -81,6 +102,7 @@ const connection = new AgentSideConnection(
     },
     async setSessionConfigOption(p) {
       record({ type: "set-model", value: p.value });
+      await gate(settings.invocationGate);
       current = p.value;
       return { configOptions: configOptions() };
     },
@@ -91,6 +113,17 @@ const connection = new AgentSideConnection(
         .map((c) => c.text)
         .join("");
       const aspect = /Assigned aspect: (A\d\d)/.exec(text)?.[1];
+      const previous = existsSync(plan.log)
+        ? readFileSync(plan.log, "utf8")
+            .trim()
+            .split("\n")
+            .filter(Boolean)
+            .map(JSON.parse)
+        : [];
+      const attempt = previous.filter(
+        (event) => event.aspect === aspect,
+      ).length;
+      const step = settings.attempts?.[attempt] ?? settings;
       appendFileSync(
         plan.log,
         `${JSON.stringify({
@@ -99,20 +132,50 @@ const connection = new AgentSideConnection(
           prompt: text,
           sessionId: p.sessionId,
           pid: process.pid,
+          agent,
+          time: Date.now(),
         })}\n`,
       );
-      if (plan.delayMs) await new Promise((r) => setTimeout(r, plan.delayMs));
+      await gate(step.resultGate);
+      if (step.descendant) {
+        const child = spawn(
+          process.execPath,
+          ["-e", "process.on('SIGTERM',()=>{});setInterval(()=>{},1000)"],
+          { stdio: "ignore" },
+        );
+        record({ type: "descendant", childPid: child.pid });
+      }
+      if (step.hang) await new Promise(() => {});
+      if (step.permissionRequest) {
+        const response = await connection.requestPermission({
+          sessionId: p.sessionId,
+          toolCall: {
+            toolCallId: "synthetic-write",
+            title: "Write source",
+            kind: "edit",
+            status: "pending",
+          },
+          options: [
+            { optionId: "allow", kind: "allow_once", name: "Allow" },
+            { optionId: "deny", kind: "reject_once", name: "Deny" },
+          ],
+        });
+        record({ type: "permission", outcome: response.outcome });
+      }
+      fault(step.error);
+      if (plan.delayMs) await setTimeout(plan.delayMs);
       if (plan.permissionDeniedBefore)
         throw new RequestError(
           -32000,
           "Synthetic permission denied before result",
         );
-      const result = plan.results?.[aspect] ?? {
-        aspect,
-        status: "no-findings",
-        findings: [],
-        limitations: [],
-      };
+      const result = step.result ??
+        plan.results?.[aspect] ?? {
+          aspect,
+          status: "no-findings",
+          findings: [],
+          limitations: [],
+        };
       if (plan.toolOnly)
         await connection.sessionUpdate({
           sessionId: p.sessionId,
@@ -148,10 +211,20 @@ const connection = new AgentSideConnection(
           -32000,
           "Synthetic permission denied after usable result",
         );
+      fault(step.afterError);
+      if (step.afterHang) await new Promise(() => {});
+      record({ type: "result" });
       return { stopReason: "end_turn" };
+    },
+    async closeSession() {
+      record({ type: "close" });
+      if (settings.closeHang) await new Promise(() => {});
+      fault(settings.closeError);
+      return {};
     },
     async cancel() {},
   }),
   ndJsonStream(Writable.toWeb(process.stdout), Readable.toWeb(process.stdin)),
 );
 await connection.closed;
+record({ type: "disconnected" });
