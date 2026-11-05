@@ -38,6 +38,8 @@ test("generated skill rejects drift and can be regenerated in isolation", (t) =>
   );
   assert.match(original, /same command session until it exits/i);
   assert.match(original, /no replacement review/i);
+  assert.match(original, /Read.*output file/);
+  assert.match(original, /TaskOutput was removed/);
   writeFileSync(asset, `${original}\ndrift\n`);
   const stale = run("--check");
   assert.notEqual(stale.status, 0);
