@@ -134,10 +134,19 @@ next worker without releasing a still-cold fleet.
 Only missing/malformed results and whole-attempt timeouts without valid evidence
 receive up to `maxRetries` additional attempts. Each uses a fresh session, the
 same assignment and exact model, and keeps its slot until cleanup finishes.
+Assistant output over 1,048,576 JavaScript string characters is discarded in
+full, including any earlier valid block. This bounded `output-limit` failure
+gets the same retry budget as missing/malformed output, never a larger buffer
+or unlimited retries. Output exactly at the limit remains eligible for validation.
 Valid incomplete results await explicit resume. Authentication, unavailable-model,
 permission, account/quota/rate-limit and cleanup failures do not trigger blind
 retries or fallback. Rate-limit reports name the same run and suggest explicit
 resume with concurrency 1 after the selected account becomes available.
+Disabled or suspended accounts are `account-disabled`, not transient quota:
+restore access to the selected account with its provider before resuming.
+Waiting or lowering concurrency does not restore account access. Classification
+prefers explicit machine codes and HTTP status metadata, with constrained
+message fallback; a bare number 429 in unrelated prose is not a rate limit.
 
 The original run deadline includes queued work and all attempts; errors never
 reset it. Attempt limits include profile/adapter startup and inference. Cleanup
@@ -152,12 +161,19 @@ Lifecycle disposition is separate from finding count:
   A denial without a valid result is an unresolved permission failure.
 - Unsupported adapter close (including Pi) is normalized only after shutdown
   succeeds and is joined. The limitation is disclosed without losing evidence.
-- A genuine close/shutdown failure is `cleanup`, never clean completion. Any
+- A genuine close/shutdown failure is `cleanup` when no earlier failure exists,
+  never clean completion. An earlier attempt cause remains in history alongside
+  an explicit cleanup-failed limitation. Any
   schema-valid, quote-checked evidence is retained as `incomplete`, with the
   lifecycle cause in limitations and attempt history. No automatic retry follows.
 - Valid evidence followed by timeout, cancellation or deadline also remains
   `incomplete`. It is useful but unresolved and requires explicit continuation.
   Without valid evidence, these stops cannot manufacture a no-findings result.
+- An observed attempt failure is not overwritten by a later run stop or by the
+  transport errors caused by stopping it. Each execution records its separate
+  `stopReason` (`cancelled` or `deadline`); short reports show the latest stop
+  and full reports retain earlier stops after resume. Cleanup is still joined,
+  admission/retries stop, and useful peer results remain intact.
 
 All selected aspects resolved means completed/0, even with findings or only
 explained not-applicable results. Any useful result plus unresolved coverage is

@@ -119,6 +119,7 @@ export function renderReport(run: Run, full = false) {
   const input = loadInput(run);
   const status = observedStatus(run);
   const failure = run.executions?.at(-1)?.failure;
+  const stopReason = run.executions?.at(-1)?.stopReason;
   const unverifiedOwner =
     status === "interrupted" && run.owner && processAlive(run.owner.pid);
   const canResume =
@@ -133,6 +134,7 @@ export function renderReport(run: Run, full = false) {
     run: run.id,
     status,
     ...(failure ? { failure } : {}),
+    ...(stopReason ? { stopReason } : {}),
     evidence: "source-only",
     scope: input.scope,
     aspects: `${run.tasks.filter(resolved).length}/${run.tasks.length}`,
@@ -205,6 +207,14 @@ export function renderReport(run: Run, full = false) {
               : []),
             ...(all.length ? [`degreaser-axi finding F1 --run ${run.id}`] : []),
             reviewCommand(input),
+            ...(canResume &&
+            run.tasks.some(
+              (task) => task.attempts.at(-1)?.failure === "account-disabled",
+            )
+              ? [
+                  "Restore access to the selected account with its provider before resuming. A disabled or suspended account is not a transient rate limit; waiting or lowering concurrency does not restore access.",
+                ]
+              : []),
             ...(canResume &&
             run.tasks.some(
               (task) => task.attempts.at(-1)?.failure === "rate-limited",

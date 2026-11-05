@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import { alive, queueFixture, until } from "./queue-fixture.ts";
 
 const clean = {
@@ -10,6 +11,9 @@ const clean = {
   findings: [],
   limitations: [],
 };
+const cleanBlock = `<degreaser-result>${JSON.stringify(clean)}</degreaser-result>`;
+const atLimit = cleanBlock + "x".repeat(1_048_576 - cleanBlock.length);
+const oversized = `${atLimit}x`;
 const finding = {
   location: { path: "source.ts", side: "new", startLine: 1, endLine: 1 },
   quote: "// redundant",
@@ -30,6 +34,16 @@ for (const [name, worker, retries, count, status] of [
     "failed",
   ],
   ["zero disables retries", { result: "" }, 0, 1, "failed"],
+  ["output at the limit is accepted", { result: atLimit }, 1, 1, "completed"],
+  ["oversized output exhausts", { result: oversized }, 1, 2, "failed"],
+  ["oversized zero disables retries", { result: oversized }, 0, 1, "failed"],
+  [
+    "oversized output recovers",
+    { attempts: [{ result: oversized }, { result: clean }] },
+    2,
+    2,
+    "completed",
+  ],
   [
     "valid output stops retries",
     { attempts: [{ result: "" }, { result: clean }, { result: "" }] },
@@ -99,6 +113,93 @@ for (const [name, worker, retries, count, status] of [
     }
     if (name.includes("timeout"))
       assert.ok(task.attempts.every((a) => a.failure === "timeout"));
+    if (name.startsWith("oversized")) {
+      for (const attempt of name.endsWith("recovers")
+        ? task.attempts.slice(0, 1)
+        : task.attempts) {
+        assert.equal(attempt.failure, "output-limit");
+        assert.equal(attempt.result, null);
+      }
+      assert.ok(JSON.stringify(f.state()).length < 50_000);
+      assert.ok(!done.stdout.includes("x".repeat(100)));
+    }
+  });
+}
+
+for (const [label, worker, expected, cancel, status] of [
+  [
+    "provider fault and cancel",
+    { error: { message: "Quota exhausted" }, closeHang: true },
+    "rate-limited",
+    true,
+    "cancelled",
+  ],
+  ["oversized output", { result: oversized }, "output-limit", false, "failed"],
+  [
+    "denial after evidence",
+    { afterError: { message: "Permission denied" } },
+    "environment-blocked",
+    false,
+    "incomplete",
+  ],
+  [
+    "provider fault after evidence",
+    { afterError: { message: "Quota exhausted" } },
+    "rate-limited",
+    false,
+    "incomplete",
+  ],
+] as const) {
+  test(`failed shutdown retains ${label} without retries or clean completion`, async (t) => {
+    const f = queueFixture(t, { maxRetries: 2 });
+    f.setPlan({ worker });
+    f.launch(
+      [
+        "review",
+        "--scope",
+        "worktree",
+        "--task",
+        "Update source",
+        "--aspects",
+        "A06",
+        "--wait",
+        "1",
+      ],
+      {
+        imports: [
+          fileURLToPath(
+            new URL("./fixtures/shutdown-fault.mjs", import.meta.url),
+          ),
+        ],
+      },
+    );
+    await until(
+      () => f.events().length === 1,
+      "Actual review invocation started",
+    );
+    if (cancel) {
+      await until(
+        () => f.lifecycle().some((e) => e.type === "close"),
+        "Provider failure reached cleanup",
+      );
+      assert.equal(f.run(["cancel", f.state().id]).status, 1);
+    } else assert.equal(f.finish().status, 1);
+    const task = f.state().tasks[0];
+    assert.equal(task?.attempts.length, 1);
+    assert.equal(task?.attempts[0]?.failure, expected);
+    assert.equal(task?.status, status);
+    assert.match(
+      task?.attempts[0]?.limitations?.join(" ") ?? "",
+      /cleanup failed/,
+    );
+    assert.ok(
+      !JSON.stringify(f.state()).includes("private-cleanup-diagnostic"),
+    );
+    assert.equal(
+      task?.result?.status ?? null,
+      status === "incomplete" ? "incomplete" : null,
+    );
+    if (cancel) assert.match(f.run(["report"]).stdout, /stopReason: cancelled/);
   });
 }
 
@@ -122,6 +223,14 @@ for (const [name, error, expected] of [
   ],
   ["unrelated author", { message: "Cannot decode author record" }, "runtime"],
   ["unrelated policy", { message: "Cannot decode policy record" }, "runtime"],
+  [
+    "unrelated 429",
+    { message: "Cannot decode record 429 in provider response" },
+    "runtime",
+  ],
+  ["HTTP 429", { message: "HTTP 429: Too Many Requests" }, "rate-limited"],
+  ["disabled account", { message: "Account disabled" }, "account-disabled"],
+  ["suspended account", { message: "Account suspended" }, "account-disabled"],
 ] as const) {
   test(`${name} is classified without retries, identity fallback or lost peers`, (t) => {
     const f = queueFixture(t, { maxRetries: 3, concurrency: 2 });
@@ -142,6 +251,82 @@ for (const [name, error, expected] of [
           `degreaser-axi resume ${f.state().id} --concurrency 1`,
         ),
       );
+    else assert.ok(!done.stdout.includes("--concurrency 1"));
+    if (expected === "account-disabled")
+      assert.match(done.stdout, /Restore access to the selected account/);
+  });
+}
+
+for (const [stop, message, expected, afterEvidence] of [
+  ["cancelled", "Quota exhausted", "rate-limited", false],
+  ["deadline", "Quota exhausted", "rate-limited", false],
+  ["cancelled", "Cannot decode provider response", "runtime", false],
+  ["cancelled", "Quota exhausted", "rate-limited", true],
+] as const) {
+  test(`${expected} provider failure survives ${stop} during cleanup with useful peers${afterEvidence ? " and its own evidence" : ""}`, async (t) => {
+    const f = queueFixture(t, {
+      concurrency: 2,
+      maxRetries: 3,
+      limits: {
+        workerTimeoutSeconds: 15,
+        runTimeoutSeconds: stop === "deadline" ? 6 : 30,
+      },
+    });
+    f.setPlan({
+      workers: {
+        A06: {
+          resultGate: f.gate("fail"),
+          [afterEvidence ? "afterError" : "error"]: {
+            message: `${message}; private-provider-diagnostic`,
+          },
+          closeHang: true,
+          descendant: true,
+        },
+      },
+    });
+    f.start(["--aspects", "A04,A06"]);
+    await until(
+      () => f.state().tasks[0]?.status === "no-findings",
+      "Peer result committed before provider fault",
+    );
+    f.release("fail");
+    await until(
+      () => f.lifecycle().some((e) => e.aspect === "A06" && e.type === "close"),
+      "Provider fault reached cleanup",
+    );
+    const done =
+      stop === "cancelled" ? f.run(["cancel", f.state().id]) : f.finish();
+    assert.equal(done.status, 1, done.stdout);
+    const state = f.state();
+    assert.equal(state.status, "partial");
+    assert.equal(state.tasks[0]?.status, "no-findings");
+    const attempt = state.tasks[1]?.attempts[0];
+    assert.equal(attempt?.failure, expected);
+    assert.equal(state.tasks[1]?.attempts.length, 1);
+    assert.equal(
+      state.tasks[1]?.status,
+      afterEvidence ? "incomplete" : "cancelled",
+    );
+    assert.equal(
+      state.tasks[1]?.result?.status ?? null,
+      afterEvidence ? "incomplete" : null,
+    );
+    assert.equal(state.executions?.at(-1)?.stopReason, stop);
+    const report = f.run(["report", state.id, "--full"]);
+    assert.match(report.stdout, new RegExp(expected));
+    assert.match(report.stdout, new RegExp(`stopReason: ${stop}`));
+    assert.ok(!JSON.stringify(state).includes("private-provider-diagnostic"));
+    assert.ok(!report.stdout.includes("private-provider-diagnostic"));
+    const owner = state.owner;
+    assert.ok(owner);
+    await until(
+      () => !alive(owner.pid),
+      "Stopped owner exits after joining cleanup",
+    );
+    for (const e of f.lifecycle()) {
+      assert.ok(!alive(e.pid));
+      if (e.childPid) assert.ok(!alive(e.childPid));
+    }
   });
 }
 

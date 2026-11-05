@@ -226,3 +226,38 @@ test("attempt timeout covers inference and cleanup joins a stubborn descendant",
     await rm(f.cwd, { recursive: true, force: true });
   }
 });
+
+test("streamed output crossing the limit is discarded and the real runtime is joined", async () => {
+  const { executeWorker } = await import("../src/worker-runtime.ts");
+  const f = await setup("output-limit");
+  const pids = new Set<number>();
+  try {
+    const result = await executeWorker(
+      {
+        cwd: f.cwd,
+        prompt: "Synthetic excessive output",
+        maxTurns: 2,
+        timeoutMs: 10_000,
+        onLifecycle(event) {
+          if (event.type === "spawn") pids.add(event.pid);
+          else pids.delete(event.pid);
+        },
+      },
+      f.profile,
+    );
+    assert.equal(result.status, "failed");
+    assert.equal(result.failure, "output-limit");
+    assert.equal(result.output, "");
+    assert.equal(result.cleanupFailed, false);
+    assert.match(
+      result.limitations.join(" "),
+      /1,048,576 characters.*discarded/,
+    );
+    const events = await f.events();
+    assert.equal(events.filter((e) => e.method === "prompt").length, 1);
+    assert.ok(events.some((e) => e.method === "cancel"));
+    assert.equal(pids.size, 0);
+  } finally {
+    await rm(f.cwd, { recursive: true, force: true });
+  }
+});

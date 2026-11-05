@@ -101,7 +101,13 @@ export async function ownRun(
   const abort = new AbortController();
   const active = new Set<Promise<void>>();
   let stopReason = "cancelled";
-  const stop = () => abort.abort();
+  const stop = () => {
+    if (!abort.signal.aborted) {
+      if (stopReason === "cancelled" || stopReason === "deadline")
+        execution.stopReason = stopReason;
+      abort.abort();
+    }
+  };
   const expire = () => {
     if (!abort.signal.aborted) {
       stopReason = "deadline";
@@ -186,6 +192,7 @@ export async function ownRun(
         const attemptDeadline =
           record.startedAt + input.config.limits.workerTimeoutSeconds * 1000;
         let receivedResult = false;
+        let cleanupFailed = false;
         try {
           const profile = await nativeProfile(
             task.assignment,
@@ -214,12 +221,12 @@ export async function ownRun(
             profile,
           );
           record.sessionId = outcome.sessionId ?? null;
+          cleanupFailed = outcome.cleanupFailed;
+          const runStopped = stopped();
           record.failure =
-            outcome.failure === "cleanup"
-              ? "cleanup"
-              : stopped()
-                ? stopReason
-                : (outcome.failure ?? null);
+            runStopped && (!outcome.failure || outcome.failure === "cancelled")
+              ? stopReason
+              : (outcome.failure ?? null);
           task.limitations = outcome.limitations;
           task.usage = outcome.usage
             ? Object.fromEntries(
@@ -234,6 +241,8 @@ export async function ownRun(
           if (task.usage && !Object.keys(task.usage).length) task.usage = null;
           record.usage = task.usage;
           if (
+            cleanupFailed ||
+            runStopped ||
             !record.failure ||
             [
               "environment-blocked",
@@ -253,7 +262,11 @@ export async function ownRun(
               receivedResult = true;
               task.rejections = validated.rejections;
               task.status = validated.result.status;
-              if (!record.failure || record.failure === "environment-blocked")
+              if (
+                !cleanupFailed &&
+                !runStopped &&
+                (!record.failure || record.failure === "environment-blocked")
+              )
                 record.failure = null;
               else {
                 task.result.status = "incomplete";
@@ -269,13 +282,19 @@ export async function ownRun(
           } else task.status = abort.signal.aborted ? "cancelled" : "failed";
         } catch (error) {
           task.status = "failed";
-          record.failure = stopped()
-            ? stopReason
-            : profileTimeout.signal.aborted
-              ? "timeout"
-              : error instanceof ResultError
-                ? "invalid-output"
-                : workerFailure(error);
+          const runStopped = stopped();
+          const failure =
+            error instanceof ResultError
+              ? "invalid-output"
+              : workerFailure(error);
+          record.failure =
+            failure === "runtime" || failure === "cancelled"
+              ? runStopped
+                ? stopReason
+                : profileTimeout.signal.aborted
+                  ? "timeout"
+                  : failure
+              : failure;
           task.limitations.push(
             error instanceof ResultError
               ? error.message
@@ -294,7 +313,10 @@ export async function ownRun(
         persist();
         if (
           receivedResult ||
-          (record.failure !== "invalid-output" && record.failure !== "timeout")
+          cleanupFailed ||
+          !["invalid-output", "output-limit", "timeout"].includes(
+            record.failure ?? "",
+          )
         )
           break;
       }
@@ -372,7 +394,7 @@ export async function ownRun(
     }
     throw failure;
   } finally {
-    stop();
+    abort.abort();
     await Promise.allSettled(active);
     clearInterval(heartbeat);
     clearTimeout(deadline);

@@ -88,6 +88,20 @@ const connection = new AgentSideConnection(
         });
         return { stopReason: "cancelled" };
       }
+      if (scenario === "output-limit") {
+        for (let i = 0; i < 17; i++)
+          await connection.sessionUpdate({
+            sessionId: params.sessionId,
+            update: {
+              sessionUpdate: "agent_message_chunk",
+              content: { type: "text", text: "x".repeat(65_536) },
+            },
+          });
+        await new Promise((resolve) => {
+          cancelled = resolve;
+        });
+        return { stopReason: "cancelled" };
+      }
       await connection.sessionUpdate({
         sessionId: params.sessionId,
         update: {

@@ -62,6 +62,7 @@ export interface Run {
     deadline: number;
     concurrency: number | null;
     waitSeconds: number;
+    stopReason?: "cancelled" | "deadline";
     failure?: { code: string; message: string };
   }[];
   identity: string;

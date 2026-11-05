@@ -39,6 +39,7 @@
         "deadline": { "type": "integer", "minimum": 0 },
         "concurrency": { "type": ["integer", "null"], "minimum": 1 },
         "waitSeconds": { "$ref": "config-v1.json#/definitions/seconds" },
+        "stopReason": { "enum": ["cancelled", "deadline"] },
         "failure": {
           "type": "object", "additionalProperties": false, "required": ["code", "message"],
           "properties": {

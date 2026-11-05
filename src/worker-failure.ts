@@ -2,6 +2,7 @@ export type WorkerFailure =
   | "model-unavailable"
   | "authentication"
   | "rate-limited"
+  | "account-disabled"
   | "environment-blocked"
   | "timeout"
   | "cancelled"
@@ -16,14 +17,13 @@ const codes: Record<string, WorkerFailure> = {
   AUTH_REQUIRED: "authentication",
   AUTHENTICATION_FAILED: "authentication",
   UNAUTHORIZED: "authentication",
-  "401": "authentication",
   RATE_LIMITED: "rate-limited",
   RATE_LIMIT_EXCEEDED: "rate-limited",
   QUOTA_EXCEEDED: "rate-limited",
   INSUFFICIENT_QUOTA: "rate-limited",
   ACCOUNT_LIMIT_EXCEEDED: "rate-limited",
-  ACCOUNT_DISABLED: "rate-limited",
-  "429": "rate-limited",
+  ACCOUNT_DISABLED: "account-disabled",
+  ACCOUNT_SUSPENDED: "account-disabled",
   PERMISSION_DENIED: "environment-blocked",
   PERMISSION_PROMPT_UNAVAILABLE: "environment-blocked",
   EACCES: "environment-blocked",
@@ -31,6 +31,10 @@ const codes: Record<string, WorkerFailure> = {
   TIMEOUT: "timeout",
   ETIMEDOUT: "timeout",
   QUEUE_REQUEST_CANCELLED: "cancelled",
+};
+const httpStatuses: Record<string, WorkerFailure> = {
+  "401": "authentication",
+  "429": "rate-limited",
 };
 
 /** Prefer machine causes, including wrapped errors, to unstructured provider prose. */
@@ -44,21 +48,32 @@ export function workerFailure(error: unknown): WorkerFailure {
     chain.push(record);
     current = record.cause;
   }
-  for (const record of chain) {
-    for (const key of ["detailCode", "code", "status"]) {
+  for (const key of ["detailCode", "code"]) {
+    for (const record of chain) {
       const code = record[key];
-      if (typeof code === "string" || typeof code === "number") {
-        const kind = codes[String(code).toUpperCase()];
+      if (typeof code === "string") {
+        const kind = codes[code.toUpperCase()];
         if (kind) return kind;
       }
     }
-    if (record.name === "TimeoutError") return "timeout";
   }
+  if (chain.some((record) => record.name === "TimeoutError")) return "timeout";
   const messages = chain.flatMap((record) =>
     typeof record.message === "string" ? [record.message] : [],
   );
   if (typeof error === "string") messages.push(error);
   const message = messages.join("\n");
+  if (/\baccount[ _-](?:disabled|suspended)\b/i.test(message))
+    return "account-disabled";
+  for (const record of chain) {
+    for (const key of ["detailCode", "code", "status", "statusCode"]) {
+      const status = record[key];
+      if (typeof status === "number" || typeof status === "string") {
+        const kind = httpStatuses[String(status)];
+        if (kind) return kind;
+      }
+    }
+  }
   if (
     /\bmodel\b[^\n]*(?:unavailable|unsupported|not found|does not exist)|\bunknown model\b/i.test(
       message,
@@ -72,7 +87,7 @@ export function workerFailure(error: unknown): WorkerFailure {
   )
     return "authentication";
   if (
-    /\brate[ _-]?limit(?:ed|_exceeded)?\b|\bquota[ _-](?:exceeded|exhausted|limit)\b|\binsufficient[ _]quota\b|\b(?:account|usage) (?:usage )?limit\b|\baccount (?:disabled|suspended)\b|\b429\b/i.test(
+    /\brate[ _-]?limit(?:ed|_exceeded)?\b|\bquota[ _-](?:exceeded|exhausted|limit)\b|\binsufficient[ _]quota\b|\b(?:account|usage) (?:usage )?limit\b|\b(?:HTTP(?:\/\d(?:\.\d)?)?|status(?: code)?)\s*[:=]?\s*429\b|\btoo many requests\b/i.test(
       message,
     )
   )

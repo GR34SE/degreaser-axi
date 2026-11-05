@@ -31,6 +31,7 @@ export interface WorkerOutcome {
   sessionId?: string;
   output: string;
   failure?: WorkerFailure;
+  cleanupFailed: boolean;
   usage: AcpRuntimeUsageBreakdown | null;
   limitations: string[];
 }
@@ -57,6 +58,7 @@ export async function executeWorker(
     model: profile.model,
     output: "",
     usage: null,
+    cleanupFailed: false,
     limitations: [...profile.limitations],
   };
   if (profile.agent !== "claude")
@@ -167,13 +169,16 @@ export async function executeWorker(
     request.onPromptStarted?.();
     for await (const event of turn.events) {
       if (event.type === "text_delta" && event.stream !== "thought") {
-        outcome.output += event.text;
-        if (outcome.output.length > 1_048_576) {
+        if (outcome.output.length + event.text.length > 1_048_576) {
           outcome.output = "";
           outcome.failure = "output-limit";
+          outcome.limitations.push(
+            "Worker output exceeded 1,048,576 characters and was discarded; no result was accepted.",
+          );
           await turn.cancel();
           break;
         }
+        outcome.output += event.text;
       }
       if (event.type === "tool_call")
         request.onTool?.({
@@ -182,18 +187,22 @@ export async function executeWorker(
         });
     }
     const result = await turn.result;
-    const status = await runtime.getStatus({ handle });
-    outcome.usage = status.usage?.cumulative ?? null;
     if (!outcome.failure) {
       if (result.status === "completed") outcome.status = "completed";
-      else
-        outcome.failure =
+      else {
+        const failure =
           result.status === "cancelled"
             ? "cancelled"
             : workerFailure(result.error);
+        outcome.failure =
+          failure === "runtime" ? (stopped ?? failure) : failure;
+      }
     }
+    const status = await runtime.getStatus({ handle });
+    outcome.usage = status.usage?.cumulative ?? null;
   } catch (error) {
-    outcome.failure ??= workerFailure(error);
+    const failure = workerFailure(error);
+    outcome.failure ??= failure === "runtime" ? (stopped ?? failure) : failure;
   } finally {
     clearTimeout(timer);
     let unsupportedClose = false;
@@ -210,19 +219,22 @@ export async function executeWorker(
           error.code === "ACP_BACKEND_UNSUPPORTED_CONTROL"
         ) {
           unsupportedClose = true;
-        } else outcome.failure = "cleanup";
+        } else if (!stopped) outcome.cleanupFailed = true;
       }
     }
-    if (!(await join())) outcome.failure = "cleanup";
-    if (stopped && outcome.failure !== "cleanup") outcome.failure = stopped;
-    if (unsupportedClose && outcome.failure !== "cleanup")
+    if (!(await join())) outcome.cleanupFailed = true;
+    if (stopped && (!outcome.failure || outcome.failure === "cancelled"))
+      outcome.failure = stopped;
+    if (unsupportedClose && !outcome.cleanupFailed)
       outcome.limitations.push(
         "Adapter session close is unsupported; owned processes were shut down and joined.",
       );
-    if (outcome.failure === "cleanup")
+    if (outcome.cleanupFailed) {
+      outcome.failure ??= "cleanup";
       outcome.limitations.push(
         "Worker cleanup failed. Any validated evidence is retained as incomplete, not clean completion.",
       );
+    }
     request.signal?.removeEventListener("abort", abort);
     if (outcome.failure) outcome.status = "failed";
     records.clear();

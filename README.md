@@ -156,6 +156,14 @@ For example, after selecting Codex and Luna:
 
 Without a concurrency limit, all enabled aspects can run in parallel. A lower limit reduces simultaneous calls; it does not reduce the number of aspects reviewed. Retries and continuation keep your selected harness and model.
 
+Missing/malformed output, discarded oversized output and attempt timeouts receive
+only the configured bounded retries in fresh sessions. Auth, model, account and
+rate-limit failures do not trigger automatic retries or fallback. Rate limits
+suggest lower-concurrency resume after the limit clears; disabled or suspended
+accounts require restoring access with the selected provider instead.
+If a provider failure overlaps cancellation or the run deadline, reports retain
+the attempt failure and the separate run `stopReason`.
+
 Before creating a run, review checks selected pairs against native model catalogs
 without inference. Unsupported pairs return `invalid-input`; discovery/auth/host
 failures return `environment-blocked`, both with exit 2 and no new run.
