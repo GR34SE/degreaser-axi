@@ -12,7 +12,7 @@ description: Review a code change with focused source-only reviewers, inspect ev
 ${DESCRIPTION}
 
 Development build: all sixteen review aspects, bounded retries/deadlines and same-run waiting are available.
-Init, integrations, public cancel and resume remain under development.
+Public cancel stops the run's owned workers and retains useful results. Init, integrations and resume remain under development.
 Use an explicitly installed local package, not an unverified registry download.
 Run \`degreaser-axi --help\` or \`degreaser-axi review --help\` for the current interface.
 If the binary is unavailable, ask for the local package path; do not install a published version.

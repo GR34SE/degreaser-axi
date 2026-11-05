@@ -206,6 +206,7 @@ const connection = new AgentSideConnection(
             },
           },
         });
+      record({ type: "output" });
       if (plan.permissionDenied)
         throw new RequestError(
           -32000,

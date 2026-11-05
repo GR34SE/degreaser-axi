@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { setTimeout } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { assertSupportedModels } from "./config.ts";
@@ -15,6 +15,10 @@ import {
   type Run,
   StateError,
 } from "./storage.ts";
+
+const ownerPath = fileURLToPath(
+  new URL("../bin/run-owner.js", import.meta.url),
+);
 
 function waitSeconds(value: unknown): number {
   if (value === undefined) return 480;
@@ -74,12 +78,7 @@ export async function review(args: string[], cwd: string) {
   const run = createRun(input);
   const owner = spawn(
     process.execPath,
-    [
-      ...process.execArgv,
-      fileURLToPath(new URL("../bin/run-owner.js", import.meta.url)),
-      run.repository,
-      run.id,
-    ],
+    [...process.execArgv, ownerPath, run.repository, run.id],
     {
       cwd: run.repository,
       detached: true,
@@ -96,6 +95,60 @@ export async function review(args: string[], cwd: string) {
   );
   return waitFor(run, input.waitSeconds);
 }
+
+export async function cancel(id: string | undefined, cwd: string) {
+  if (!id) throw new InputError("cancel requires an explicit run ID.");
+  let run = loadRun(repositoryRoot(cwd), id);
+  loadInput(run);
+  // Admission publishes the run before the detached owner publishes its PID.
+  const startupEnd = Date.now() + 10_000;
+  while (
+    observedStatus(run) === "running" &&
+    !run.owner &&
+    Date.now() < startupEnd
+  ) {
+    await setTimeout(100);
+    run = loadRun(run.repository, id);
+  }
+  if (observedStatus(run) !== "running") return renderReport(run);
+  const owner = run.owner;
+  if (!owner)
+    throw new StateError(
+      "owner-unverified",
+      `No owner is ready. Run degreaser-axi wait ${id}.`,
+    );
+  // A live PID alone is not ownership: it may have been reused for another run.
+  const processInfo = spawnSync(
+    "/bin/ps",
+    ["-ww", "-p", String(owner.pid), "-o", "command="],
+    { encoding: "utf8", timeout: 1000 },
+  );
+  const command = processInfo.stdout?.trim() ?? "";
+  run = loadRun(run.repository, id);
+  if (observedStatus(run) !== "running") return renderReport(run);
+  if (
+    processInfo.status !== 0 ||
+    !command.startsWith(`${process.execPath} `) ||
+    !command.endsWith(` ${ownerPath} ${run.repository} ${id}`) ||
+    run.owner?.pid !== owner.pid
+  )
+    throw new StateError(
+      "owner-unverified",
+      `Cannot verify the active owner of ${id}; no process was signalled. Run degreaser-axi wait ${id} or use a caller with local process-inspection permission.`,
+    );
+  try {
+    process.kill(owner.pid, "SIGTERM");
+  } catch (error) {
+    if (!(error instanceof Error && "code" in error && error.code === "ESRCH"))
+      throw new StateError(
+        "environment-blocked",
+        `Cannot signal the owner of ${id}. Run cancel from a caller permitted to signal this run; do not change global permissions.`,
+      );
+  }
+  // Only the owner writes cancellation/results and joins the worker trees.
+  return waitFor(loadRun(run.repository, id), 480);
+}
+
 export async function readCommand(
   name: string,
   positionals: string[],

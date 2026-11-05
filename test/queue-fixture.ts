@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { type ChildProcess, spawn, spawnSync } from "node:child_process";
+import { once } from "node:events";
 import {
   existsSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -63,6 +65,20 @@ export function queueFixture(
   const plan = join(external, "plan.json");
   const log = join(external, "prompts.jsonl");
   const lifecycleLog = join(external, "lifecycle.jsonl");
+  const callers = new Set<ChildProcess>();
+  const launch = (
+    args: string[],
+    options: { timeout?: number; detached?: boolean } = {},
+  ) => {
+    const child = spawn(process.execPath, ["--import", loader, cli, ...args], {
+      cwd: f.root,
+      env: { ...process.env, SYNTHETIC_PLAN: plan },
+      ...options,
+    });
+    callers.add(child);
+    child.once("exit", () => callers.delete(child));
+    return child;
+  };
   const events = (path: string): Event[] =>
     existsSync(path)
       ? readFileSync(path, "utf8")
@@ -71,13 +87,13 @@ export function queueFixture(
           .filter(Boolean)
           .map((line) => JSON.parse(line))
       : [];
-  const state = (): Run => {
+  const state = (id?: string): Run => {
     const { latestRunId } = JSON.parse(
       readFileSync(join(f.root, ".degreaser/state.json"), "utf8"),
     );
     return JSON.parse(
       readFileSync(
-        join(f.root, ".degreaser/runs", latestRunId, "run.json"),
+        join(f.root, ".degreaser/runs", id ?? latestRunId, "run.json"),
         "utf8",
       ),
     );
@@ -111,14 +127,23 @@ export function queueFixture(
     return result;
   };
   cleanup = async () => {
+    await Promise.all(
+      [...callers].map(async (child) => {
+        const exited = once(child, "exit");
+        child.kill("SIGKILL");
+        await exited;
+      }),
+    );
     if (existsSync(join(f.root, ".degreaser/state.json"))) {
-      const owner = state().owner?.pid;
-      if (owner && alive(owner)) {
-        process.kill(owner, "SIGTERM");
-        await until(
-          () => !alive(owner),
-          "Owned run must exit during fixture cleanup",
-        );
+      for (const id of readdirSync(join(f.root, ".degreaser/runs"))) {
+        const owner = state(id).owner?.pid;
+        if (owner && alive(owner)) {
+          process.kill(owner, "SIGTERM");
+          await until(
+            () => !alive(owner),
+            "Owned run must exit during fixture cleanup",
+          );
+        }
       }
     }
     for (const e of events(lifecycleLog)) {
@@ -132,6 +157,7 @@ export function queueFixture(
   return {
     ...f,
     run,
+    launch,
     state,
     setPlan,
     events: () => events(log),
