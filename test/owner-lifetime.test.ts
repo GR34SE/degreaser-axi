@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
 import { once } from "node:events";
-import { existsSync, readFileSync } from "node:fs";
+import { constants, copyFileSync, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 import { setTimeout } from "node:timers/promises";
+import { fileURLToPath } from "node:url";
 import { alive, queueFixture, until } from "./queue-fixture.ts";
 
 function capture(child: ChildProcessWithoutNullStreams) {
@@ -324,6 +325,34 @@ test("cancel refuses an unrelated live PID instead of trusting persisted ownersh
     sentinel.kill();
     await sentinelExit;
   }
+});
+
+test("cancel from a different Node executable refuses without weakening live owner verification", async (t) => {
+  const f = queueFixture(t);
+  f.setPlan({ worker: { resultGate: f.gate("finish") } });
+  assert.equal(f.start(["--aspects", "A06"]).status, 3);
+  const run = f.state(),
+    owner = run.owner;
+  assert.ok(owner);
+  const alternate = f.gate("other-node");
+  copyFileSync(process.execPath, alternate, constants.COPYFILE_FICLONE);
+  const child = spawn(
+    alternate,
+    [
+      fileURLToPath(new URL("../dist/bin/degreaser-axi.js", import.meta.url)),
+      "cancel",
+      run.id,
+    ],
+    { cwd: f.root },
+  );
+  const response = await capture(child);
+  assert.equal(response.code, 2, response.stdout + response.stderr);
+  assert.match(response.stdout, /owner-unverified/);
+  assert.match(response.stdout, /same Node executable/);
+  assert.ok(alive(owner.pid));
+  assert.equal(f.state().owner?.pid, owner.pid);
+  assert.equal(f.events().length, 1);
+  assert.equal(f.run(["cancel", run.id]).status, 1);
 });
 
 test("cancelling an explicit earlier run does not signal the latest owner in the same repository", async (t) => {

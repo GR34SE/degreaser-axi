@@ -133,12 +133,16 @@ export function verifyOwner(run: Run) {
   );
 }
 
+export function ownerRecoveryGuidance(run: Run) {
+  return `Inspect .degreaser/runs/${run.id}/run.json and owner.lock against local PID/start/group identities with process-inspection permission. Use the same Node executable as the original owner. Do not signal reused PIDs or remove ambiguous locks. If ownership cannot be verified, preserve this run and start a new review only after confirming old work has stopped.`;
+}
+
 export function assertAvailable(run: Run, initial = false) {
   if (run.owner && processAlive(run.owner.pid)) {
     if (!verifyOwner(run))
       throw new StateError(
         "owner-unverified",
-        `Cannot verify the owner of ${run.id}; no process was signalled. Use degreaser-axi wait ${run.id} and inspect local ownership before recovery.`,
+        `Cannot verify the owner of ${run.id}; no process was signalled. ${ownerRecoveryGuidance(run)}`,
       );
     throw new StateError(
       "run-busy",
@@ -173,13 +177,13 @@ export async function cleanInterruptedOwner(run: Run) {
   )
     throw new StateError(
       "owner-unverified",
-      `A recorded child PID was reused for ${run.id}; no process was signalled. Inspect ownership before resuming.`,
+      `A recorded child PID was reused for ${run.id}; no process was signalled. ${ownerRecoveryGuidance(run)}`,
     );
   const group = rows.filter((row) => row.group === owner.pid);
   if (group.length && !known.some((row) => row.group === owner.pid))
     throw new StateError(
       "owner-unverified",
-      `Old worker group cannot be verified for ${run.id}; no process was signalled. Wait for old workers to exit before resuming.`,
+      `Old worker group cannot be verified for ${run.id}; no process was signalled. ${ownerRecoveryGuidance(run)}`,
     );
   const owned = new Set([...known, ...group].map((row) => row.pid));
   for (;;) {
@@ -211,7 +215,7 @@ export async function cleanInterruptedOwner(run: Run) {
     )
       throw new StateError(
         "owner-unverified",
-        `Old process group changed for ${run.id}; no replacement worker was started.`,
+        `Old process group changed for ${run.id}; no replacement worker was started. ${ownerRecoveryGuidance(run)}`,
       );
     try {
       process.kill(-group, "SIGKILL");
@@ -297,7 +301,7 @@ export function checkOwnerLock(run: Run) {
     )
       throw new StateError(
         "owner-unverified",
-        `Lock identity is ambiguous: ${path}. Verify the old owner and workers before recovery; no process was signalled.`,
+        `Lock identity is ambiguous: ${path}; no process was signalled. ${ownerRecoveryGuidance(run)}`,
       );
   }
 }

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { once } from "node:events";
+import { InputError } from "../src/input-error.ts";
 import { ownRun, type ResumeControls } from "../src/owner.ts";
 import { StateError } from "../src/storage.ts";
 
@@ -27,14 +28,13 @@ else {
       if (process.connected) process.send?.({}, () => {});
     });
   } catch (error) {
+    const diagnostic =
+      error instanceof StateError || error instanceof InputError;
     if (process.connected)
       process.send?.(
         {
-          code: error instanceof StateError ? error.code : "owner-failed",
-          message:
-            error instanceof StateError
-              ? error.message
-              : "Owner could not start safely.",
+          code: diagnostic ? error.code : "owner-failed",
+          message: diagnostic ? error.message : "Owner could not start safely.",
         },
         () => {},
       );

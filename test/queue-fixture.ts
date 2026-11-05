@@ -79,13 +79,29 @@ export function queueFixture(
   const callers = new Set<ChildProcess>();
   const launch = (
     args: string[],
-    options: { timeout?: number; detached?: boolean } = {},
+    options: {
+      timeout?: number;
+      detached?: boolean;
+      imports?: string[];
+      env?: NodeJS.ProcessEnv;
+    } = {},
   ) => {
-    const child = spawn(process.execPath, ["--import", loader, cli, ...args], {
-      cwd: f.root,
-      env: { ...process.env, SYNTHETIC_PLAN: plan },
-      ...options,
-    });
+    const { imports = [], env, ...spawnOptions } = options;
+    const child = spawn(
+      process.execPath,
+      [
+        "--import",
+        loader,
+        ...imports.flatMap((path) => ["--import", path]),
+        cli,
+        ...args,
+      ],
+      {
+        cwd: f.root,
+        env: { ...process.env, SYNTHETIC_PLAN: plan, ...env },
+        ...spawnOptions,
+      },
+    );
     callers.add(child);
     child.once("exit", () => callers.delete(child));
     return child;

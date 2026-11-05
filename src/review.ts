@@ -7,7 +7,13 @@ import { positiveInteger, prepareReview } from "./input.ts";
 import { InputError } from "./input-error.ts";
 import { discoverModels } from "./model-discovery.ts";
 import type { ResumeControls } from "./owner.ts";
-import { assertAvailable, ownerPath, verifyOwner } from "./ownership.ts";
+import {
+  admissionLock,
+  assertAvailable,
+  ownerPath,
+  ownerRecoveryGuidance,
+  verifyOwner,
+} from "./ownership.ts";
 import { observedStatus, renderFinding, renderReport } from "./report.ts";
 import {
   checkHistory,
@@ -191,34 +197,53 @@ export async function cancel(id: string | undefined, cwd: string) {
     await setTimeout(100);
     run = loadRun(run.repository, id);
   }
-  if (observedStatus(run) !== "running") return renderReport(run);
-  const owner = run.owner;
-  if (!owner)
-    throw new StateError(
-      "owner-unverified",
-      `No owner is ready. Run degreaser-axi wait ${id}.`,
-    );
-  // A live PID alone is not ownership: it may have been reused for another run.
-  const verified = verifyOwner(run);
-  run = loadRun(run.repository, id);
-  if (observedStatus(run) !== "running") return renderReport(run);
-  if (
-    !verified ||
-    run.owner?.pid !== owner.pid ||
-    run.owner?.started !== owner.started
-  )
-    throw new StateError(
-      "owner-unverified",
-      `Cannot verify the active owner of ${id}; no process was signalled. Run degreaser-axi wait ${id} or use a caller with local process-inspection permission.`,
-    );
+  // Serialize even terminal no-ops with resume's old-state -> new-owner admission.
+  let unlock: () => void;
   try {
-    process.kill(owner.pid, "SIGTERM");
+    unlock = admissionLock(run);
   } catch (error) {
-    if (!(error instanceof Error && "code" in error && error.code === "ESRCH"))
+    if (error instanceof StateError && error.code === "run-busy")
       throw new StateError(
-        "environment-blocked",
-        `Cannot signal the owner of ${id}. Run cancel from a caller permitted to signal this run; do not change global permissions.`,
+        error.code,
+        `Cancellation was not applied. ${error.message} After admission finishes, retry degreaser-axi cancel ${id}.`,
       );
+    throw error;
+  }
+  try {
+    run = loadRun(run.repository, id);
+    if (observedStatus(run) !== "running") return renderReport(run);
+    const owner = run.owner;
+    if (!owner)
+      throw new StateError(
+        "owner-unverified",
+        `No owner is ready. Run degreaser-axi wait ${id}, then retry degreaser-axi cancel ${id}.`,
+      );
+    // A live PID alone is not ownership: it may have been reused for another run.
+    const verified = verifyOwner(run);
+    run = loadRun(run.repository, id);
+    if (observedStatus(run) !== "running") return renderReport(run);
+    if (
+      !verified ||
+      run.owner?.pid !== owner.pid ||
+      run.owner?.started !== owner.started
+    )
+      throw new StateError(
+        "owner-unverified",
+        `Cannot verify the active owner of ${id}; no process was signalled. ${ownerRecoveryGuidance(run)}`,
+      );
+    try {
+      process.kill(owner.pid, "SIGTERM");
+    } catch (error) {
+      if (
+        !(error instanceof Error && "code" in error && error.code === "ESRCH")
+      )
+        throw new StateError(
+          "environment-blocked",
+          `Cannot signal the owner of ${id}. Run cancel from a caller permitted to signal this run; do not change global permissions.`,
+        );
+    }
+  } finally {
+    unlock();
   }
   // Only the owner writes cancellation/results and joins the worker trees.
   return waitFor(loadRun(run.repository, id), 480);

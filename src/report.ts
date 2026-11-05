@@ -1,5 +1,9 @@
 import { reviewCommand } from "./input.ts";
-import { ownerAlive } from "./ownership.ts";
+import {
+  ownerAlive,
+  ownerRecoveryGuidance,
+  processAlive,
+} from "./ownership.ts";
 import type { Finding } from "./results.ts";
 import {
   loadInput,
@@ -114,6 +118,13 @@ export function renderFinding(run: Run, id: string | undefined) {
 export function renderReport(run: Run, full = false) {
   const input = loadInput(run);
   const status = observedStatus(run);
+  const failure = run.executions?.at(-1)?.failure;
+  const unverifiedOwner =
+    status === "interrupted" && run.owner && processAlive(run.owner.pid);
+  const canResume =
+    status !== "completed" &&
+    !unverifiedOwner &&
+    failure?.code !== "input-changed";
   const all = findings(run),
     shown = full ? all : all.slice(0, 30);
   const workers = run.tasks.filter((task) => task.promptHash !== null);
@@ -121,6 +132,7 @@ export function renderReport(run: Run, full = false) {
   return {
     run: run.id,
     status,
+    ...(failure ? { failure } : {}),
     evidence: "source-only",
     scope: input.scope,
     aspects: `${run.tasks.filter(resolved).length}/${run.tasks.length}`,
@@ -185,14 +197,16 @@ export function renderReport(run: Run, full = false) {
           ]
         : [
             `degreaser-axi report ${run.id} --full`,
-            ...(status !== "completed"
+            ...(unverifiedOwner ? [ownerRecoveryGuidance(run)] : []),
+            ...(canResume
               ? [
                   `degreaser-axi resume ${run.id}${Date.now() >= run.deadline ? " --deadline 900" : ""}`,
                 ]
               : []),
             ...(all.length ? [`degreaser-axi finding F1 --run ${run.id}`] : []),
             reviewCommand(input),
-            ...(run.tasks.some(
+            ...(canResume &&
+            run.tasks.some(
               (task) => task.attempts.at(-1)?.failure === "rate-limited",
             )
               ? [

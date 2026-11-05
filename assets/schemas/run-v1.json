@@ -38,7 +38,14 @@
         "startedAt": { "type": "integer", "minimum": 0 },
         "deadline": { "type": "integer", "minimum": 0 },
         "concurrency": { "type": ["integer", "null"], "minimum": 1 },
-        "waitSeconds": { "$ref": "config-v1.json#/definitions/seconds" }
+        "waitSeconds": { "$ref": "config-v1.json#/definitions/seconds" },
+        "failure": {
+          "type": "object", "additionalProperties": false, "required": ["code", "message"],
+          "properties": {
+            "code": { "type": "string", "minLength": 1 },
+            "message": { "type": "string", "minLength": 1 }
+          }
+        }
       }
     } },
     "tasks": {

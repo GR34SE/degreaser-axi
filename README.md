@@ -80,6 +80,10 @@ verified owner, stops queued work and retries, and waits for owned worker cleanu
 Useful results and attempt history remain available: cancellation returns
 `partial` or `failed` with exit 1. A run that finished first remains completed
 with exit 0. No permanent background service remains after cleanup.
+If cancel races ownership admission, it can return `run-busy` with exit 2:
+cancellation was **not applied**. Retry the supplied cancel command after
+admission finishes; the old terminal report does not confirm cancellation of
+resumed work.
 
 Use `degreaser-axi resume <run-id>` after partial failure, cancellation or owner
 interruption. It rechecks source, task-file contents, resolved base, prompts and
@@ -87,6 +91,9 @@ selected agent/model before continuing only unresolved aspects. Successful
 results stay intact, and earlier attempts (including incomplete evidence) remain
 in `report --full`. Changed input requires a new review. Unchanged completed runs
 return `already-completed` without starting anything.
+Failure to check freshness is not proof that input changed. Git/configuration
+errors keep their diagnostics; unreadable task or packaged prompt files return
+`environment-blocked`. Repair access or the environment before retrying.
 
 Resume accepts `--concurrency <n>` and `--wait <seconds>`. It keeps the original
 absolute deadline unless you explicitly supply `--deadline <seconds>`, which
@@ -99,6 +106,11 @@ checks process birth identities and joins verified old work before replacement
 attempts. If a lock or PID is ambiguous, it refuses takeover rather than
 signalling unrelated processes. Follow the reported local inspection guidance;
 do not remove locks while an owner or worker is still active.
+Use the same Node executable as the original owner. For `owner-unverified`,
+inspect the run's `run.json` and `owner.lock` against local PID, start-time and
+process-group identities. Never signal a reused PID. If ownership remains
+unverifiable, keep the old evidence and start a new review only after confirming
+old work has stopped, rather than repeatedly attempting a refused resume.
 
 ## What it looks for
 
@@ -183,6 +195,11 @@ return the current snapshot without waiting. Home reads history even without a
 current RC. These read commands do not start reviews or modify local state.
 Full reports separate configured identities from actual attempts and
 coordinator-only applicability results, including A08 in repository audits.
+When storage remains writable, a detached owner's fatal cause is saved with its
+execution controls: prompt identity changes (`input-changed`) remain distinct
+from unexpected owner failures (`owner-failed`). Reports show the latest cause;
+`report --full` retains earlier execution causes after resume. A broken store
+cannot reliably save its own failure and leaves the last committed evidence.
 
 Results and progress are saved locally in ignored `.degreaser/`. Review context is sent through your chosen harness to its model provider. Degreaser does not apply fixes; your coding agent decides which findings warrant changes.
 

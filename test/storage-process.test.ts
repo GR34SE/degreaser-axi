@@ -185,12 +185,13 @@ for (const [mode, code] of [
     assert.equal(state.tasks[0]?.status, "no-findings");
     assert.equal(state.tasks[0]?.attempts.length, 1);
     assert.ok(state.tasks[0]?.attempts[0]?.endedAt);
-    assert.equal(state.tasks[1]?.status, "pending");
+    assert.equal(state.tasks[1]?.status, "cancelled");
     assert.deepEqual(state.tasks[1]?.attempts, []);
     assert.equal(f.events().length, 1);
     const report = f.run(["report", state.id]);
     assert.equal(report.status, 1, report.stdout);
-    assert.match(report.stdout, /status: interrupted/);
+    assert.match(report.stdout, /status: partial/);
+    assert.match(report.stdout, new RegExp(code));
   });
 }
 

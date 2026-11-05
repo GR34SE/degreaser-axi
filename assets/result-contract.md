@@ -68,7 +68,12 @@ Owner loss leaves the last committed progress visible as interrupted, without
 inventing an attempt ending or a result. A process killed before rename can leave
 an ignored `.tmp` file; it is not authoritative and is never used for recovery.
 Prompt-identity changes and unexpected owner-task errors remain distinct from
-persistence failures. Error messages do not include raw worker output.
+persistence failures. With writable storage, the owner joins active work, saves
+the sanitized fatal code/message in its `executions` entry and publishes
+partial/failed coverage. Short reports show the latest execution failure; full
+reports retain earlier failures after resume. Error messages do not include raw
+worker output, exception payloads or stacks. No second error store is used when
+the authoritative store fails.
 
 `review` and `wait` return completed/0, partial or failed/1, or running/3.
 `report` reads without launching work. `finding` retrieves complete evidence.
@@ -163,8 +168,11 @@ results is failed/1. Process exit 0 alone never establishes reviewed coverage.
 
 `resume <run-id>` checks live source, the stored task-file when supplied, resolved
 base, assembled instruction/response/rubrics and selected aspect agent/model.
-Changed review input is refused without rewriting prior evidence. Wait,
-concurrency and deadline are execution controls, not review identity. Input and
+Changed review input is refused without rewriting prior evidence.
+Git/configuration/state errors retain their diagnostics rather than implying an
+identity mismatch. Task/prompt read failures return `environment-blocked` with
+access-repair guidance. No replacement work starts when freshness cannot be checked.
+Wait, concurrency and deadline are execution controls, not review identity. Input and
 patch artifacts stay unchanged; `run.json` records each owner's start, effective
 concurrency, wait and absolute deadline. Only explicit `--deadline <seconds>`
 starts a new budget. Expired original budgets are not silently renewed.
@@ -178,11 +186,19 @@ Full reports expose this history. A completed unchanged resume is a no-op.
 
 Only the owner writes progress. A short-lived exclusive `admission.lock`
 serializes owner replacement; `owner.lock` identifies the active owner.
+Cancel uses that same short admission lock before reading/signalling the current
+owner or accepting a terminal no-op. Contention refuses with exit 2 and explicit
+"cancellation was not applied" guidance to retry cancel after admission, not an
+old terminal report. A live owner's ordinary lock does not block cancellation.
 Heartbeat age alone never authorizes eviction. After confirmed death, recovery
 checks recorded OS birth identities and process groups before stopping old
 workers, and waits for cleanup before admitting replacements. Process identities
 are local PID/start/group metadata, not command transcripts or environment values.
 Unverified PIDs or ambiguous locks refuse recovery without signalling strangers.
+Use the original Node executable and inspect saved PID/start/group identities.
+Known reused-owner reports provide inspection guidance instead of a guaranteed
+refused resume. When identity remains unverifiable, preserve history and start
+a new review only after confirming old work has stopped.
 If a process dies during the short admission critical section, its admission lock
 requires explicit local inspection before removal; it is never stolen on age alone.
 These checks do not supervise deliberately escaped, unobservable daemons.

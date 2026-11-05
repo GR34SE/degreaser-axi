@@ -62,6 +62,7 @@ export interface Run {
     deadline: number;
     concurrency: number | null;
     waitSeconds: number;
+    failure?: { code: string; message: string };
   }[];
   identity: string;
   tasks: RunTask[];

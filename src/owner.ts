@@ -14,6 +14,7 @@ import { ingestResult, ResultError } from "./results.ts";
 import {
   loadInput,
   loadRun,
+  type Run,
   type RunTask,
   resolved,
   runDirectory,
@@ -42,6 +43,7 @@ export async function ownRun(
   const dir = runDirectory(repository, id);
   const unlockAdmission = admissionLock(run);
   let unlockOwner: () => void;
+  let execution: NonNullable<Run["executions"]>[number];
   try {
     run = loadRun(repository, id);
     input = loadInput(run);
@@ -71,12 +73,13 @@ export async function ownRun(
       input.config.concurrency;
     input.config.concurrency = concurrency;
     run.executions ??= [];
-    run.executions.push({
+    execution = {
       startedAt,
       deadline: run.deadline,
       concurrency,
       waitSeconds: controls?.waitSeconds ?? input.waitSeconds,
-    });
+    };
+    run.executions.push(execution);
     for (const task of run.tasks.filter((t) => !resolved(t))) {
       const last = task.attempts.at(-1);
       if (last && last.endedAt === null) {
@@ -137,6 +140,7 @@ export async function ownRun(
         : new StateError("owner-failed", message);
     stopReason = fatalError.code;
     stop();
+    return fatalError;
   };
   const heartbeat = setInterval(() => {
     try {
@@ -345,6 +349,28 @@ export async function ownRun(
     if (fatalError) throw fatalError;
     run.status = terminalStatus(run.tasks);
     persist();
+  } catch (error) {
+    const failure = fail(
+      error,
+      "Run stopped because of an unexpected owner error.",
+    );
+    await Promise.allSettled(active);
+    // A failed store cannot reliably record its own failure. Keep its last commit.
+    if (!persistenceError) {
+      execution.failure = {
+        code: failure.code,
+        message: failure.message,
+      };
+      for (const task of run.tasks) {
+        if (task.status === "pending" || task.status === "running") {
+          task.status = "failed";
+          task.limitations.push(`Unexamined aspect: ${failure.code}.`);
+        }
+      }
+      run.status = terminalStatus(run.tasks);
+      persist();
+    }
+    throw failure;
   } finally {
     stop();
     await Promise.allSettled(active);

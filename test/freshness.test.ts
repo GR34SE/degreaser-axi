@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
+  chmodSync,
   cpSync,
   mkdtempSync,
   readFileSync,
@@ -17,9 +18,73 @@ import { prepareReview } from "../src/input.ts";
 import { assemblePrompt, reviewIdentity } from "../src/prompt.ts";
 import { loadInput } from "../src/storage.ts";
 import { fixture } from "./git-fixture.ts";
-import { queueFixture } from "./queue-fixture.ts";
+import { alive, queueFixture, until } from "./queue-fixture.ts";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
+
+test("freshness preserves real Git, task permission and damaged-state failures without changing evidence", async (t) => {
+  const f = queueFixture(t);
+  const task = f.gate("task.txt");
+  writeFileSync(task, "Update source");
+  f.setPlan({ worker: { result: "" } });
+  f.run([
+    "review",
+    "--scope",
+    "worktree",
+    "--task-file",
+    task,
+    "--aspects",
+    "A06",
+    "--wait",
+    "20",
+  ]);
+  const run = f.state();
+  const owner = run.owner;
+  assert.ok(owner);
+  await until(() => !alive(owner.pid), "Original owner exits");
+  const directory = join(f.root, ".degreaser/runs", run.id);
+  const files = ["run.json", "input/review.json", "input/patch.json"];
+  const before = files.map((file) => readFileSync(join(directory, file)));
+  const patchBytes = before[2];
+  assert.ok(patchBytes);
+  const index = join(f.root, ".git/index");
+  const originalIndex = readFileSync(index);
+  try {
+    writeFileSync(index, "broken index");
+    const git = f.run(["resume", run.id]);
+    assert.equal(git.status, 2, git.stdout);
+    assert.doesNotMatch(git.stdout, /input-changed/);
+    assert.match(git.stdout, /Git ls-files failed/);
+  } finally {
+    writeFileSync(index, originalIndex);
+  }
+  try {
+    chmodSync(task, 0);
+    const permission = f.run(["resume", run.id]);
+    assert.equal(permission.status, 2, permission.stdout);
+    assert.match(permission.stdout, /environment-blocked/);
+    assert.doesNotMatch(permission.stdout, /input-changed/);
+    assert.match(permission.stdout, /[Ff]reshness.*(access|read)/);
+  } finally {
+    chmodSync(task, 0o600);
+  }
+  const patch = join(directory, "input/patch.json");
+  try {
+    writeFileSync(patch, "{");
+    const corrupt = f.run(["resume", run.id]);
+    assert.equal(corrupt.status, 2, corrupt.stdout);
+    assert.match(corrupt.stdout, /state-corrupt/);
+    assert.ok(corrupt.stdout.includes(patch));
+    assert.equal(readFileSync(patch, "utf8"), "{");
+  } finally {
+    writeFileSync(patch, patchBytes);
+  }
+  assert.deepEqual(
+    files.map((file) => readFileSync(join(directory, file))),
+    before,
+  );
+  assert.equal(f.events().length, 1);
+});
 
 test("earlier development fingerprints remain readable history rather than blocking new reviews", (t) => {
   const f = queueFixture(t);

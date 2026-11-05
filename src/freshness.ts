@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { loadConfig, resolveConfig } from "./config.ts";
 import { type ReviewInput, reviewCommand } from "./input.ts";
+import { InputError } from "./input-error.ts";
 import { assemblePrompt, reviewIdentity } from "./prompt.ts";
 import { resolveScope } from "./scope.ts";
 import { type Run, StateError } from "./storage.ts";
@@ -36,8 +37,12 @@ export function assertFresh(run: Run, input: ReviewInput) {
           ).promptHash,
     );
     if (reviewIdentity(fresh, prompts) === run.identity) return;
-  } catch {
-    // A missing task/ref/rubric is changed review input, not a heartbeat failure.
+  } catch (error) {
+    if (error instanceof StateError || error instanceof InputError) throw error;
+    throw new StateError(
+      "environment-blocked",
+      `Freshness could not be checked. Check task-file and packaged prompt access/readability and local filesystem permissions, then retry degreaser-axi resume ${run.id}. Prior evidence is unchanged; no replacement work started.`,
+    );
   }
   throw new StateError(
     "input-changed",

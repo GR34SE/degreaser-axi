@@ -49,6 +49,18 @@ test("pre-write run validation rejects invalid structures, versions and embedded
         },
       }),
     (run) => Object.assign(run, { status: "completed" }),
+    (run) =>
+      Object.assign(run, {
+        executions: [
+          {
+            startedAt: 1,
+            deadline: 2,
+            concurrency: 1,
+            waitSeconds: 1,
+            failure: { code: "owner-failed", message: 42 },
+          },
+        ],
+      }),
     (run, task) => {
       run.tasks[1] = structuredClone(task);
     },
@@ -178,6 +190,9 @@ test("compiled readers reject corruption at every authoritative JSON layer witho
       const invalid = structuredClone(value);
       invalid.tasks[0].result.limitations = 42;
       cases.push(JSON.stringify(invalid));
+      const failure = structuredClone(value);
+      failure.executions[0].failure = { code: "owner-failed" };
+      cases.push(JSON.stringify(failure));
     }
     for (const damaged of cases) {
       try {
