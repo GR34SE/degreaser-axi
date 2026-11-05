@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -35,15 +35,31 @@ export async function liveModels(agent: Agent, model: string) {
         inference: false,
       }),
     );
-    if (agent === "claude") {
+    if (agent === "claude" || agent === "pi") {
+      const unsupported =
+        agent === "pi" ? "other-provider/gpt-6-luna" : "gpt-6-luna";
       const incompatible = await discoverModels(
-        { agent, model: "gpt-6-luna" },
+        { agent, model: unsupported },
         cwd,
         30_000,
       );
       assert.ok(
-        !incompatible.availableModelIds.includes("gpt-6-luna"),
-        "Requested model must not seed Claude's catalog.",
+        !incompatible.availableModelIds.includes(unsupported),
+        "Requested model must not seed the catalog.",
+      );
+      assert.deepEqual(
+        [...incompatible.availableModelIds].sort(),
+        [...models.availableModelIds].sort(),
+        "Discovery must not depend on the requested selection.",
+      );
+      console.log(
+        JSON.stringify({
+          agent,
+          unsupported,
+          independentCatalogEqual: true,
+          unsupportedListed: false,
+          inference: false,
+        }),
       );
       assert.equal(spawnSync("git", ["init"], { cwd }).status, 0);
       await writeFile(
@@ -64,11 +80,11 @@ export async function liveModels(agent: Agent, model: string) {
                   model: "gpt-6-luna",
                   aspects: {
                     overrides: {
-                      A06: { agent: "claude", model: "gpt-6-luna" },
+                      A06: { agent, model: unsupported },
                     },
                   },
                 }
-              : { agent: "claude", model: "gpt-6-luna" },
+              : { agent, model: unsupported },
           ),
         );
         const result = spawnSync(
@@ -92,13 +108,13 @@ export async function liveModels(agent: Agent, model: string) {
         );
         assert.match(result.stdout, /error: invalid-input/);
         assert.match(result.stdout, /exact model list/);
-        await assert.rejects(readFile(join(cwd, ".degreaser/state.json")), {
+        await assert.rejects(stat(join(cwd, ".degreaser")), {
           code: "ENOENT",
         });
         console.log(
           JSON.stringify({
             agent,
-            model: "gpt-6-luna",
+            model: unsupported,
             override,
             error: "invalid-input",
             exit: result.status,

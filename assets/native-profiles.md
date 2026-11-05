@@ -10,8 +10,11 @@ the selected identities. They use the same isolation and environment, never
 send prompts, and await owned transport cleanup. Claude discovery omits the
 native `--model` flag because it would advertise even an unsupported requested
 ID as a custom model. This does not change the exact selection for review turns.
-Pi discovery retains native argv pinning and never calls a persistent model
-setter. See [input-contract.md](input-contract.md) for refusal semantics.
+Pi discovery omits provider/model flags and reads its independent configured
+catalog through the official adapter's native metadata API. Neither discovery
+path sends inference to a native default. Review turns retain exact argv pinning;
+Pi never calls a persistent model setter.
+See [input-contract.md](input-contract.md) for refusal semantics.
 
 | Harness | Adapter / native version | Effective restriction |
 | --- | --- | --- |
@@ -45,6 +48,11 @@ and response contract. Repository text is evidence, not authority.
 
 ## Limits and honest evidence
 
+- Advertised models and selected identities are metadata, not a provider-access
+  guarantee. Claude's review-time `--model` seeds its catalog with the requested
+  ID; that runtime check cannot independently detect a model withdrawn after
+  admission. Pi's offline startup can use cached catalog data. Provider/auth
+  failures may first surface during a turn; no check predicts future availability.
 - Codex's read-only sandbox **is not a no-exec sandbox**. It permits shell/code
   execution used for reading. User skills and managed policy may remain visible.
 - Claude and Pi tool allowlists are native tool restrictions, not OS sandboxes

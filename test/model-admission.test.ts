@@ -226,7 +226,7 @@ test("public metadata failures refuse explicitly and join discovery without crea
     assert.throws(() => process.kill(pid, 0), { code: "ESRCH" });
 });
 
-test("public runtime rechecks later model availability after catalog admission without fallback or retry", (t) => {
+test("public runtime refuses an absent advertised model after admission without fallback or retry (synthetic Codex catalog)", (t) => {
   const f = setup(t);
   f.write("source.ts", "export const value = 1;\n");
   f.setPlan({ runtimeModels: ["exact-codex"] });

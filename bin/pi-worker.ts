@@ -22,8 +22,9 @@ try {
   });
   launchNative([
     ...args,
-    "--model",
-    model,
+    ...(process.env.DEGREASER_MODEL_DISCOVERY === "1"
+      ? []
+      : ["--model", model]),
     "--tools",
     "read,grep,find,ls",
     "--no-skills",

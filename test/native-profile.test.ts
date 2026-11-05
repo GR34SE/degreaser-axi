@@ -162,7 +162,17 @@ test("Pi launcher pins argv model, removes discovery and cannot inherit metered 
     const invoke = (extra: Record<string, string> = {}) =>
       spawnSync(
         process.execPath,
-        [join(root, "dist/bin/pi-worker.js"), "--mode", "rpc", "--no-themes"],
+        [
+          join(root, "dist/bin/pi-worker.js"),
+          "--mode",
+          "rpc",
+          "--no-themes",
+          "--provider",
+          "other-provider",
+          "--model=other-model",
+          "-m",
+          "conflicting-model",
+        ],
         {
           cwd,
           encoding: "utf8",
@@ -178,6 +188,8 @@ test("Pi launcher pins argv model, removes discovery and cannot inherit metered 
     assert.equal(result.status, 0, result.stderr);
     const args = JSON.parse(result.stdout);
     assert.equal(args[args.indexOf("--model") + 1], "openai/exact-model");
+    assert.ok(!args.includes("--provider"));
+    assert.equal(args.filter((arg: string) => arg === "--model").length, 1);
     assert.equal(args[args.indexOf("--tools") + 1], "read,grep,find,ls");
     for (const flag of [
       "--no-skills",
@@ -188,6 +200,14 @@ test("Pi launcher pins argv model, removes discovery and cannot inherit metered 
       "--offline",
     ])
       assert.ok(args.includes(flag));
+    const discovery = invoke({ DEGREASER_MODEL_DISCOVERY: "1" });
+    assert.equal(discovery.status, 0, discovery.stderr);
+    assert.deepEqual(
+      JSON.parse(discovery.stdout),
+      args.filter(
+        (arg: string) => arg !== "--model" && arg !== "openai/exact-model",
+      ),
+    );
     const blocked = invoke({ OPENAI_API_KEY: "synthetic-secret" });
     assert.notEqual(blocked.status, 0);
     assert.ok(!blocked.stderr.includes("synthetic-secret"));

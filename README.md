@@ -144,6 +144,13 @@ For example, after selecting Codex and Luna:
 
 Without a concurrency limit, all enabled aspects can run in parallel. A lower limit reduces simultaneous calls; it does not reduce the number of aspects reviewed. Retries and continuation keep your selected harness and model.
 
+Before creating a run, review checks selected pairs against native model catalogs
+without inference. Unsupported pairs return `invalid-input`; discovery/auth/host
+failures return `environment-blocked`, both with exit 2 and no new run.
+Catalog membership is not a provider-access guarantee. In particular, Claude's
+review-time catalog includes the requested model, so its runtime identity check
+cannot independently detect later provider withdrawal. No model fallback is used.
+
 The root RC follows the strict versioned schema in `dist/assets/schemas/config-v1.json`. Unknown fields and explicitly selected disabled aspects are errors. See `dist/assets/input-contract.md` in the built package for exact bounds, literal-path exclusions and Git representation limits.
 
 To review only specific aspects for one run, without changing your configuration:

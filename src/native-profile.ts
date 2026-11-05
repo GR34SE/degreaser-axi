@@ -45,6 +45,7 @@ export const PROFILE_LIMITATIONS: Record<Agent, string[]> = {
   claude: [
     "Native Read/Grep/Glob allowlist is not an OS sandbox for the adapter.",
     "Managed host policy is retained; conflicting policy blocks operation. Harmless plugin metadata may remain.",
+    "Claude's review catalog includes the requested model; its identity check does not prove provider availability.",
     "Native harness session/cache writes are outside the reviewed source.",
   ],
   pi: [
@@ -185,6 +186,8 @@ export async function nativeProfile(
   if (!entry) throw new Error("Installed adapter executable is unavailable.");
   const environment = workerEnvironment(process.env);
   environment.DEGREASER_MODEL = identity.model;
+  if (purpose === "model-discovery")
+    environment.DEGREASER_MODEL_DISCOVERY = "1";
   const launcher = fileURLToPath(
     new URL(`../bin/${identity.agent}-worker.js`, import.meta.url),
   );
@@ -212,10 +215,6 @@ export async function nativeProfile(
     environment.DEGREASER_NATIVE_EXECUTABLE = native.path;
     nativeVersion = native.version;
     if (identity.agent === "claude") {
-      // Claude advertises an arbitrary --model as a custom catalog entry.
-      // Discovery must read its catalog without seeding the requested value.
-      if (purpose === "model-discovery")
-        environment.DEGREASER_MODEL_DISCOVERY = "1";
       environment.CLAUDE_CODE_EXECUTABLE = launcher;
       environment.CLAUDE_CODE_DISABLE_AUTO_MEMORY = "1";
       environment.CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION = "false";
