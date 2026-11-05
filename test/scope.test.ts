@@ -7,6 +7,8 @@ import {
   readFileSync,
   renameSync,
   rmSync,
+  statSync,
+  utimesSync,
 } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
@@ -355,6 +357,107 @@ test("assume-unchanged, skip-worktree and split index do not hide final contents
   );
 });
 
+for (const split of [false, true]) {
+  test(`racily clean ${split ? "split" : "ordinary"} index retains same-size final edits`, (t) => {
+    const f = fixture(t);
+    f.git("config", "core.trustctime", "false");
+    f.git("config", "core.checkStat", "minimal");
+    f.git("config", "core.splitIndex", String(split));
+    f.git("config", "splitIndex.sharedIndexExpire", "now");
+    const timestamp = 1_600_000_000;
+    const paths = ["assumed", "skipped", "source"];
+    for (const path of paths) {
+      f.write(path, "old\n");
+      utimesSync(join(f.root, path), timestamp, timestamp);
+    }
+    f.write(".degreaser/tracked", "excluded state\n");
+    f.git("add", ...paths);
+    f.git("add", "-f", ".degreaser/tracked");
+    f.git("commit", "--no-gpg-sign", "-m", "Racy index baseline");
+    f.git("update-index", "--assume-unchanged", "assumed");
+    f.git("update-index", "--skip-worktree", "skipped");
+    if (split) f.git("update-index", "--split-index");
+    const indexPath = join(f.root, ".git/index");
+    utimesSync(indexPath, timestamp, timestamp);
+
+    for (const path of paths) {
+      f.write(path, "new\n");
+      utimesSync(join(f.root, path), timestamp, timestamp);
+      assert.equal(
+        statSync(join(f.root, path), { bigint: true }).mtimeNs,
+        BigInt(timestamp) * 1_000_000_000n,
+      );
+      assert.equal(statSync(join(f.root, path)).size, 4);
+      const cached = f.git("ls-files", "--debug", "--", path);
+      assert.match(cached, new RegExp(`mtime: ${timestamp}:0\\n`));
+      assert.match(cached, /size: 4\s/);
+    }
+    const indexTime = statSync(indexPath, { bigint: true }).mtimeNs;
+    assert.equal(indexTime, BigInt(timestamp) * 1_000_000_000n);
+    assert.ok(indexTime < BigInt(Date.now()) * 1_000_000n);
+    const sharedFiles = () =>
+      readdirSync(join(f.root, ".git"))
+        .filter((name) => name.startsWith("sharedindex."))
+        .sort()
+        .map((name) => [name, readFileSync(join(f.root, ".git", name))]);
+    const shared = sharedFiles();
+    assert.equal(shared.length > 0, split);
+    assert.equal(
+      f.git("rev-parse", "--shared-index-path").trim() !== "",
+      split,
+    );
+    const index = readFileSync(indexPath);
+    const entries = f.git("ls-files", "-v", "--stage", "-z");
+    const refs = f.git("show-ref");
+    const config = readFileSync(join(f.root, ".git/config"));
+    const expectedBlob = f.git("hash-object", "--no-filters", "source").trim();
+    assert.notEqual(expectedBlob, f.git("rev-parse", "HEAD:source").trim());
+    // The real index still detects the edit without refreshing its stat cache.
+    const oracle = f.git(
+      "--no-optional-locks",
+      "diff",
+      "--no-ext-diff",
+      "--no-textconv",
+      "--",
+      "source",
+    );
+    assert.match(oracle, /-old\n\+new\n/);
+    assert.deepEqual(readFileSync(indexPath), index);
+    assert.equal(statSync(indexPath, { bigint: true }).mtimeNs, indexTime);
+
+    const result = prepareReview(request, f.root);
+    assert.equal(result.status, "ready");
+    assert.deepEqual(
+      result.paths.map((p) => [p.path, p.newOid]),
+      paths.map((path) => [path, expectedBlob]),
+    );
+    assert.equal(result.patch?.match(/-old\n\+new\n/g)?.length, paths.length);
+    for (const path of paths) {
+      assert.equal(f.git("show", `${result.tree}:${path}`), "new\n");
+      assert.equal(readFileSync(join(f.root, path), "utf8"), "new\n");
+      assert.equal(
+        statSync(join(f.root, path), { bigint: true }).mtimeNs,
+        indexTime,
+      );
+    }
+    assert.equal(
+      f.git("ls-tree", "-r", "--name-only", result.tree, "--", ".degreaser"),
+      "",
+    );
+    assert.deepEqual(readFileSync(indexPath), index);
+    assert.equal(statSync(indexPath, { bigint: true }).mtimeNs, indexTime);
+    assert.equal(f.git("ls-files", "-v", "--stage", "-z"), entries);
+    assert.equal(f.git("show-ref"), refs);
+    assert.deepEqual(readFileSync(join(f.root, ".git/config")), config);
+    assert.deepEqual(sharedFiles(), shared);
+    assert.equal(
+      readFileSync(join(f.root, ".degreaser/tracked"), "utf8"),
+      "excluded state\n",
+    );
+    assert.equal(existsSync(join(f.root, ".git/index.lock")), false);
+  });
+}
+
 for (const fails of [false, true]) {
   test(`configured split index preserves shared files and user state on ${fails ? "failure" : "success"}`, (t) => {
     const f = fixture(t);
@@ -364,6 +467,7 @@ for (const fails of [false, true]) {
     f.write("source", "staged\n");
     f.git("add", "source");
     f.git("config", "core.splitIndex", "true");
+    f.git("config", "splitIndex.sharedIndexExpire", "now");
     f.git("update-index", "--split-index");
     f.write("source", "final contents\n");
     // Invalid patch text fails resolution after Git has written the tree.

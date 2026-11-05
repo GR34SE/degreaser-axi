@@ -1,4 +1,11 @@
-import { copyFileSync, existsSync, mkdtempSync, rmSync } from "node:fs";
+import {
+  copyFileSync,
+  existsSync,
+  mkdtempSync,
+  rmSync,
+  statSync,
+  utimesSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { git, requireGit } from "./git.ts";
@@ -151,58 +158,63 @@ function resolveTree(repository: string): string {
       "--git-path",
       "index",
     ]).trimEnd();
-    if (existsSync(userIndex)) {
+    const sourceStat = existsSync(userIndex)
+      ? statSync(userIndex, { bigint: true })
+      : null;
+    const indexGit = (args: string[], options: { input?: string } = {}) => {
+      // Copies and preparatory writes must not hide racily clean entries.
+      // Whole seconds avoid rounding the original nanoseconds upward.
+      if (sourceStat)
+        utimesSync(
+          index,
+          Number(sourceStat.atimeNs / 1_000_000_000n),
+          Number(sourceStat.mtimeNs / 1_000_000_000n),
+        );
+      return requireGit(repository, args, { ...options, index });
+    };
+    if (sourceStat) {
       copyFileSync(userIndex, index);
-      requireGit(repository, ["update-index", "--no-split-index"], { index });
-      const tracked = requireGit(repository, ["ls-files", "-z"], { index });
+      indexGit(["update-index", "--no-split-index"]);
+      const tracked = indexGit(["ls-files", "-z"]);
       if (tracked) {
-        requireGit(
-          repository,
-          ["update-index", "--no-assume-unchanged", "-z", "--stdin"],
-          { index, input: tracked },
-        );
-        requireGit(
-          repository,
-          ["update-index", "--no-skip-worktree", "-z", "--stdin"],
-          { index, input: tracked },
-        );
+        indexGit(["update-index", "--no-assume-unchanged", "-z", "--stdin"], {
+          input: tracked,
+        });
+        indexGit(["update-index", "--no-skip-worktree", "-z", "--stdin"], {
+          input: tracked,
+        });
       }
     } else {
-      requireGit(repository, ["read-tree", "--empty"], { index });
+      indexGit(["read-tree", "--empty"]);
     }
     const statePaths = nulList(
-      requireGit(repository, ["ls-files", "-z", "--", ".degreaser"], { index }),
+      indexGit(["ls-files", "-z", "--", ".degreaser"]),
     );
     if (statePaths.length)
-      requireGit(
-        repository,
-        ["update-index", "--force-remove", "-z", "--stdin"],
-        { index, input: `${statePaths.join("\0")}\0` },
-      );
+      indexGit(["update-index", "--force-remove", "-z", "--stdin"], {
+        input: `${statePaths.join("\0")}\0`,
+      });
     const candidates = [
       ...new Set(
         nulList(
-          requireGit(
-            repository,
-            ["ls-files", "--cached", "--others", "--exclude-standard", "-z"],
-            { index },
-          ),
+          indexGit([
+            "ls-files",
+            "--cached",
+            "--others",
+            "--exclude-standard",
+            "-z",
+          ]),
         ),
       ),
     ].filter(
       (path) => path !== ".degreaser" && !path.startsWith(".degreaser/"),
     );
     if (candidates.length) {
-      requireGit(
-        repository,
-        ["add", "-A", "--pathspec-from-file=-", "--pathspec-file-nul"],
-        {
-          index,
-          input: `${candidates.map((path) => `:(top,literal)${path}`).join("\0")}\0`,
-        },
-      );
+      indexGit(["add", "-A", "--pathspec-from-file=-", "--pathspec-file-nul"], {
+        input: `${candidates.map((path) => `:(top,literal)${path}`).join("\0")}\0`,
+      });
     }
-    return requireGit(repository, ["write-tree"], { index }).trim();
+    return indexGit(["write-tree"]).trim();
   } finally {
     rmSync(temporary, { recursive: true, force: true });
   }
