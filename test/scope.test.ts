@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import {
   chmodSync,
   existsSync,
+  readdirSync,
   readFileSync,
   renameSync,
   rmSync,
@@ -353,6 +354,78 @@ test("assume-unchanged, skip-worktree and split index do not hide final contents
     "must not enter tree\n",
   );
 });
+
+for (const fails of [false, true]) {
+  test(`configured split index preserves shared files and user state on ${fails ? "failure" : "success"}`, (t) => {
+    const f = fixture(t);
+    f.write("source", "original\n");
+    f.git("add", ".");
+    f.git("commit", "--no-gpg-sign", "-m", "Split index baseline");
+    f.write("source", "staged\n");
+    f.git("add", "source");
+    f.git("config", "core.splitIndex", "true");
+    f.git("update-index", "--split-index");
+    f.write("source", "final contents\n");
+    // Invalid patch text fails resolution after Git has written the tree.
+    f.write("new", fails ? Buffer.from([0xe9, 0x0a]) : "untracked contents\n");
+    const sharedFiles = () =>
+      readdirSync(join(f.root, ".git"))
+        .filter((name) => name.startsWith("sharedindex."))
+        .sort()
+        .map((name) => [name, readFileSync(join(f.root, ".git", name))]);
+    const shared = sharedFiles();
+    assert.ok(shared.length > 0, "fixture must have a shared index");
+    const sharedPath = f.git("rev-parse", "--shared-index-path");
+    assert.notEqual(sharedPath.trim(), "");
+    const index = readFileSync(join(f.root, ".git/index"));
+    const entries = f.git("ls-files", "--stage", "-z");
+    const refs = f.git("show-ref");
+    const files = [
+      ".git/config",
+      ".gitignore",
+      ".degreaserrc.json",
+      "source",
+      "new",
+    ];
+    const contents = files.map((path) => readFileSync(join(f.root, path)));
+
+    if (fails) {
+      assert.throws(() => prepareReview(request, f.root), {
+        name: "InputError",
+        message: /non-UTF-8/,
+      });
+    } else {
+      const result = prepareReview(request, f.root);
+      assert.equal(result.status, "ready");
+      assert.deepEqual(
+        result.paths.map((p) => p.path),
+        ["new", "source"],
+      );
+      assert.equal(f.git("show", `${result.tree}:source`), "final contents\n");
+      assert.equal(f.git("show", `${result.tree}:new`), "untracked contents\n");
+      assert.ok(result.limitations.some((l) => l.code === "git-object-writes"));
+    }
+
+    const after = sharedFiles();
+    assert.deepEqual(
+      after.map(([name]) => name),
+      shared.map(([name]) => name),
+      "no new or removed shared indexes",
+    );
+    assert.deepEqual(after, shared, "shared index bytes are unchanged");
+    assert.deepEqual(readFileSync(join(f.root, ".git/index")), index);
+    assert.equal(f.git("ls-files", "--stage", "-z"), entries);
+    assert.equal(f.git("show-ref"), refs);
+    assert.equal(f.git("rev-parse", "--shared-index-path"), sharedPath);
+    assert.equal(f.git("config", "--bool", "core.splitIndex").trim(), "true");
+    assert.deepEqual(
+      files.map((path) => readFileSync(join(f.root, path))),
+      contents,
+    );
+    assert.equal(existsSync(join(f.root, ".git/index.lock")), false);
+    assert.equal(existsSync(join(f.root, ".degreaser")), false);
+  });
+}
 
 test("literal exclusion directories cannot inject pathspecs and renames crossing coverage become additions", (t) => {
   const f = fixture(t);

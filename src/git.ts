@@ -19,6 +19,7 @@ export function git(
       "core.fsmonitor=false",
       "-c",
       "core.hooksPath=/dev/null",
+      ...(options.index ? ["-c", "core.splitIndex=false"] : []),
       ...args,
     ],
     {
