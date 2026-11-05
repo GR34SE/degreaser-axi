@@ -161,7 +161,7 @@ test("strict public RC schema rejects unknown fields and bounded invalid values 
   );
   assert.throws(
     () => resolveConfig({ ...identity, limits: { workerTimeoutSecons: 300 } }),
-    /limits\/workerTimeoutSecons/,
+    /\.degreaserrc\.json: .*limits.*must NOT have additional properties/,
   );
 });
 
@@ -222,7 +222,7 @@ test("selection narrows all sixteen defaults without re-enabling disabled aspect
         ...identity,
         aspects: { overrides: { A01: { agent: "pi", model: "wrong" } } },
       }),
-    /A01\/model/,
+    /\.degreaserrc\.json: .*model.*must match pattern/,
   );
   assert.throws(
     () =>
