@@ -62,9 +62,9 @@ changing the index. Use `--aspects A06` for a first one-aspect review.
 The worker profiles currently require Codex ACP 2.5.0 with bundled Codex 0.165.0,
 Claude Code 2.1.317, or Pi 1.4.0. Claude and Pi must already be on PATH;
 Codex's worker executable is bundled with its pinned adapter.
-See `assets/native-profiles.md` in the checkout, or
-[native worker restrictions and limits](dist/assets/native-profiles.md)
-in the built checkout or installed package.
+See [native worker restrictions and limits](https://github.com/GR34SE/degreaser-axi/blob/main/assets/native-profiles.md)
+in the source, or `dist/assets/native-profiles.md` in the built checkout or
+installed package.
 
 Discover and confirm a model in your project:
 
@@ -260,7 +260,9 @@ Catalog membership is not a provider-access guarantee. In particular, Claude's
 review-time catalog includes the requested model, so its runtime identity check
 cannot independently detect later provider withdrawal. No model fallback is used.
 
-The root RC follows the strict versioned [configuration schema](dist/assets/schemas/config-v1.json). Unknown fields and explicitly selected disabled aspects are errors. See the [input contract](dist/assets/input-contract.md) in the built checkout or installed package for exact bounds, literal-path exclusions and Git representation limits.
+The root RC follows the strict versioned [configuration schema](https://github.com/GR34SE/degreaser-axi/blob/main/assets/schemas/config-v1.json). Unknown fields and explicitly selected disabled aspects are errors. See the [input contract](https://github.com/GR34SE/degreaser-axi/blob/main/assets/input-contract.md) for exact bounds, literal-path exclusions and Git representation limits.
+In a built checkout or installed package, these are
+`dist/assets/schemas/config-v1.json` and `dist/assets/input-contract.md`.
 
 To review only specific aspects for one run, without changing your configuration:
 
@@ -318,7 +320,9 @@ rejected: 0
 For example, `finding F1` can quote `// Return the sum of two numbers.` and
 explain why it repeats the function below it. The quote check establishes that
 the code exists, not that the recommendation is correct. Zero findings is equally
-valid. See [result validation and local data limits](dist/assets/result-contract.md).
+valid. See [result validation and local data limits](https://github.com/GR34SE/degreaser-axi/blob/main/assets/result-contract.md),
+also available at `dist/assets/result-contract.md` in a built checkout or
+installed package.
 
 Exit codes: **0** completed/no changes/already completed, **1** partial/failed/
 interrupted, **2** invalid input/decision required/environment or state blocked,

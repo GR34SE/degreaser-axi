@@ -10,7 +10,13 @@ import { queueFixture } from "./queue-fixture.ts";
 const root = fileURLToPath(new URL("../", import.meta.url));
 const readme = readFileSync(resolve(root, "README.md"), "utf8");
 
-test("public documentation links resolve in a built checkout", () => {
+test("public documentation links resolve for source readers without a build", () => {
+  const tracked = spawnSync("git", ["ls-files", "-z"], {
+    cwd: root,
+    encoding: "utf8",
+  });
+  assert.equal(tracked.status, 0, tracked.stderr);
+  const sourceFiles = new Set(tracked.stdout.split("\0"));
   for (const file of [
     "README.md",
     "assets/input-contract.md",
@@ -21,14 +27,18 @@ test("public documentation links resolve in a built checkout", () => {
     const path = resolve(root, file);
     const text = readFileSync(path, "utf8");
     for (const [, target] of text.matchAll(/\[[^\]]+\]\(([^)\s]+)\)/g)) {
+      const sourcePrefix = "https://github.com/GR34SE/degreaser-axi/blob/main/";
+      if (target?.startsWith(sourcePrefix)) {
+        assert.ok(sourceFiles.has(target.slice(sourcePrefix.length)), target);
+        continue;
+      }
       if (!target || /^(?:https?:|#)/.test(target)) continue;
+      const resolved = resolve(
+        dirname(path),
+        decodeURIComponent(target.split("#")[0] ?? ""),
+      );
       assert.ok(
-        existsSync(
-          resolve(
-            dirname(path),
-            decodeURIComponent(target.split("#")[0] ?? ""),
-          ),
-        ),
+        sourceFiles.has(resolved.slice(root.length)) && existsSync(resolved),
         `${file}: broken local link ${target}`,
       );
     }

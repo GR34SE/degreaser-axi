@@ -26,7 +26,7 @@ npx skills add cursor/plugins --skill deslop thermo-nuclear-code-quality-review 
 npx skills add kunchenguid/no-mistakes --skill no-mistakes --agent codex claude-code pi -y
 ```
 
-To restore locked installations, use `npx skills experimental_install --frozen-lockfile`; to update deliberately, use `npx skills update --project` and review the resulting changes. Installing a skill does not update its CLI or authorize executing its workflow. Check the installed CLI's current help before use; no-mistakes has not been initialized or run here.
+To restore locked installations, use `npx skills experimental_install --frozen-lockfile`; to update deliberately, use `npx skills update --project` and review the resulting changes. Installing a skill does not update its CLI or authorize executing its workflow. Check the installed CLI's current help and local `no-mistakes axi` state before starting or resuming delivery.
 
 ## Discovery
 

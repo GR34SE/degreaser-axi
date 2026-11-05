@@ -98,7 +98,8 @@ try {
     run("pnpm", ["add", "--ignore-scripts", tarball], installDir, runtime);
     const installed = join(installDir, "node_modules/degreaser-axi");
     const readme = join(installed, "README.md");
-    for (const [, target] of (await readFile(readme, "utf8")).matchAll(
+    const documentation = await readFile(readme, "utf8");
+    for (const [, target] of documentation.matchAll(
       /\[[^\]]+\]\(([^)\s]+)\)/g,
     )) {
       if (!target || /^(?:https?:|#)/.test(target)) continue;
@@ -109,6 +110,8 @@ try {
         ),
       );
     }
+    for (const [, asset] of documentation.matchAll(/`(dist\/assets\/[^`]+)`/g))
+      await readFile(resolve(installed, asset ?? ""));
     const bin = join(installed, "dist/bin/degreaser-axi.js");
     const installedBin = join(installDir, "node_modules/.bin/degreaser-axi");
     assert.equal(
