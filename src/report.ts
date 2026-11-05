@@ -153,12 +153,17 @@ export function renderReport(run: Run, full = false) {
         })),
     coverage: run.tasks.map((t) => ({
       aspect: t.assignment.aspect,
-      status: t.status,
+      status:
+        status === "interrupted" && t.status === "running"
+          ? "interrupted"
+          : t.status,
       reason:
-        t.result?.reason ??
-        t.attempts.at(-1)?.failure ??
-        t.result?.limitations.join("; ") ??
-        "",
+        status === "interrupted" && t.status === "running"
+          ? "Execution interrupted; last persisted aspect status: running."
+          : (t.result?.reason ??
+            t.attempts.at(-1)?.failure ??
+            t.result?.limitations.join("; ") ??
+            ""),
       limitations: taskLimitations(t),
       rejected: t.rejections.length,
     })),
@@ -178,6 +183,7 @@ export function renderReport(run: Run, full = false) {
             .filter((t) => t.attempts.length > 0)
             .map((t) => ({
               ...t.assignment,
+              attemptStatusBasis: "last-persisted",
               attempts: t.attempts,
               rejections: t.rejections,
               usage: latestUsage(t) ?? "unknown",

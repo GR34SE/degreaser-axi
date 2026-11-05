@@ -68,7 +68,8 @@ Commands from the repository root:
 - `pnpm typecheck`
 - `pnpm lint` (lint and format check); `pnpm format` applies fixes
 - `pnpm build` (JavaScript, assets and generated skill check)
-- `pnpm package:check` (separate installed tarball; set `DEGREASER_NODE24_MIN` to a verified Node 24.0.0 executable for the minimum-version smoke)
+- `pnpm qa` (repeatable isolated init/review/report/partial/resume; synthetic external adapter, no model account)
+- `pnpm package:check` (separate installed tarballs; requires `DEGREASER_NODE24_MIN` pointing to a verified Node 24.0.0 executable unless running that exact version)
 - `pnpm check` (all deterministic gates)
 - `pnpm test:live --help` (opt-in tooling, outside ordinary CI; unimplemented scenarios return nonzero and never count as passes)
 

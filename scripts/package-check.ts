@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import {
   cp,
+  mkdir,
   mkdtemp,
   readdir,
   readFile,
@@ -14,13 +15,18 @@ import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const temporary = await mkdtemp(join(tmpdir(), "degreaser-package-"));
+let retainInstallation = false;
 
-function run(command: string, args: string[], cwd: string) {
+function run(command: string, args: string[], cwd: string, runtime?: string) {
   const result = spawnSync(command, args, {
     cwd,
     encoding: "utf8",
     timeout: 120_000,
-    env: { ...process.env, CI: "true" },
+    env: {
+      ...process.env,
+      CI: "true",
+      ...(runtime ? { PATH: `${dirname(runtime)}:${process.env.PATH}` } : {}),
+    },
   });
   assert.equal(result.error, undefined);
   assert.equal(
@@ -52,59 +58,87 @@ try {
       `Private material shipped: ${entry}`,
     );
   }
-  await writeFile(
-    join(temporary, "package.json"),
-    JSON.stringify({
-      private: true,
-      type: "module",
-      packageManager: "pnpm@12.14.0",
-    }),
+  const minimumNode =
+    process.env.DEGREASER_NODE24_MIN ??
+    (process.version === "v24.0.0" ? process.execPath : undefined);
+  assert.ok(
+    minimumNode,
+    "Set DEGREASER_NODE24_MIN to a Node 24.0.0 executable.",
   );
-  await cp(
-    join(root, "pnpm-workspace.yaml"),
-    join(temporary, "pnpm-workspace.yaml"),
-  );
-  run("pnpm", ["add", "--ignore-scripts", tarball], temporary);
-  const installed = join(temporary, "node_modules/degreaser-axi");
-  const readme = join(installed, "README.md");
-  for (const [, target] of (await readFile(readme, "utf8")).matchAll(
-    /\[[^\]]+\]\(([^)\s]+)\)/g,
-  )) {
-    if (!target || /^(?:https?:|#)/.test(target)) continue;
-    await readFile(
-      resolve(dirname(readme), decodeURIComponent(target.split("#")[0] ?? "")),
+  assert.equal(run(minimumNode, ["--version"], temporary), "v24.0.0\n");
+  for (const [index, runtime] of [
+    ...new Set([process.execPath, minimumNode]),
+  ].entries()) {
+    const installDir = join(temporary, `install-${index}`);
+    await mkdir(installDir);
+    await writeFile(
+      join(installDir, "package.json"),
+      JSON.stringify({
+        private: true,
+        type: "module",
+        packageManager: "pnpm@12.14.0",
+      }),
     );
-  }
-  const bin = join(temporary, "node_modules/.bin/degreaser-axi");
-  assert.equal(run(bin, ["--version"], temporary), "0.1.0\n");
-  assert.match(run(bin, ["review", "--help"], temporary), /--task-file/);
-  assert.equal(
-    (await readdir(join(installed, "dist/assets/aspects"))).length,
-    16,
-  );
-  for (const asset of [
-    "worker.md",
-    "response.md",
-    "catalog.md",
-    "input-contract.md",
-    "native-profiles.md",
-    "result-contract.md",
-    "schemas/config-v1.json",
-    "schemas/input-v1.json",
-    "schemas/result-v1.json",
-    "schemas/run-v1.json",
-    "schemas/state-v1.json",
-    "skills/degreaser/SKILL.md",
-  ]) {
-    assert.ok(
-      (await readFile(join(installed, "dist/assets", asset), "utf8")).length >
-        200,
+    await cp(
+      join(root, "pnpm-workspace.yaml"),
+      join(installDir, "pnpm-workspace.yaml"),
     );
-  }
-  const inputProbe = join(temporary, "input-probe.mjs");
-  await writeFile(
-    inputProbe,
-    `
+    run("pnpm", ["add", "--ignore-scripts", tarball], installDir, runtime);
+    const installed = join(installDir, "node_modules/degreaser-axi");
+    const readme = join(installed, "README.md");
+    for (const [, target] of (await readFile(readme, "utf8")).matchAll(
+      /\[[^\]]+\]\(([^)\s]+)\)/g,
+    )) {
+      if (!target || /^(?:https?:|#)/.test(target)) continue;
+      await readFile(
+        resolve(
+          dirname(readme),
+          decodeURIComponent(target.split("#")[0] ?? ""),
+        ),
+      );
+    }
+    const bin = join(installed, "dist/bin/degreaser-axi.js");
+    const installedBin = join(installDir, "node_modules/.bin/degreaser-axi");
+    assert.equal(
+      run(installedBin, ["--version"], installDir, runtime),
+      "0.1.0\n",
+    );
+    assert.match(
+      run(installedBin, ["review", "--help"], installDir, runtime),
+      /--task-file/,
+    );
+    assert.equal(run(runtime, [bin, "--version"], installDir), "0.1.0\n");
+    assert.match(
+      run(runtime, [bin, "review", "--help"], installDir),
+      /--task-file/,
+    );
+    assert.equal(
+      (await readdir(join(installed, "dist/assets/aspects"))).length,
+      16,
+    );
+    for (const asset of [
+      "worker.md",
+      "response.md",
+      "catalog.md",
+      "input-contract.md",
+      "native-profiles.md",
+      "result-contract.md",
+      "schemas/config-v1.json",
+      "schemas/input-v1.json",
+      "schemas/result-v1.json",
+      "schemas/run-v1.json",
+      "schemas/state-v1.json",
+      "skills/degreaser/SKILL.md",
+    ]) {
+      assert.ok(
+        (await readFile(join(installed, "dist/assets", asset), "utf8")).length >
+          200,
+      );
+    }
+    const inputProbe = join(installDir, "input-probe.mjs");
+    await writeFile(
+      inputProbe,
+      `
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, writeFileSync } from "node:fs";
@@ -136,12 +170,12 @@ for (const args of [
 }
 console.log("Installed detached owner, storage and report passed without model inference.");
 `,
-  );
-  run(process.execPath, [inputProbe, installed, temporary], temporary);
-  const nativeProbe = join(temporary, "native-probe.mjs");
-  await writeFile(
-    nativeProbe,
-    `
+    );
+    run(runtime, [inputProbe, installed, installDir], installDir);
+    const nativeProbe = join(installDir, "native-probe.mjs");
+    await writeFile(
+      nativeProbe,
+      `
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -179,30 +213,26 @@ writeFileSync(join(bin,"claude"), "#!" + process.execPath + "\\nconsole.log('99.
 await assert.rejects(nativeProfile({agent:"claude",model:"exact"}), /Unsupported claude native version/);
 console.log("Installed native resolver and all compiled launchers passed; no model inference.");
 `,
-  );
-  run(process.execPath, [nativeProbe, installed, temporary], temporary);
-  const minimumNode = process.env.DEGREASER_NODE24_MIN;
-  if (minimumNode) {
-    assert.match(run(minimumNode, ["--version"], temporary), /^v24\.0\.0\n$/);
-    const cli = join(installed, "dist/bin/degreaser-axi.js");
-    assert.equal(run(minimumNode, [cli, "--version"], temporary), "0.1.0\n");
-    assert.match(
-      run(minimumNode, [cli, "review", "--help"], temporary),
-      /--task-file/,
     );
-    run(minimumNode, [inputProbe, installed, temporary], temporary);
-    run(minimumNode, [nativeProbe, installed, temporary], temporary);
-    console.log(
-      "Installed compiled package: Node 24.0.0 version/help, real-Git input and native launchers passed.",
+    run(runtime, [nativeProbe, installed, installDir], installDir);
+    retainInstallation = true;
+    process.stdout.write(
+      run(
+        runtime,
+        [join(root, "scripts/qa/scenario.mjs"), installed],
+        installDir,
+      ),
     );
-  } else {
+    retainInstallation = false;
     console.log(
-      "Minimum Node 24.0.0 check not run; set DEGREASER_NODE24_MIN to its executable.",
+      `Installed package probes and deterministic CLI QA passed on ${runtime}.`,
     );
   }
   console.log(
     "Tarball inventory, separate installation, CLI and public assets passed. No live models called.",
   );
 } finally {
-  await rm(temporary, { recursive: true, force: true });
+  if (retainInstallation)
+    console.error(`QA did not complete; retained installation at ${temporary}`);
+  else await rm(temporary, { recursive: true, force: true });
 }

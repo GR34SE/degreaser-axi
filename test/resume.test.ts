@@ -296,6 +296,25 @@ test("a killed owner exposes interrupted and racing resumes admit only one nonov
   assert.equal(report.status, 1, report.stdout);
   assert.match(report.stdout, /status: interrupted/);
   assert.ok(report.stdout.includes(`resume ${old.id}`));
+  const persisted = readFileSync(
+    join(f.root, ".degreaser/runs", old.id, "run.json"),
+  );
+  for (const args of [[], ["--full"]]) {
+    const output = decode(f.run(["report", old.id, ...args]).stdout);
+    assert.deepEqual(
+      output.coverage.map((row: { status: string }) => row.status),
+      ["no-findings", "interrupted", "pending"],
+    );
+    assert.match(output.coverage[1].reason, /last persisted.*running/i);
+    if (args.length) {
+      assert.equal(output.execution[1].attemptStatusBasis, "last-persisted");
+      assert.deepEqual(output.execution[1].attempts, old.tasks[1]?.attempts);
+    }
+  }
+  assert.deepEqual(
+    readFileSync(join(f.root, ".degreaser/runs", old.id, "run.json")),
+    persisted,
+  );
   f.setPlan({ worker: { resultGate: f.gate("replacement") } });
   const capture = async (child: ReturnType<typeof f.launch>) => {
     let stdout = "";

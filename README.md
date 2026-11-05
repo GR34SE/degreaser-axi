@@ -182,6 +182,8 @@ checks process birth identities and joins verified old work before replacement
 attempts. If a lock or PID is ambiguous, it refuses takeover rather than
 signalling unrelated processes. Follow the reported local inspection guidance;
 do not remove locks while an owner or worker is still active.
+Reports mark interrupted active aspects as `interrupted`; full-report attempts
+are labeled `last-persisted` history, not proof that a worker is still running.
 Use the same Node executable as the original owner. For `owner-unverified`,
 inspect the run's `run.json` and `owner.lock` against local PID, start-time and
 process-group identities. Never signal a reused PID. If ownership remains
@@ -353,9 +355,16 @@ interrupted, **2** invalid input/decision required/environment or state blocked,
 ## Check a checkout
 
 ```sh
+export DEGREASER_NODE24_MIN=/absolute/path/to/node-v24.0.0/bin/node
 pnpm check
 ```
 
 This runs deterministic tests, type checking, lint/format, build and a separate
-local-tarball installation check. It needs no model account. Live model reviews
-are separate and consume your selected subscription quota.
+local-tarball installation check on your current Node and exactly Node 24.0.0.
+Supply a verified minimum-version executable; a missing runtime fails the check
+rather than skipping it. It needs no model account.
+
+`pnpm qa` runs just the isolated init → review → report → partial failure →
+same-run resume scenario. Its external adapter and faults are synthetic; the
+compiled CLI, Git, owner and saved results are real. Live model reviews are
+separate and consume your selected subscription quota.
