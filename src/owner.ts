@@ -174,6 +174,7 @@ export async function ownRun(
           break;
         }
         task.status = "running";
+        task.usage = null;
         const record: RunTask["attempts"][number] = {
           startedAt: Date.now(),
           endedAt: null,

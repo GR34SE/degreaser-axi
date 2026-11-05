@@ -244,7 +244,10 @@ const connection = new AgentSideConnection(
       fault(step.afterError);
       if (step.afterHang) await new Promise(() => {});
       record({ type: "result" });
-      return { stopReason: "end_turn" };
+      return {
+        stopReason: "end_turn",
+        ...(step.usage ? { usage: step.usage } : {}),
+      };
     },
     async closeSession() {
       record({ type: "close" });

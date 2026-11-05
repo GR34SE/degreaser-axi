@@ -109,10 +109,24 @@ without waiting; omitted rows still have a full-report command.
 Full reports distinguish `configuration` (all selected exact identities),
 `coordinator` (applicability results without workers), and `execution` (only
 tasks with actual attempt records). Repository A08 stays configured but appears
-as coordinator-owned not-applicable, never a phantom worker. Usage is reported
-per worker only when all selected workers have recorded metadata; otherwise
-the summary is `unknown`. Full execution rows retain any individually known
-metadata. A coordinator-only run has unknown usage, not an invented zero.
+as coordinator-owned not-applicable, never a phantom worker.
+
+`usageScope: latest-attempt-per-aspect` applies to summary `usage` and full
+execution-row `usage`: these are the recorded measurements for each aspect's
+latest attempt, **not task or run totals**. The summary lists per-aspect metadata
+only when every selected worker's latest attempt has nonempty metadata;
+otherwise it is `unknown`. Full execution rows still expose individually known
+latest measurements. Missing fields are not estimated or filled with zeros.
+A coordinator-only run has unknown usage, not an invented zero.
+
+Stored task `usage` resets to null when a new attempt is admitted, including
+retries and resume, then receives only that attempt's metadata. A failure before
+metadata returns leaves it unknown even when prior incomplete evidence survives.
+Earlier `attempts[].usage` records and successful peers remain unchanged.
+Reports use the latest attempt record, not a potentially stale task summary in
+older saved state; absent, null or empty attempt metadata means unknown.
+`report --full` preserves known usage at its original position in attempt
+history. No report sums attempts or claims complete billing coverage.
 
 No ID selects the latest run in the current repository; an explicit ID selects
 that repository's historical run without relying on the latest pointer.

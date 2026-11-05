@@ -42,6 +42,7 @@ export interface RunTask {
     usage?: Record<string, number> | null;
   }[];
   limitations: string[];
+  /** Latest attempt only, never a total; prior measurements stay in attempts. */
   usage: Record<string, number> | null;
 }
 export interface Run {

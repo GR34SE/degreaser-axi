@@ -1,9 +1,14 @@
 import assert from "node:assert/strict";
 import { once } from "node:events";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { join } from "node:path";
 import test from "node:test";
 import { alive, queueFixture, until } from "./queue-fixture.ts";
+
+const { decode } = createRequire(import.meta.resolve("axi-sdk-js"))(
+  "@toon-format/toon",
+);
 
 test("resume retains successes, supersedes incomplete evidence and records only fresh unresolved attempts", async (t) => {
   const f = queueFixture(t);
@@ -71,38 +76,127 @@ test("resume retains successes, supersedes incomplete evidence and records only 
   }
 });
 
-test("profile failure after resume keeps prior known usage without attributing it to an unstarted session", (t) => {
+test("resumed pre-result failure reports unknown latest usage while retaining distinct attempt metadata and peer evidence", async (t) => {
   const f = queueFixture(t);
+  // Synthetic adapter metadata, not measured usage from a live provider.
+  const priorUsage = { inputTokens: 17, outputTokens: 3, totalTokens: 20 };
+  const peerUsage = { inputTokens: 29, outputTokens: 5, totalTokens: 34 };
+  const nextUsage = { inputTokens: 41, outputTokens: 7, totalTokens: 48 };
+  const evidence = {
+    location: {
+      path: "source.ts",
+      side: "new",
+      startLine: 1,
+      endLine: 1,
+    },
+    quote: "// redundant",
+    title: "Redundant comment",
+    evidence: "The comment repeats the following constant.",
+    consequence: "Extra text to maintain.",
+    countercheck: "The comment explains no constraint.",
+    recommendation: "Remove the redundant comment.",
+  };
   f.setPlan({
+    workers: { A04: { usage: peerUsage }, A06: { usage: priorUsage } },
     results: {
       A06: {
         aspect: "A06",
         status: "incomplete",
-        findings: [],
+        findings: [evidence],
         limitations: ["One construct remains."],
       },
     },
   });
-  f.start(["--aspects", "A06"]);
+  f.start(["--aspects", "A04,A06"]);
   assert.equal(f.finish().status, 1);
   const old = f.state();
-  const task = old.tasks[0];
-  const attempt = task?.attempts[0];
-  assert.ok(task && attempt);
-  task.usage = { inputTokens: 17 };
-  attempt.usage = task.usage;
+  assert.equal(old.status, "partial");
+  assert.deepEqual(old.tasks[0]?.usage, peerUsage);
+  assert.deepEqual(old.tasks[1]?.usage, priorUsage);
+  assert.deepEqual(old.tasks[1]?.attempts[0]?.usage, priorUsage);
+  const originalDetail = decode(
+    f.run(["finding", "F1", "--run", old.id]).stdout,
+  );
+  const owner = old.owner;
+  if (owner) await until(() => !alive(owner.pid), "Initial owner exits");
   const directory = join(f.root, ".degreaser/runs", old.id);
-  writeFileSync(join(directory, "run.json"), JSON.stringify(old));
   const inputPath = join(directory, "input/review.json");
   const input = JSON.parse(readFileSync(inputPath, "utf8"));
-  input.config.limits.workerTimeoutSeconds = 1;
+  input.config.limits.workerTimeoutSeconds = 4;
   writeFileSync(inputPath, JSON.stringify(input));
-  f.setPlan({ profileDelayMs: 2000 });
-  const result = f.run(["resume", old.id, "--wait", "20"]);
-  assert.equal(result.status, 1, result.stdout);
-  assert.deepEqual(f.state().tasks[0]?.attempts[0], attempt);
-  assert.equal(f.state().tasks[0]?.attempts[1]?.usage, null);
-  assert.equal(f.events().length, 1);
+  f.setPlan({ profileDelayMs: 6000 });
+  const resumed = f.run(["resume", old.id, "--wait", "1"]);
+  assert.equal(resumed.status, 3, resumed.stdout);
+  const running = f.state();
+  assert.equal(f.finish().status, 1);
+  const failed = f.state();
+  assert.equal(failed.id, old.id);
+  assert.equal(failed.status, "partial");
+  assert.deepEqual(failed.tasks[0], old.tasks[0]);
+  assert.deepEqual(failed.tasks[1]?.result, old.tasks[1]?.result);
+  assert.deepEqual(failed.tasks[1]?.attempts[0], old.tasks[1]?.attempts[0]);
+  assert.equal(failed.tasks[1]?.usage, null);
+  assert.equal(failed.tasks[1]?.attempts[1]?.usage, null);
+  assert.equal(failed.tasks[1]?.attempts[1]?.sessionId, null);
+  assert.equal(failed.tasks[1]?.attempts[1]?.failure, "timeout");
+  assert.equal(running.tasks[1]?.attempts.length, 2);
+  assert.equal(running.tasks[1]?.usage, null);
+  assert.equal(decode(resumed.stdout).usage, "unknown");
+  assert.equal(f.events().length, 2);
+  const short = f.run(["report", old.id]);
+  assert.equal(short.status, 1);
+  assert.equal(decode(short.stdout).usage, "unknown");
+  const full = f.run(["report", old.id, "--full"]);
+  assert.equal(full.status, 1);
+  assert.equal(full.stderr, "");
+  const report = decode(full.stdout);
+  assert.equal(report.usageScope, "latest-attempt-per-aspect");
+  assert.equal(report.usage, "unknown");
+  assert.deepEqual(report.execution[0].usage, peerUsage);
+  assert.equal(report.execution[1].usage, "unknown");
+  assert.deepEqual(
+    report.execution[1].attempts.map(
+      (attempt: { usage: unknown }) => attempt.usage,
+    ),
+    [priorUsage, null],
+  );
+  assert.equal(f.run(["report", old.id, "--full"]).stdout, full.stdout);
+  const detail = decode(f.run(["finding", "F1", "--run", old.id]).stdout);
+  for (const key of ["id", "group", "quote", "evidence", "location"])
+    assert.deepEqual(detail[key], originalDetail[key]);
+  assert.equal(detail.aspectStatus, "failed");
+  assert.ok(detail.limitations.includes("One construct remains."));
+
+  f.setPlan({ workers: { A06: { usage: nextUsage } } });
+  const completed = f.run(["resume", old.id, "--wait", "20"]);
+  assert.equal(completed.status, 0, completed.stdout);
+  const current = f.state();
+  assert.equal(current.id, old.id);
+  assert.deepEqual(current.tasks[0], old.tasks[0]);
+  assert.deepEqual(
+    current.tasks[1]?.attempts.slice(0, 2),
+    failed.tasks[1]?.attempts,
+  );
+  assert.deepEqual(current.tasks[1]?.usage, nextUsage);
+  const final = decode(f.run(["report", old.id, "--full"]).stdout);
+  assert.equal(final.usageScope, "latest-attempt-per-aspect");
+  assert.deepEqual(final.usage, [
+    { aspect: "A04", ...peerUsage },
+    { aspect: "A06", ...nextUsage },
+  ]);
+  assert.deepEqual(
+    final.execution[1].attempts.map(
+      (attempt: { usage: unknown }) => attempt.usage,
+    ),
+    [priorUsage, null, nextUsage],
+  );
+  assert.deepEqual(
+    f
+      .events()
+      .map((event) => event.aspect)
+      .sort(),
+    ["A04", "A06", "A06"],
+  );
 });
 
 test("completed resume is a read-only no-op, but actual changed source is refused first", async (t) => {

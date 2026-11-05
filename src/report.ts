@@ -89,8 +89,9 @@ function taskLimitations(task: RunTask) {
   ];
 }
 
-function hasUsage(task: RunTask) {
-  return task.usage !== null && Object.keys(task.usage).length > 0;
+function latestUsage(task: RunTask) {
+  const usage = task.attempts.at(-1)?.usage;
+  return usage && Object.keys(usage).length > 0 ? usage : null;
 }
 
 export function renderFinding(run: Run, id: string | undefined) {
@@ -179,14 +180,18 @@ export function renderReport(run: Run, full = false) {
               ...t.assignment,
               attempts: t.attempts,
               rejections: t.rejections,
-              usage: hasUsage(t) ? t.usage : "unknown",
+              usage: latestUsage(t) ?? "unknown",
             })),
           controls: run.executions ?? [],
         }
       : {}),
+    usageScope: "latest-attempt-per-aspect",
     usage:
-      workers.length > 0 && workers.every(hasUsage)
-        ? workers.map((t) => ({ aspect: t.assignment.aspect, ...t.usage }))
+      workers.length > 0 && workers.every((t) => latestUsage(t) !== null)
+        ? workers.map((t) => ({
+            aspect: t.assignment.aspect,
+            ...latestUsage(t),
+          }))
         : "unknown",
     help:
       status === "running"

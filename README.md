@@ -195,7 +195,10 @@ Each finding explains what is wrong, where it occurs, why it matters and what wo
 Short reports show at most 30 findings, with total/shown counts and per-aspect
 coverage, limitations and rejections. Overlapping locations on the same old/new
 side share a group but retain separate evidence. `report --full` and `finding`
-do not clip evidence. Usage is `unknown` unless recorded metadata is available.
+do not clip evidence. `usageScope: latest-attempt-per-aspect` labels usage from
+each aspect's latest attempt, not a task/run total. Missing metadata is `unknown`,
+including a resumed attempt that fails before returning it. Full reports retain
+known usage in earlier attempt records and keep successful peers unchanged.
 
 Pass `report <run-id>` or `finding F1 --run <run-id>` to read historical evidence;
 otherwise reads select this repository's latest run. Reports of running reviews

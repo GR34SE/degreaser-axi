@@ -289,7 +289,11 @@ test("short coverage attributes incomplete limitations and full reports separate
   // Synthetic saved metadata tests presentation, not a live provider usage claim.
   const executed = run.tasks.filter((task) => task.attempts.length);
   for (const task of executed) {
-    task.usage = task.assignment.aspect === "A01" ? { inputTokens: 17 } : {};
+    const attempt = task.attempts.at(-1);
+    assert.ok(attempt);
+    attempt.usage = task.assignment.aspect === "A01" ? { inputTokens: 17 } : {};
+    // Earlier saved task summaries can be stale; only attempt metadata is attributed.
+    task.usage = { inputTokens: 999 };
   }
   saveRun(run);
   const mixedUsage = decode(f.run(["report", "--full"]).stdout);
@@ -297,7 +301,9 @@ test("short coverage attributes incomplete limitations and full reports separate
   assert.deepEqual(mixedUsage.execution[0].usage, { inputTokens: 17 });
   assert.equal(mixedUsage.execution[1].usage, "unknown");
   for (const task of executed) {
-    task.usage = { inputTokens: 17, outputTokens: 3 };
+    const attempt = task.attempts.at(-1);
+    assert.ok(attempt);
+    attempt.usage = { inputTokens: 17, outputTokens: 3 };
   }
   saveRun(run);
   assert.deepEqual(decode(f.run(["report"]).stdout).usage, [
