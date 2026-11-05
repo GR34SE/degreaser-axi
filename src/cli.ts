@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { AxiError, runAxiCli } from "axi-sdk-js";
 import {
@@ -13,7 +15,7 @@ import { InputError } from "./input-error.ts";
 import { nativeProfile } from "./native-profile.ts";
 import { observedStatus } from "./report.ts";
 import { readCommand, review } from "./review.ts";
-import { loadRun, StateError } from "./storage.ts";
+import { loadInput, loadRun, StateError } from "./storage.ts";
 import { VERSION } from "./version.js";
 
 function parseCommand(name: string, command: Command, args: string[]) {
@@ -58,12 +60,14 @@ function parseCommand(name: string, command: Command, args: string[]) {
 
 function home() {
   let local: Record<string, unknown>;
+  let repository: string | undefined;
   try {
-    const repository = repositoryRoot(process.cwd());
+    repository = repositoryRoot(process.cwd());
     const config = loadConfig(repository);
     local = { status: "configured", agent: config.agent, model: config.model };
     try {
       const run = loadRun(repository);
+      loadInput(run);
       local = {
         ...local,
         run: run.id,
@@ -71,11 +75,14 @@ function home() {
         next: `degreaser-axi report ${run.id}`,
       };
     } catch (error) {
-      if (error instanceof StateError)
+      if (error instanceof StateError) {
+        if (error.code !== "no-history") process.exitCode = 2;
         local = { ...local, history: error.code, reason: error.message };
-      else throw error;
+      } else throw error;
     }
   } catch (error) {
+    if (repository && existsSync(join(repository, ".degreaserrc.json")))
+      process.exitCode = 2;
     local = {
       status: "unconfigured",
       reason:

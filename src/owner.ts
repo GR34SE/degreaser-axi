@@ -9,6 +9,7 @@ import {
   type RunTask,
   resolved,
   runDirectory,
+  StateError,
   saveRun,
   terminalStatus,
 } from "./storage.ts";
@@ -38,17 +39,37 @@ export async function ownRun(repository: string, id: string) {
   process.on("SIGTERM", stop);
   process.on("SIGINT", stop);
   const deadline = setTimeout(expire, Math.max(1, run.deadline - Date.now()));
+  let persistenceError: StateError | undefined;
+  let fatalError: StateError | undefined;
   const persist = () => {
+    if (persistenceError) throw persistenceError;
     run.owner = { pid: process.pid, heartbeat: Date.now() };
-    saveRun(run);
+    try {
+      saveRun(run);
+    } catch (error) {
+      persistenceError =
+        error instanceof StateError
+          ? error
+          : new StateError(
+              "state-write-failed",
+              `Could not persist run: ${join(dir, "run.json")}`,
+            );
+      throw persistenceError;
+    }
   };
-  let storageFailed = false;
+  const fail = (error: unknown, message: string) => {
+    fatalError ??=
+      error instanceof StateError
+        ? error
+        : new StateError("owner-failed", message);
+    stopReason = fatalError.code;
+    stop();
+  };
   const heartbeat = setInterval(() => {
     try {
       persist();
-    } catch {
-      storageFailed = true;
-      stop();
+    } catch (error) {
+      fail(error, "Owner heartbeat could not be persisted.");
     }
   }, 2000);
   try {
@@ -61,7 +82,10 @@ export async function ownRun(repository: string, id: string) {
         join(dir, "input", "patch.json"),
       );
       if (prompt.promptHash !== task.promptHash)
-        throw new Error("Persisted prompt identity changed.");
+        throw new StateError(
+          "input-changed",
+          `Prompt identity for ${task.assignment.aspect} differs from ${join(dir, "run.json")}. Start a new review with the current package.`,
+        );
       for (let attempt = 0; attempt <= input.config.maxRetries; attempt++) {
         if (stopped()) {
           task.status = "cancelled";
@@ -200,9 +224,11 @@ export async function ownRun(repository: string, id: string) {
       });
       const launch = (task: RunTask, started?: () => void) => {
         const promise = work(task, started)
-          .catch(() => {
-            storageFailed = true;
-            stop();
+          .catch((error: unknown) => {
+            fail(
+              error,
+              `Aspect ${task.assignment.aspect} could not complete because of an unexpected owner task error.`,
+            );
           })
           .finally(() => {
             active.delete(promise);
@@ -229,7 +255,7 @@ export async function ownRun(repository: string, id: string) {
         task.limitations.push(`Unexamined aspect: ${stopReason}.`);
       }
     }
-    if (storageFailed) throw new Error("Storage heartbeat failed");
+    if (fatalError) throw fatalError;
     run.status = terminalStatus(run.tasks);
     persist();
   } finally {

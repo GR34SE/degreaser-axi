@@ -7,7 +7,14 @@ import { prepareReview } from "./input.ts";
 import { InputError } from "./input-error.ts";
 import { discoverModels } from "./model-discovery.ts";
 import { findings, observedStatus, renderReport } from "./report.ts";
-import { createRun, loadRun, type Run, StateError } from "./storage.ts";
+import {
+  checkHistory,
+  createRun,
+  loadInput,
+  loadRun,
+  type Run,
+  StateError,
+} from "./storage.ts";
 
 function waitSeconds(value: unknown): number {
   if (value === undefined) return 480;
@@ -37,6 +44,7 @@ export async function review(args: string[], cwd: string) {
       "Workers cannot start nested reviews.",
     );
   const input = prepareReview(args, cwd);
+  checkHistory(input.repository);
   if (input.status === "no-changes")
     return {
       status: "no-changes",
@@ -103,6 +111,7 @@ export async function readCommand(
         : undefined
       : positionals[0],
   );
+  loadInput(run);
   if (name === "wait") return waitFor(run, seconds);
   if (name === "report") return renderReport(run, values.full === true);
   const finding = findings(run).find((f) => f.id === positionals[0]);

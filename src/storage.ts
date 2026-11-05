@@ -17,7 +17,6 @@ import type { Assignment } from "./config.ts";
 import { git } from "./git.ts";
 import type { ReviewInput } from "./input.ts";
 import { InputError } from "./input-error.ts";
-import { validateReviewInput } from "./input-schema.ts";
 import { assemblePrompt, hash } from "./prompt.ts";
 import type { Rejection, WorkerResult } from "./results.ts";
 
@@ -69,7 +68,7 @@ export class StateError extends Error {
   }
 }
 const ajv = new Ajv({ strict: true, allErrors: true });
-for (const name of ["config", "input", "result", "run", "state"]) {
+for (const name of ["config", "input", "patch", "result", "run", "state"]) {
   ajv.addSchema(
     JSON.parse(
       readFileSync(
@@ -87,6 +86,8 @@ function schema<T>(name: string): ValidateFunction<T> {
   return validate;
 }
 const runSchema = schema<Run>("run");
+const inputSchema = schema<ReviewInput>("input");
+const patchSchema = schema<string | null>("patch");
 const stateSchema = schema<{ schemaVersion: 1; latestRunId: string }>("state");
 
 export function statePath(repository: string, ...parts: string[]) {
@@ -121,10 +122,17 @@ export function runDirectory(repository: string, id: string) {
 export function atomicWrite(path: string, value: string) {
   const temporary = `${path}.${randomBytes(8).toString("hex")}.tmp`;
   try {
-    writeFileSync(temporary, value, { flag: "wx", mode: 0o600 });
-    renameSync(temporary, path);
-  } finally {
-    rmSync(temporary, { force: true });
+    try {
+      writeFileSync(temporary, value, { flag: "wx", mode: 0o600, flush: true });
+      renameSync(temporary, path);
+    } finally {
+      rmSync(temporary, { force: true });
+    }
+  } catch {
+    throw new StateError(
+      "state-write-failed",
+      `Could not atomically write state: ${path}`,
+    );
   }
 }
 function checked<T>(
@@ -153,10 +161,20 @@ function readJson(path: string): unknown {
     if (fd !== undefined) closeSync(fd);
   }
 }
+function writeJson<T>(
+  path: string,
+  value: unknown,
+  schema: ValidateFunction<T>,
+) {
+  checked(value, schema, path);
+  atomicWrite(path, `${JSON.stringify(value, null, 2)}\n`);
+}
 export function saveRun(run: Run) {
   runDirectory(run.repository, run.id);
   const path = statePath(run.repository, "runs", run.id, "run.json");
-  checked(run, runSchema, path);
+  checkedRun(run, path, run.repository, run.id);
+  if (existsSync(path))
+    checkedRun(readJson(path), path, run.repository, run.id);
   atomicWrite(path, `${JSON.stringify(run, null, 2)}\n`);
 }
 export function loadRun(repository: string, requested?: string): Run {
@@ -173,8 +191,16 @@ export function loadRun(repository: string, requested?: string): Run {
   const path = join(runDirectory(repository, id), "run.json");
   statePath(repository, "runs", id, "run.json");
   if (!existsSync(path))
-    throw new StateError("run-not-found", `Run not found: ${id}`);
-  const run = checked(readJson(path), runSchema, path);
+    throw new StateError("run-not-found", `Run not found: ${path}`);
+  return checkedRun(readJson(path), path, repository, id);
+}
+function checkedRun(
+  value: unknown,
+  path: string,
+  repository: string,
+  id: string,
+): Run {
+  const run = checked(value, runSchema, path);
   if (
     run.repository !== repository ||
     run.id !== id ||
@@ -182,7 +208,7 @@ export function loadRun(repository: string, requested?: string): Run {
       run.tasks.length ||
     run.tasks.some(
       (t) =>
-        (resolved(t) && !t.result) ||
+        ((resolved(t) || t.status === "incomplete") && !t.result) ||
         (t.result &&
           (t.result.aspect !== t.assignment.aspect ||
             t.result.status !== t.status)),
@@ -204,7 +230,7 @@ export function loadInput(run: Run): ReviewInput {
     "review.json",
   );
   try {
-    const input = validateReviewInput(readJson(path));
+    const input = checked(readJson(path), inputSchema, path);
     if (input.repository !== run.repository)
       throw new Error("Repository mismatch");
     if (
@@ -225,7 +251,7 @@ export function loadInput(run: Run): ReviewInput {
       "input",
       "patch.json",
     );
-    if (readJson(patch) !== input.patch)
+    if (checked(readJson(patch), patchSchema, patch) !== input.patch)
       throw new StateError(
         "state-corrupt",
         `Patch differs from persisted scope: ${patch}`,
@@ -236,8 +262,12 @@ export function loadInput(run: Run): ReviewInput {
     throw new StateError("state-corrupt", `Invalid persisted input: ${path}`);
   }
 }
+export function checkHistory(repository: string) {
+  if (existsSync(statePath(repository, "state.json")))
+    loadInput(loadRun(repository));
+}
 export function createRun(input: ReviewInput): Run {
-  validateReviewInput(input);
+  checked(input, inputSchema, "input/review.json");
   const root = statePath(input.repository);
   if (
     git(input.repository, ["check-ignore", "--no-index", ".degreaser/probe"], {
@@ -248,7 +278,7 @@ export function createRun(input: ReviewInput): Run {
       "Add /.degreaser/ to the root .gitignore before review. Local review artifacts may contain source code.",
     );
   const latest = statePath(input.repository, "state.json");
-  if (existsSync(latest)) checked(readJson(latest), stateSchema, latest);
+  checkHistory(input.repository);
   mkdirSync(root, { recursive: true, mode: 0o700 });
   const runs = statePath(input.repository, "runs");
   mkdirSync(runs, { recursive: true, mode: 0o700 });
@@ -299,22 +329,13 @@ export function createRun(input: ReviewInput): Run {
     ),
     tasks,
   };
-  atomicWrite(
-    join(dir, "input", "review.json"),
-    `${JSON.stringify(input, null, 2)}\n`,
-  );
+  writeJson(join(dir, "input", "review.json"), input, inputSchema);
   const first = input.config.assignments[0];
   if (!first) throw new Error("Empty assignments");
-  atomicWrite(
-    patchFile,
-    assemblePrompt(input, first.aspect, patchFile).patchData,
-  );
+  const patchData = assemblePrompt(input, first.aspect, patchFile).patchData;
+  checked(JSON.parse(patchData), patchSchema, patchFile);
+  atomicWrite(patchFile, patchData);
   saveRun(run);
-  const state = checked(
-    { schemaVersion: 1, latestRunId: id },
-    stateSchema,
-    latest,
-  );
-  atomicWrite(latest, `${JSON.stringify(state)}\n`);
+  writeJson(latest, { schemaVersion: 1, latestRunId: id }, stateSchema);
   return run;
 }
