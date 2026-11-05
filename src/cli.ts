@@ -14,6 +14,7 @@ import { repositoryRoot } from "./git.ts";
 import { CALLER_GUIDANCE, DESCRIPTION } from "./guidance.js";
 import { init } from "./init.ts";
 import { InputError } from "./input-error.ts";
+import { setupIntegrations } from "./integrations.ts";
 import { nativeProfile } from "./native-profile.ts";
 import { observedStatus } from "./report.ts";
 import { cancel, readCommand, resume, review } from "./review.ts";
@@ -157,6 +158,8 @@ async function execute(
   if (name === "version") return VERSION;
   if (name === "home") return home();
   if (name === "init") return init(parsed.values, process.cwd());
+  if (name === "setup hooks")
+    return setupIntegrations(parsed.values, process.cwd());
   if (name === "doctor") {
     const config = loadConfig(repositoryRoot(process.cwd()));
     try {
@@ -170,7 +173,7 @@ async function execute(
         limitations: profile.limitations,
         modelAvailability: "Not checked; doctor does not call a model.",
         integrations:
-          "Startup installation is not implemented in this development build.",
+          "Use setup hooks for selected-target repair/removal. Native trust, reload and policy must be checked in the host.",
       };
     } catch {
       throw new StateError(

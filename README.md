@@ -4,7 +4,7 @@ Focused slop review for coding agents.
 
 Degreaser gives your coding agent a second look at the feature it just built. It distributes the review across small models: each reviewer starts with a fresh context, investigates one kind of code slop, and returns evidence. Your coding agent decides what to fix.
 
-> Not released yet. This development build runs source-only reviews, waits for detached runs, cancels active runs, resumes unresolved unchanged work, and reads saved reports/findings. Init discovers and confirms worker models. Startup integrations are still under development.
+> Not released yet. This development build runs source-only reviews, waits for detached runs, cancels active runs, resumes unresolved unchanged work, and reads saved reports/findings. Init confirms worker models and installs selected native startup integrations and skills.
 
 - **Review the change, understand the repository.** Reviewers assess your diff and can follow callers, tests, dependencies and existing helpers across the repo.
 - **One aspect per reviewer.** Sixteen focused reviews, each with examples of problems to report and justified code to preserve.
@@ -27,8 +27,8 @@ node dist/bin/degreaser-axi.js --version
 There is no published npm installation or self-update path.
 
 For direct use now, run `init` in the target repository to confirm its worker
-model and write `.degreaserrc.json`. Add `/.degreaser/` to its root `.gitignore`
-before review; automatic ignore setup is still under development.
+model, write `.degreaserrc.json`, and install the selected integrations. Init adds
+shared root `.gitignore` coverage for `/.degreaser/` without changing the index.
 From that repository, invoke the absolute path to this checkout's
 `dist/bin/degreaser-axi.js` with Node. The examples below use `degreaser-axi` as
 shorthand for that command. Use `--aspects A06` for a first one-aspect review.
@@ -53,10 +53,29 @@ RC is not consent for a later invocation.
 Init reads native catalogs without inference. It shows the credential source,
 not private account identities, and does not guarantee later provider availability.
 Invalid choices or failed discovery never silently select a replacement.
-This build writes only the project RC and preserves its other settings.
-Selected harnesses are reported as **not installed**. The planned complete
-setup will install their native startup integrations and skill and update
-the root `.gitignore`; it will not change global permission settings.
+Init preserves other RC settings and installs both the startup integration and
+skill for each selected harness. Installation defaults to the project; use
+`--installation-scope user` explicitly for user-wide integration. RC and ignore
+setup still belong to the current project. Nothing changes global permissions,
+Codex features/rules, or your AGENTS.md and CLAUDE.md instructions.
+
+Start a new harness session after installation (or reload Pi). **Installed does
+not mean active:** host trust and hook policy still apply. Codex 0.165.0 enables
+hooks by default but separately requires project and hook trust. Approve through
+the host only if you trust the command; Degreaser never grants trust itself.
+
+To repair moved package paths or missing owned files, run
+`degreaser-axi setup hooks --harnesses codex,claude,pi` with your selected targets
+and the original scope. Add `--remove` to remove only owned entries. Foreign
+settings stay intact; edited owned files or hooks produce a conflict instead of
+being overwritten. Preserve your edits elsewhere or restore the owned content
+before retrying. Ownership receipts live in `.degreaser/integrations.json` at
+the selected project or home root; keep them for safe maintenance. Codex and Pi
+share `.agents/skills/degreaser`, retained until both owners are removed.
+
+Startup reads only compact local context. It starts no models or reviews and
+is disabled in review workers. Missing executables or invalid local state do
+not block the host; use the CLI home view for state errors and setup for repair.
 
 Then ask your coding agent:
 
@@ -154,7 +173,7 @@ A loop, wrapper, validation check or smoke test is not automatically slop. Revie
 
 ## Configure the review
 
-The root `.degreaserrc.json` stores your chosen harness and model. You can disable built-in aspects, set a concurrency limit, or override the model for individual aspects. Init will write this file once onboarding is implemented.
+The root `.degreaserrc.json` stores your chosen harness and model. You can disable built-in aspects, set a concurrency limit, or override the model for individual aspects. Init writes this file after every explicit confirmation.
 
 For example, after selecting Codex and Luna:
 

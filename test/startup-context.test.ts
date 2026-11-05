@@ -1,0 +1,92 @@
+import assert from "node:assert/strict";
+import { spawn, spawnSync } from "node:child_process";
+import { once } from "node:events";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import test from "node:test";
+import { fixture } from "./git-fixture.ts";
+import { queueFixture } from "./queue-fixture.ts";
+
+const entry = new URL("../bin/startup-context.ts", import.meta.url).pathname;
+
+function hook(
+  cwd: string,
+  options: { input?: string; plain?: boolean; worker?: string } = {},
+) {
+  const result = spawnSync(
+    process.execPath,
+    [entry, ...(options.plain ? ["--plain"] : [])],
+    {
+      cwd,
+      input: options.input ?? "",
+      encoding: "utf8",
+      timeout: 5000,
+      env: { ...process.env, DEGREASER_WORKER: options.worker ?? "" },
+    },
+  );
+  assert.equal(result.error, undefined);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stderr, "");
+  assert.ok(result.stdout.length <= 1500);
+  return result.stdout;
+}
+
+test("native JSON cwd and plain mode discover configuration and no history", (t) => {
+  const f = fixture(t);
+  const other = fixture(t);
+  other.write(
+    ".degreaserrc.json",
+    JSON.stringify({ agent: "claude", model: "different-model" }),
+  );
+  mkdirSync(join(f.root, "nested"));
+  const output = hook(other.root, {
+    input: JSON.stringify({ cwd: join(f.root, "nested") }),
+  });
+  const context = JSON.parse(output).hookSpecificOutput;
+  assert.equal(context.hookEventName, "SessionStart");
+  assert.match(context.additionalContext, /codex.*gpt-6-luna/i);
+  assert.match(context.additionalContext, /no.*run/i);
+  assert.match(context.additionalContext, /degreaser-axi --help/);
+  assert.match(hook(join(f.root, "nested"), { plain: true }), /no.*run/i);
+});
+
+test("worker, corrupt config and corrupt history are silent", (t) => {
+  const f = fixture(t);
+  assert.equal(hook(f.root, { worker: "1" }), "");
+  writeFileSync(join(f.root, ".degreaserrc.json"), "{");
+  assert.equal(hook(f.root), "");
+  f.write(
+    ".degreaserrc.json",
+    JSON.stringify({ agent: "codex", model: "gpt-6-luna" }),
+  );
+  f.write(".degreaser/state.json", "{");
+  assert.equal(hook(f.root), "");
+});
+
+test("reports a real synthetic review and suggests report or wait", async (t) => {
+  const f = queueFixture(t);
+  f.setPlan({ worker: { resultGate: f.gate("result") } });
+  assert.equal(f.start(["--aspects", "A01"]).status, 3);
+  const running = f.state();
+  const before = hook(f.root, { plain: true });
+  assert.match(before, new RegExp(`wait ${running.id}`));
+  f.release("result");
+  assert.equal(f.finish().status, 0);
+  const run = f.state();
+  const text = hook(f.root, { plain: true });
+  assert.match(text, new RegExp(run.id));
+  assert.match(text, new RegExp(run.status));
+  assert.match(text, /degreaser-axi report/);
+});
+
+test("open stdin without input cannot hang a session", async (t) => {
+  const f = fixture(t);
+  const child = spawn(process.execPath, [entry], {
+    cwd: f.root,
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+  const timer = setTimeout(() => child.kill(), 3000);
+  const [code] = await once(child, "exit");
+  clearTimeout(timer);
+  assert.equal(code, 0);
+});

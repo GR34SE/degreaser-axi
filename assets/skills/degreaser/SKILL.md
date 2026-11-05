@@ -7,17 +7,15 @@ description: Review a code change with focused source-only reviewers, inspect ev
 
 Review code changes with focused, read-only reviewers and source evidence.
 
-Development build: all sixteen review aspects, bounded retries/deadlines and same-run waiting are available.
-Public cancel stops the run's owned workers and retains useful results. Resume continues only unresolved unchanged input. Init discovers and confirms models and writes the project RC; native startup/skill installation and automatic gitignore setup remain under development.
-Use an explicitly installed local package, not an unverified registry download.
-Run `degreaser-axi --help` or `degreaser-axi review --help` for the current interface.
-If the binary is unavailable, ask for the local package path; do not install a published version.
-
+- Development build: all sixteen review aspects, bounded retries and deadlines, and same-run waiting are available. Cancel stops the run's owned workers and retains useful results; resume continues unresolved unchanged input.
+- Init discovers models, writes the project RC, adds the root ignore entry, and installs selected harness startup integrations and skills. Setup hooks can install, repair or remove selected targets.
+- Use an explicitly installed local package; this package is unpublished. If the binary is unavailable, ask for the local package path; do not install from a registry. Run `degreaser-axi --help` or `degreaser-axi review --help` for the current interface.
 - Provide the actual task and explicit worktree, branch or repository scope. Branch requires the base supplied by the user; never guess it.
+- For example, `degreaser-axi review --scope worktree --task "Add CSV import"` reviews the worktree. For a branch, set USER_PROVIDED_BASE to the base explicitly supplied by the user and replace the example task: `degreaser-axi review --scope branch --base "$USER_PROVIDED_BASE" --task "Add CSV import"`.
 - Every init requires the user's confirmed agent/model and selected Codex, Claude or Pi harnesses. Do not choose or switch models for the user.
 - Run `degreaser-axi init` to discover exact candidates. Without a terminal, decision-required (exit 2) writes nothing. Show choices to the user, then run `degreaser-axi init --agent <confirmed-agent> --model <confirmed-exact-id> --harnesses <confirmed-targets>`. RC and recommendations are prefill, never consent for a later init.
-- Do not edit code while a run is active. On running (exit 3) or a caller-tool timeout, run `degreaser-axi wait <run-id>` until a terminal result.
-- Claude Code: allow --wait plus 60 seconds in Bash (maximum 600000 ms); follow a background completion notification. Codex: poll the same command session. Pi: use the normal command tool.
+- Do not edit code while a run is active. On running (exit 3) or a caller-tool timeout, continue with `degreaser-axi wait <run-id>` for the same run until a terminal result; start no replacement review after a caller timeout. If the run ID is lost, recover it with `degreaser-axi home` or `degreaser-axi report`.
+- Codex: poll the yielded same command session until it exits, then use same-run wait if needed. Claude Code: set the Bash timeout to --wait seconds plus 60 seconds, at most 600000 ms; follow the tracked background completion notification in the same caller and do not finish the turn early. Pi: use the normal command tool; do not assume an invented default timeout.
 - Completed and no-changes exit 0; findings alone are not failure. Partial, failed or interrupted exit 1; inspect missing coverage. Usage, decision and environment errors exit 2.
 - Inspect evidence with `degreaser-axi finding <id>` or `degreaser-axi report --full`. Not-applicable is not a quality certificate. Decide justified fixes yourself; Degreaser never applies patches.
 - Use `degreaser-axi resume <run-id>` only for unchanged partial, failed or interrupted work. Successful aspects and attempt history remain. --concurrency and --wait may change; --deadline <seconds> explicitly starts a new budget. Without it the original deadline remains. After edits, start a new review.

@@ -42,7 +42,7 @@ export const COMMANDS: Record<string, Command> = {
   },
   init: {
     description:
-      "Discover and confirm a worker model; native installation is under development",
+      "Confirm a worker model and install selected native startup integrations and skills",
     usage: "init --agent <agent> --model <model> --harnesses <targets>",
     flags: {
       agent: {
@@ -238,7 +238,7 @@ export function commandHelp(name: string, command: Command) {
 
 export const TOP_LEVEL_HELP = [
   "degreaser-axi: focused source-only code review",
-  "Development build: review/wait/report/finding/cancel/resume and init model decisions work. Native startup installation remains under development.",
+  "Development build: review/wait/report/finding/cancel/resume and selected native startup/skill installation are available.",
   "Commands:",
   ...Object.entries(COMMANDS).map(
     ([name, command]) => `  ${name}: ${command.description}`,

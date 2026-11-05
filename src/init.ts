@@ -9,7 +9,9 @@ import {
   validateConfig,
 } from "./config.ts";
 import { repositoryRoot } from "./git.ts";
+import { ensureStateIgnored } from "./init-ignore.ts";
 import { InputError } from "./input-error.ts";
+import { prepareIntegrations } from "./integrations.ts";
 import { discoverModels } from "./model-discovery.ts";
 import { atomicWrite, StateError } from "./storage.ts";
 
@@ -272,15 +274,52 @@ export async function init(
       ".degreaserrc.json changed during init. Rerun init to confirm the current configuration.",
     );
   const text = `${JSON.stringify(config, null, 2)}\n`;
-  if (text !== before) atomicWrite(path, text);
+  const integrations = prepareIntegrations(repository, harnesses, scope);
+  const ignore = ensureStateIgnored(repository);
+  let installed = false;
+  try {
+    integrations.apply();
+    installed = true;
+    if (readConfigText(path) !== before)
+      throw new StateError(
+        "input-changed",
+        ".degreaserrc.json changed during installation; the new content was preserved.",
+      );
+    if (text !== before) atomicWrite(path, text);
+  } catch (error) {
+    if (!(error instanceof StateError || error instanceof InputError))
+      throw error;
+    process.exitCode = 2;
+    return {
+      error: "init-incomplete",
+      cause: error.code,
+      reason: error.message,
+      configuration: "unchanged",
+      ignore: "Shared root ignore is in place; the index is unchanged.",
+      integrations: installed
+        ? integrations.results
+        : "Not installed; integration writes were rolled back.",
+      help: [
+        "Resolve the reported failure, then rerun init with freshly confirmed model and harness choices.",
+      ],
+    };
+  }
   return {
     status: "configured",
     agent: identity.agent,
     model: identity.model,
     harnesses,
     installationScope: scope,
-    integrations:
-      "Selected but not installed: native startup integrations and skills remain under development.",
+    integrations: integrations.results,
+    ignore: ignore.changed
+      ? "Added /.degreaser/ to root .gitignore."
+      : "Shared root ignore already covers .degreaser/.",
+    ...(ignore.tracked
+      ? {
+          warning:
+            "State under .degreaser/ is already tracked. The index is unchanged; review tracked files before sharing.",
+        }
+      : {}),
     discovery: choices.discovery,
     notice: metadataNotice,
     help: ["degreaser-axi doctor", "degreaser-axi review --help"],

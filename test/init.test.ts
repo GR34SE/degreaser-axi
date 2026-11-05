@@ -157,7 +157,7 @@ test("explicit selection persists exact identity and preserves RC controls, then
     const result = f.run(chosen);
     assert.equal(result.status, 0, result.stdout);
     assert.match(result.stdout, /status: configured/);
-    assert.match(result.stdout, /not installed/);
+    assert.match(result.stdout, /installed/);
     assert.deepEqual(f.config(), {
       schemaVersion: 1,
       agent: "claude",
@@ -167,8 +167,8 @@ test("explicit selection persists exact identity and preserves RC controls, then
   }
   assert.deepEqual(readFileSync(join(f.root, ".git/index")), index);
   assert.equal(f.run().status, 2);
-  assert.ok(!existsSync(join(f.root, ".degreaser")));
-  assert.ok(!existsSync(join(f.root, ".agents")));
+  assert.ok(!existsSync(join(f.root, ".degreaser/state.json")));
+  assert.ok(existsSync(join(f.root, ".agents/skills/degreaser/SKILL.md")));
   assert.deepEqual(snapshot(f.home), {});
   f.write("sum.ts", "export const sum = (a: number, b: number) => a + b;\n");
   const reviewed = spawnSync(
