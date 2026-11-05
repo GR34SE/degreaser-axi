@@ -1,6 +1,7 @@
 export type WorkerFailure =
   | "model-unavailable"
   | "authentication"
+  | "network"
   | "rate-limited"
   | "account-disabled"
   | "environment-blocked"
@@ -28,6 +29,13 @@ const codes: Record<string, WorkerFailure> = {
   PERMISSION_PROMPT_UNAVAILABLE: "environment-blocked",
   EACCES: "environment-blocked",
   EPERM: "environment-blocked",
+  ERR_ACCESS_DENIED: "environment-blocked",
+  ECONNRESET: "network",
+  ECONNREFUSED: "network",
+  ENETUNREACH: "network",
+  EHOSTUNREACH: "network",
+  ENOTFOUND: "network",
+  EAI_AGAIN: "network",
   TIMEOUT: "timeout",
   ETIMEDOUT: "timeout",
   QUEUE_REQUEST_CANCELLED: "cancelled",
@@ -99,5 +107,11 @@ export function workerFailure(error: unknown): WorkerFailure {
   )
     return "environment-blocked";
   if (/\b(?:timeout|timed out)\b/i.test(message)) return "timeout";
+  if (
+    /\b(?:ECONNRESET|ECONNREFUSED|ENETUNREACH|EHOSTUNREACH|ENOTFOUND|EAI_AGAIN)\b|\bnetwork (?:is unreachable|error)\b|\bfetch failed\b/i.test(
+      message,
+    )
+  )
+    return "network";
   return "runtime";
 }

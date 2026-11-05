@@ -10,16 +10,18 @@ import {
   TOP_LEVEL_HELP,
 } from "./commands.js";
 import { loadConfig } from "./config.ts";
+import { DiagnosticError, diagnoseFailure } from "./diagnostics.ts";
+import { doctor } from "./doctor.ts";
 import { repositoryRoot } from "./git.ts";
 import { CALLER_GUIDANCE, DESCRIPTION } from "./guidance.js";
 import { init } from "./init.ts";
 import { InputError } from "./input-error.ts";
 import { setupIntegrations } from "./integrations.ts";
-import { nativeProfile } from "./native-profile.ts";
 import { observedStatus } from "./report.ts";
 import { cancel, readCommand, resume, review } from "./review.ts";
 import { loadInput, loadRun, StateError } from "./storage.ts";
 import { VERSION } from "./version.js";
+import { workerFailure } from "./worker-failure.ts";
 
 function parseCommand(name: string, command: Command, args: string[]) {
   const suggestions = [
@@ -160,28 +162,7 @@ async function execute(
   if (name === "init") return init(parsed.values, process.cwd());
   if (name === "setup hooks")
     return setupIntegrations(parsed.values, process.cwd());
-  if (name === "doctor") {
-    const config = loadConfig(repositoryRoot(process.cwd()));
-    try {
-      const profile = await nativeProfile(config);
-      return {
-        status: "ready",
-        agent: profile.agent,
-        model: profile.model,
-        adapterVersion: profile.adapterVersion,
-        nativeVersion: profile.nativeVersion,
-        limitations: profile.limitations,
-        modelAvailability: "Not checked; doctor does not call a model.",
-        integrations:
-          "Use setup hooks for selected-target repair/removal. Native trust, reload and policy must be checked in the host.",
-      };
-    } catch {
-      throw new StateError(
-        "environment-blocked",
-        "Selected native harness is missing or incompatible. See the packaged native-profiles.md for supported versions; preserve managed host policy.",
-      );
-    }
-  }
+  if (name === "doctor") return doctor(process.cwd());
   if (name === "review") return review(args, process.cwd());
   if (name === "cancel") return cancel(parsed.positionals[0], process.cwd());
   if (name === "resume")
@@ -215,13 +196,29 @@ export async function main(argv: string[]): Promise<void> {
               help: [`degreaser-axi ${name} --help`],
             };
           }
-          if (!(error instanceof AxiError)) throw error;
-          process.exitCode = 2;
-          return {
-            error: "invalid-input",
-            reason: error.message,
-            help: error.suggestions,
-          };
+          if (error instanceof AxiError) {
+            process.exitCode = 2;
+            return {
+              error: "invalid-input",
+              reason: error.message,
+              help: error.suggestions,
+            };
+          }
+          if (
+            error instanceof DiagnosticError ||
+            workerFailure(error) === "environment-blocked"
+          ) {
+            const failure = diagnoseFailure(error, `${name} local operation`);
+            process.exitCode = 2;
+            return {
+              error: failure.code,
+              diagnosis: failure.diagnosis,
+              reason: failure.message,
+              ...failure.details,
+              help: failure.help,
+            };
+          }
+          throw error;
         }
       },
     ]),

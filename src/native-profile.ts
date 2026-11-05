@@ -5,6 +5,11 @@ import { createRequire } from "node:module";
 import { dirname, isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Agent, Identity } from "./config.ts";
+import { DiagnosticError } from "./diagnostics.ts";
+import {
+  assertNativeVersion,
+  SUPPORTED_NATIVE_VERSIONS,
+} from "./native-compatibility.ts";
 import { workerEnvironment } from "./native-environment.ts";
 
 const require = createRequire(import.meta.url);
@@ -133,28 +138,34 @@ async function nativeExecutable(
   spawned?: () => void,
 ): Promise<{ path: string; version: string }> {
   let executable: string | undefined;
+  let denied: unknown;
   for (const directory of (env.PATH ?? "").split(":").filter(isAbsolute)) {
     const path = join(directory, agent);
     try {
       await access(path, constants.X_OK);
       executable = await realpath(path);
       break;
-    } catch {
-      /* Try the next PATH entry. */
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === "EACCES" || code === "EPERM") denied ??= error;
+      else if (code !== "ENOENT" && code !== "ENOTDIR") throw error;
     }
   }
+  if (!executable && denied) throw denied;
   if (!executable)
-    throw new Error(
-      `Install ${agent} and authenticate its subscription before review.`,
+    throw new DiagnosticError(
+      "missing-dependency",
+      `The ${agent} executable was not found on absolute PATH entries.`,
+      [
+        `Install or expose the supported ${agent} ${SUPPORTED_NATIVE_VERSIONS[agent]} on PATH, then run degreaser-axi doctor. Login and model availability have not been checked.`,
+      ],
+      { agent, supportedNativeVersion: SUPPORTED_NATIVE_VERSIONS[agent] },
     );
   const stdout = await nativeVersion(executable, env, signal, spawned);
-  const [version = ""] = stdout.trim().split(" ");
-  // These exact native interfaces were exercised. Refuse unverified flag semantics.
-  const supported = agent === "claude" ? "2.1.317" : "1.4.0";
-  if (version !== supported)
-    throw new Error(
-      `Unsupported ${agent} native version; expected ${supported}.`,
-    );
+  const version = assertNativeVersion(
+    agent,
+    stdout.trim().split(/\s+/)[0] ?? "",
+  );
   return { path: executable, version };
 }
 
@@ -178,14 +189,37 @@ export async function nativeProfile(
   )
     throw new Error("Pi requires a provider-qualified model ID.");
   const [pkg, version] = adapters[identity.agent];
-  const manifestPath = require.resolve(`${pkg}/package.json`);
+  let manifestPath: string;
+  try {
+    manifestPath = require.resolve(`${pkg}/package.json`);
+  } catch (error) {
+    if (
+      !(
+        error instanceof Error &&
+        "code" in error &&
+        error.code === "MODULE_NOT_FOUND"
+      )
+    )
+      throw error;
+    throw new DiagnosticError(
+      "missing-dependency",
+      `The pinned ${identity.agent} adapter is missing.`,
+      [
+        "Restore the installed Degreaser package and its pinned dependencies, then run degreaser-axi doctor.",
+      ],
+    );
+  }
   const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as {
     version: string;
     bin: Record<string, string>;
   };
   if (manifest.version !== version)
-    throw new Error(
+    throw new DiagnosticError(
+      "unsupported-adapter-version",
       "Installed adapter version differs from the pinned worker profile.",
+      [
+        "Restore the installed Degreaser package and its pinned dependencies. Do not update the native host or switch models.",
+      ],
     );
   const entry = Object.values(manifest.bin)[0];
   if (!entry) throw new Error("Installed adapter executable is unavailable.");
@@ -196,7 +230,7 @@ export async function nativeProfile(
   const launcher = fileURLToPath(
     new URL(`../bin/${identity.agent}-worker.js`, import.meta.url),
   );
-  let nativeVersion = "0.165.0";
+  let nativeVersion = SUPPORTED_NATIVE_VERSIONS.codex;
   if (identity.agent === "codex") {
     const adapterRequire = createRequire(manifestPath);
     const nativeManifest = JSON.parse(
@@ -205,8 +239,7 @@ export async function nativeProfile(
         "utf8",
       ),
     ) as { version: string };
-    if (nativeManifest.version !== nativeVersion)
-      throw new Error("Unsupported bundled Codex version; expected 0.165.0.");
+    nativeVersion = assertNativeVersion("codex", nativeManifest.version);
     environment.CODEX_PATH = launcher;
     environment.INITIAL_AGENT_MODE = "read-only";
     environment.CODEX_CONFIG = JSON.stringify(codexConfig);

@@ -39,7 +39,7 @@ test("structured runtime causes take precedence over loose messages", () => {
     ],
     [
       { code: "ECONNRESET", message: "Author policy record missing" },
-      "runtime",
+      "network",
     ],
   ] as const)
     assert.equal(workerFailure(error), expected);

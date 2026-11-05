@@ -272,7 +272,11 @@ test("TTY discovery failure is actionable before any empty model prompt", (t) =>
   const result = f.run([], []);
   assert.equal(result.status, 2, result.stdout);
   assert.match(result.stdout, /codex.*unavailable/);
-  assert.match(result.stdout, /subscription login and host permissions/);
+  assert.match(
+    result.stdout,
+    /Inspect the selected native harness diagnostics locally/,
+  );
+  assert.match(result.stdout, /cause is unverified/);
   assert.doesNotMatch(result.stdout, /Confirm model/);
   assert.deepEqual(f.unchanged(), before);
 });

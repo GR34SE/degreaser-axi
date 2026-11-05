@@ -58,6 +58,8 @@ function setup(t: TestContext) {
           ...process.env,
           HOME: external,
           SYNTHETIC_PLAN: plan,
+          CODEX_SANDBOX: "seatbelt",
+          CODEX_SANDBOX_NETWORK_DISABLED: "1",
           ACPX_AUTH_OPENAI_API_KEY: "synthetic-secret",
         },
       },
@@ -242,3 +244,29 @@ test("public runtime refuses an absent advertised model after admission without 
   );
   assert.ok(f.events().every((e) => e.type !== "prompt"));
 });
+
+for (const [message, diagnosis, action] of [
+  ["Permission denied", "permission", /authorized session|authorized terminal/],
+  ["Authentication required", "authentication", /login/],
+  ["ECONNRESET", "network", /connectivity/],
+  ["Model not found", "model-unavailable", /exact model/],
+] as const) {
+  test(`synthetic ${diagnosis} admission fault is distinct and never launches reviewers`, (t) => {
+    const f = setup(t);
+    f.write("source.ts", "export const value = 1;\n");
+    f.setPlan({
+      metadataError: {
+        message: `${message}: Private diagnostic must not leak`,
+      },
+    });
+    const result = f.run();
+    assert.equal(result.status, 2, result.stdout);
+    assert.match(result.stdout, /environment-blocked/);
+    assert.ok(result.stdout.includes(`diagnosis: ${diagnosis}`), result.stdout);
+    assert.match(result.stdout, action);
+    assert.doesNotMatch(result.stdout, /Private diagnostic/);
+    assert.ok(!existsSync(join(f.root, ".degreaser")));
+    assert.equal(f.events().filter((e) => e.type === "session").length, 1);
+    assert.ok(f.events().every((e) => e.type !== "prompt"));
+  });
+}

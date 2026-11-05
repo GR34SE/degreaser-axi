@@ -21,7 +21,7 @@ import {
 import { hash } from "./prompt.ts";
 import { StateError } from "./storage.ts";
 
-interface Receipt {
+export interface Receipt {
   schemaVersion: 1;
   files: Record<string, { hash: string; owners: Agent[] }>;
   hooks: Partial<
@@ -31,7 +31,7 @@ interface Receipt {
     >
   >;
 }
-const validateReceipt = new Ajv({ strict: true }).compile<Receipt>({
+export const validateReceipt = new Ajv({ strict: true }).compile<Receipt>({
   type: "object",
   additionalProperties: false,
   required: ["schemaVersion", "files", "hooks"],

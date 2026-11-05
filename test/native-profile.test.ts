@@ -270,7 +270,7 @@ console.log("99.0.0");
     );
     assert.equal(result.status, 2, result.stdout);
     assert.match(result.stdout, /environment-blocked/);
-    assert.match(result.stdout, /incompatible/);
+    assert.match(result.stdout, /unsupported/i);
     assert.equal(await readFile(log, "utf8"), '["--version"]\n');
     assert.equal(await readFile(join(bin, "claude"), "utf8"), native);
     await assert.rejects(readFile(join(cwd, ".degreaser/state.json")), {

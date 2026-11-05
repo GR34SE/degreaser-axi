@@ -29,6 +29,25 @@ hard-coded home directory. Their native launchers replace themselves with the
 verified executable, preserving the official adapter's streaming and process
 ownership.
 
+`doctor` reports the configured identities (including enabled overrides), exact
+supported and observed native versions, and local integration integrity in both
+project and user scopes. It runs version checks only, not adapter sessions or
+hidden model tests. Installed files are not proof of host trust, reload, hook
+delivery, authentication or network access. Explicit local hook-disable settings
+are observations, not a claim to have evaluated managed policy.
+
+An unverified Claude or Pi version fails closed before review admission. Point
+PATH at the already installed supported version above, or use a Degreaser release
+that has revalidated the observed version. Degreaser never updates or downgrades
+the global CLI or switches models to get past this refusal.
+
+An authorized caller uses the ordinary review command without escalation.
+An actual permission denial requires host-supported approval for that command
+only, or an authorized session/terminal. No permission rules or global policy
+changes are installed. Sandbox names and network hints alone are not denials.
+Admission reports permission, authentication, network, model and unverified
+runtime causes separately; local reads remain available where permitted.
+
 Codex's empty MCP configuration table does not erase inherited entries. Its
 launcher uses the native read-only MCP listing, then disables active entries in
 invocation-local configuration with inert transports. No credential-bearing

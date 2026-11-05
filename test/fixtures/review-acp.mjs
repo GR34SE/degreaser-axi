@@ -83,6 +83,7 @@ const connection = new AgentSideConnection(
     },
     async newSession(params) {
       record({ type: "session", admitted, meta: params._meta });
+      if (!reviewing) fault(plan.metadataError);
       if (plan.metadataFailure || plan.metadataFailureAgents?.includes(agent))
         throw new RequestError(
           -32000,

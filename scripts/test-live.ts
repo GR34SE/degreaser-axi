@@ -11,20 +11,28 @@ const { values } = parseArgs({
 });
 if (values.help) {
   console.log(
-    "pnpm test:live --run --case <native-worker|review|init|models> --agent <codex|claude|pi> --model <exact-id>\nOpt-in subscription-backed synthetic-file and public review pilots. Init exercises decisions before the same real review; models reads native metadata without inference. Build and check quota first. Other scenarios are not implemented.",
+    "pnpm test:live --run --case <native-worker|review|init|models|caller-permissions> --agent <codex|claude|pi> --model <exact-id>\nOpt-in subscription-backed synthetic-file and public review pilots. Init exercises decisions before the same real review; models reads native metadata without inference. Caller-permissions tests authorized/restricted Codex callers only. Build and check quota first. Other scenarios are not implemented.",
   );
 } else if (
   values.run &&
   (values.case === "native-worker" ||
     values.case === "review" ||
     values.case === "init" ||
-    values.case === "models") &&
+    values.case === "models" ||
+    values.case === "caller-permissions") &&
   values.agent &&
   values.model
 ) {
   if (!["codex", "claude", "pi"].includes(values.agent))
     throw new Error("Unsupported live harness.");
-  if (values.case === "native-worker") {
+  if (values.case === "caller-permissions") {
+    if (values.agent !== "codex")
+      throw new Error("Caller permission pilot supports Codex only.");
+    const { liveCallerPermissions } = await import(
+      "./live-caller-permissions.ts"
+    );
+    await liveCallerPermissions(values.model);
+  } else if (values.case === "native-worker") {
     const { liveNativeWorker } = await import("./live-native.ts");
     await liveNativeWorker(
       values.agent as "codex" | "claude" | "pi",

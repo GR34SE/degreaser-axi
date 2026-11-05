@@ -1,5 +1,7 @@
 import { spawnSync } from "node:child_process";
+import { diagnoseFailure } from "./diagnostics.ts";
 import { InputError } from "./input-error.ts";
+import { workerFailure } from "./worker-failure.ts";
 
 export function git(
   repository: string,
@@ -45,6 +47,10 @@ export function git(
       );
     }
   }
+  const failure =
+    result.error ?? new Error(result.stderr?.toString("utf8") ?? "");
+  if (workerFailure(failure) === "environment-blocked")
+    throw diagnoseFailure(failure, `Git ${args[0]} review input operation`);
   if (options.allowFailure && !result.error && result.status !== null)
     return null;
   throw new InputError(

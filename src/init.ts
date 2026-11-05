@@ -8,6 +8,7 @@ import {
   resolveConfig,
   validateConfig,
 } from "./config.ts";
+import { DiagnosticError } from "./diagnostics.ts";
 import { repositoryRoot } from "./git.ts";
 import { ensureStateIgnored } from "./init-ignore.ts";
 import { InputError } from "./input-error.ts";
@@ -82,8 +83,16 @@ async function catalog(cwd: string) {
         reason: "Native model metadata; no inference.",
       });
     } catch (error) {
-      if (!(error instanceof StateError)) throw error;
-      discovery.push({ agent, status: "unavailable", reason: error.message });
+      if (!(error instanceof StateError || error instanceof DiagnosticError))
+        throw error;
+      discovery.push({
+        agent,
+        status: "unavailable",
+        reason:
+          error instanceof DiagnosticError
+            ? [error.message, ...error.help].join(" ")
+            : error.message,
+      });
     }
   }
   const recommendation =
