@@ -469,9 +469,10 @@ for (const useful of [false, true]) {
       sentinel.kill();
       await once(sentinel, "exit");
     });
+    const maxRetries = 10;
     const f = queueFixture(t, {
       concurrency: 1,
-      maxRetries: 10,
+      maxRetries,
       limits: { workerTimeoutSeconds: 2, runTimeoutSeconds: 6 },
     });
     f.setPlan({
@@ -488,21 +489,31 @@ for (const useful of [false, true]) {
     const state = f.state();
     assert.equal(done.status, 1, done.stdout);
     assert.equal(state.status, useful ? "partial" : "failed");
+    assert.equal(state.executions?.at(-1)?.stopReason, "deadline");
     assert.equal(state.deadline, originalDeadline);
     assert.ok(Date.now() - start < 12000, "Errors cannot reset the run budget");
-    const unfinished = state.tasks.filter(
-      (task) => task.status !== "no-findings",
-    );
+    if (useful) {
+      const completed = state.tasks[0];
+      assert.equal(completed?.assignment.aspect, "A01");
+      assert.equal(completed?.status, "no-findings");
+      assert.equal(completed?.result?.status, "no-findings");
+      assert.equal(completed?.attempts.length, 1);
+      assert.equal(completed?.attempts[0]?.failure, null);
+    }
+    const unfinished = state.tasks.slice(useful ? 1 : 0);
     assert.ok(unfinished.every((task) => task.status === "cancelled"));
     assert.ok(
       unfinished.every((task) =>
         task.limitations.some((l) => l.includes("deadline")),
       ),
     );
+    const retrying = unfinished[0];
+    assert.ok(retrying);
+    assert.ok(retrying.attempts.length > 1, "A timed-out attempt was retried");
+    assert.ok(retrying.attempts.length <= 1 + maxRetries);
+    // The final attempt can race the run deadline; earlier timeouts stay intact.
     assert.ok(
-      state.tasks
-        .flatMap((task) => task.attempts)
-        .some((a) => a.failure === "deadline"),
+      retrying.attempts.slice(0, -1).every((a) => a.failure === "timeout"),
     );
     assert.equal(state.tasks[2]?.attempts.length, 0);
     assert.ok(
