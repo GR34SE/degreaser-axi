@@ -193,6 +193,33 @@ const connection = new AgentSideConnection(
         record({ type: "permission", outcome: response.outcome });
       }
       fault(step.error);
+      if (step.diagnosticText) {
+        process.stderr.write(step.diagnosticText);
+        for (const sessionUpdate of ["agent_thought_chunk", "tool_call"]) {
+          await connection.sessionUpdate({
+            sessionId: p.sessionId,
+            update:
+              sessionUpdate === "tool_call"
+                ? {
+                    sessionUpdate,
+                    toolCallId: "privacy-canary",
+                    title: "Read",
+                    kind: "read",
+                    status: "completed",
+                    content: [
+                      {
+                        type: "content",
+                        content: { type: "text", text: step.diagnosticText },
+                      },
+                    ],
+                  }
+                : {
+                    sessionUpdate,
+                    content: { type: "text", text: step.diagnosticText },
+                  },
+          });
+        }
+      }
       if (plan.delayMs) await setTimeout(plan.delayMs);
       if (plan.permissionDeniedBefore)
         throw new RequestError(

@@ -13,7 +13,7 @@ Degreaser gives your coding agent a second look at the feature it just built. It
 
 ## Get started
 
-Workers support Codex, Claude Code and Pi on macOS with Node 24+. Droid and Grok Build are deferred. Model calls use your authenticated harness through [acpx](https://github.com/openclaw/acpx).
+You need macOS, Node 24.0.0 or newer, Git, and an authenticated supported native harness. Workers support Codex, Claude Code and Pi. Linux, Windows, Droid and Grok Build are not supported in v1. Model calls use your native subscription login through [acpx](https://github.com/openclaw/acpx); Degreaser does not manage credentials or fall back to paid API keys.
 
 To inspect the current interface from a local checkout (pnpm 12.14.0):
 
@@ -26,15 +26,45 @@ node dist/bin/degreaser-axi.js --version
 
 There is no published npm installation or self-update path.
 
-For direct use now, run `init` in the target repository to confirm its worker
-model, write `.degreaserrc.json`, and install the selected integrations. Init adds
-shared root `.gitignore` coverage for `/.degreaser/` without changing the index.
-From that repository, invoke the absolute path to this checkout's
-`dist/bin/degreaser-axi.js` with Node. The examples below use `degreaser-axi` as
-shorthand for that command. Use `--aspects A06` for a first one-aspect review.
+### Install a local tarball
+
+From the built checkout, create a local package:
+
+```sh
+pnpm pack
+```
+
+Install it in a separate tools directory, not in the repository you want to
+review. Replace the absolute paths below with your own:
+
+```sh
+mkdir -p /absolute/path/to/degreaser-local
+cd /absolute/path/to/degreaser-local
+printf '%s\n' '{"private":true,"packageManager":"pnpm@12.14.0"}' > package.json
+pnpm add --ignore-scripts /absolute/path/to/degreaser-axi/degreaser-axi-0.1.0.tgz
+export PATH="/absolute/path/to/degreaser-local/node_modules/.bin:$PATH"
+degreaser-axi --version
+degreaser-axi review --help
+```
+
+Use a new tools directory so the `package.json` command does not overwrite an
+existing project. Preserve your package manager's security policy; resolve a
+blocked dependency explicitly rather than disabling checks. Keep this installation
+at a stable path: installed startup integrations reference its executable.
+Alternatively, use `node /absolute/path/to/degreaser-axi/dist/bin/degreaser-axi.js`
+from a built checkout wherever the examples say `degreaser-axi`.
+
+Run subsequent commands **inside the Git repository you want to review**.
+Init confirms its worker model, writes `.degreaserrc.json`, installs selected
+integrations and adds root `.gitignore` coverage for `/.degreaser/` without
+changing the index. Use `--aspects A06` for a first one-aspect review.
 
 The worker profiles currently require Codex ACP 2.5.0 with bundled Codex 0.165.0,
-Claude Code 2.1.317, or Pi 1.4.0. See [native worker restrictions and limits](assets/native-profiles.md).
+Claude Code 2.1.317, or Pi 1.4.0. Claude and Pi must already be on PATH;
+Codex's worker executable is bundled with its pinned adapter.
+See `assets/native-profiles.md` in the checkout, or
+[native worker restrictions and limits](dist/assets/native-profiles.md)
+in the built checkout or installed package.
 
 Discover and confirm a model in your project:
 
@@ -49,6 +79,18 @@ a terminal, missing decisions return `decision-required` (exit 2) with exact
 candidates and example commands, without writing product files. After the user
 chooses, provide `--agent`, `--model` and `--harnesses` explicitly. The existing
 RC is not consent for a later invocation.
+
+For example, **after choosing this exact model and these harnesses**:
+
+```sh
+degreaser-axi init --agent codex --model gpt-6-luna --harnesses codex,claude,pi
+degreaser-axi doctor
+degreaser-axi review --scope worktree --task "Add CSV import with quoted-field support" --aspects A06
+degreaser-axi report
+```
+
+`--agent` selects the reviewer harness; `--harnesses` selects caller
+integrations. Choose only the integrations you use.
 
 Init reads native catalogs without inference. It shows the credential source,
 not private account identities, and does not guarantee later provider availability.
@@ -188,7 +230,18 @@ For example, after selecting Codex and Luna:
 }
 ```
 
-Without a concurrency limit, all enabled aspects can run in parallel. A lower limit reduces simultaneous calls; it does not reduce the number of aspects reviewed. Retries and continuation keep your selected harness and model.
+Without a concurrency limit, all enabled aspects can run in parallel after the
+first model invocation. A lower limit reduces simultaneous calls; it does not
+reduce the number of aspects reviewed. Retries and continuation keep your selected
+harness and model. A model-only entry under `aspects.overrides.A06`, for example
+`{"model":"<exact-model-id>"}`, keeps the default agent. An agent override must
+also supply its compatible exact model.
+
+Defaults are one additional retry, a 300-second worker timeout, a 900-second
+run deadline and a 40-turn budget. Configure `maxRetries` and
+`limits.workerTimeoutSeconds`, `limits.runTimeoutSeconds`, `limits.maxTurns`.
+Only Claude enforces the turn budget natively; Codex and Pi treat it as advisory.
+`exclude` accepts literal repository-relative files or directory prefixes, not globs.
 
 Missing/malformed output, discarded oversized output and attempt timeouts receive
 only the configured bounded retries in fresh sessions. Auth, model, account and
@@ -205,7 +258,7 @@ Catalog membership is not a provider-access guarantee. In particular, Claude's
 review-time catalog includes the requested model, so its runtime identity check
 cannot independently detect later provider withdrawal. No model fallback is used.
 
-The root RC follows the strict versioned schema in `dist/assets/schemas/config-v1.json`. Unknown fields and explicitly selected disabled aspects are errors. See `dist/assets/input-contract.md` in the built package for exact bounds, literal-path exclusions and Git representation limits.
+The root RC follows the strict versioned [configuration schema](dist/assets/schemas/config-v1.json). Unknown fields and explicitly selected disabled aspects are errors. See the [input contract](dist/assets/input-contract.md) in the built checkout or installed package for exact bounds, literal-path exclusions and Git representation limits.
 
 To review only specific aspects for one run, without changing your configuration:
 
@@ -248,8 +301,61 @@ cannot reliably save its own failure and leaves the last committed evidence.
 
 Results and progress are saved locally in ignored `.degreaser/`. Review context is sent through your chosen harness to its model provider. Degreaser does not apply fixes; your coding agent decides which findings warrant changes.
 
-A real one-aspect Claude Haiku review returned `completed`, `aspects: 1/1` and a
-source-only finding quoting `// Return the sum of two numbers.` The literal quote
-passed validation; the caller still decides whether its recommendation applies.
-Zero findings is equally valid. See [result validation and local data limits](assets/result-contract.md).
-Stored tasks, patches and quotes can contain sensitive code; do not publish local run artifacts.
+A representative one-aspect report excerpt:
+
+```text
+status: completed
+evidence: source-only
+scope: worktree
+aspects: 1/1
+count: 1
+shown: 1
+rejected: 0
+```
+
+For example, `finding F1` can quote `// Return the sum of two numbers.` and
+explain why it repeats the function below it. The quote check establishes that
+the code exists, not that the recommendation is correct. Zero findings is equally
+valid. See [result validation and local data limits](dist/assets/result-contract.md).
+
+Exit codes: **0** completed/no changes/already completed, **1** partial/failed/
+interrupted, **2** invalid input/decision required/environment or state blocked,
+**3** running. Findings alone do not cause a nonzero exit.
+
+## Privacy and limitations
+
+- Credentials stay in the native harness. Do not put tokens in the RC, task,
+  model ID or command arguments. Worker environments exclude direct API-key and
+  provider-routing overrides; no credential copying or automatic account fallback.
+- Diagnostics keep selected identities, local paths, bounded numeric versions,
+  failure categories and repair guidance, not raw exception payloads, native
+  stderr, environment dumps, thoughts, full transcripts or tool logs. Unknown
+  configuration keys/values are not echoed. This is not a general secret scanner.
+- **Review data is intentionally not redacted.** Tasks, paths, patches, finding
+  quotes and other evidence may contain sensitive code. `.degreaser/` stays local
+  and ignored, but reports print that evidence. Inspect it before sharing.
+  Native harness caches/history have their own retention rules.
+- Review context reaches your selected model provider. Exclusions narrow assessed
+  coverage, not worker read access. Ignored files may still be read as repository
+  context. Use only repositories and providers you are authorized to review.
+- Reviews are source-only, not tests, runtime verification or a guarantee of
+  defect detection. Codex uses a read-only filesystem sandbox but retains shell/
+  code mode for reads. Claude and Pi use native read-tool allowlists, not a
+  universal OS no-exec sandbox. Host-managed policy still applies.
+- Git clean filters can execute local commands during scope resolution. Binary
+  contents and submodule contents are not reviewed as source. The resolved Git
+  tree does not freeze live repository context; do not edit while reviewers run.
+- All sixteen reviewers can consume substantial memory and subscription quota.
+  Set `concurrency` for your machine/account. No silent model or harness switch
+  occurs when access, quota or compatibility fails.
+- v1 has no custom aspects, automatic fixes or registry self-update.
+
+## Check a checkout
+
+```sh
+pnpm check
+```
+
+This runs deterministic tests, type checking, lint/format, build and a separate
+local-tarball installation check. It needs no model account. Live model reviews
+are separate and consume your selected subscription quota.

@@ -35,6 +35,14 @@ They can contain sensitive project data. Keep `.degreaser/` local and ignored.
 No full worker conversations, thoughts, raw tool payloads or native credentials
 are stored by Degreaser. Native harness session/cache behavior is separate.
 
+Diagnostics use fixed failure categories and repair guidance. Native version
+output is restricted to bounded numeric major/minor/patch tokens; other text
+is reported as unrecognized. Configuration errors identify schema constraints,
+not unknown input keys or values. Unexpected local exceptions do not expose their
+messages or stacks. Selected model IDs and local paths remain visible, so never
+use them to carry credentials. This is not a general secret scanner: validated
+result text and source evidence are intentionally retained, not scrubbed.
+
 ## Stored JSON versions and failure handling
 
 Schemas use JSON Schema draft-07, with no type coercion or unknown-field removal:

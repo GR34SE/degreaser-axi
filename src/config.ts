@@ -87,11 +87,7 @@ export function loadConfig(repository: string): ProjectConfig {
 export function validateConfig(data: unknown): ProjectConfig {
   if (!validate(data)) {
     const details = validate.errors
-      ?.map((error) => {
-        const property =
-          error.params.additionalProperty ?? error.params.missingProperty;
-        return `config${error.instancePath}${typeof property === "string" ? `/${property}` : ""} ${error.message}`;
-      })
+      ?.map((error) => `${error.schemaPath} ${error.message}`)
       .join("; ");
     throw new InputError(`.degreaserrc.json: ${details}`);
   }

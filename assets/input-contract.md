@@ -1,6 +1,7 @@
 # Configuration and resolved input, version 1
 
-These boundaries are implemented and tested. Public `review` execution is still under development; these contracts do not claim a completed model review.
+These are the input boundaries of the implemented source-only review engine.
+Result completeness and local data limits are described in [result-contract.md](result-contract.md).
 
 ## Request
 

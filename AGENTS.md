@@ -2,13 +2,31 @@
 
 ## Current phase
 
-Product implementation is authorized. The foundation supplies a package, public command help/version and the catalog; review execution and integrations remain under development. Start from `specs/README.md`; `specs/pending/review-opus-2026-11-04.md` is historical review context. The Lavish prototype in `.lavish/` is frozen at workshop version 0.6 and is historical; do not update or reopen it.
+Product implementation is authorized. The compiled CLI, review engine, continuation, sixteen public rubrics and Codex/Claude/Pi onboarding/integrations are implemented. Readiness and final delivery remain in progress; this is a local, unpublished package. Current user behavior is documented in README and `assets/`; private mission reports hold development validation evidence. When private handoff is available, start from `specs/README.md`; `specs/pending/review-opus-2026-11-04.md` is historical review context. The Lavish prototype in `.lavish/` is frozen at workshop version 0.6 and is historical; do not update or reopen it.
 
 Start with `specs/pending/degreaser.md`, then `contracts.md`, `execution.md`, `init.md`, `worker.md` and `development.md` in that directory. `review-notes.md` is history, not a source for restoring superseded decisions. Released project material, CLI output, skills and worker rubrics are English (D12); local gitignored specs may remain Polish. Current v1 supports **Codex, Claude Code and Pi on macOS, Node 24+**. Droid and Grok Build are deferred; this supersedes the original D13. All 16 aspects are ON by default; the old 12/4 split is obsolete. Separate accepted requirements from technical proposals (the proposal register is in `contracts.md`). Preserve the existing ignores for `specs/` and `.lavish/`.
 
 The user authorized autonomous commits and final GitHub delivery: push, PR, green CI, main protection requiring PR/checks without a mandatory second reviewer, and merge. Remote changes belong to the final delivery feature, not intermediate workers. **No npm publication or publication of private specifications/intent.** Preserve configured Git authorship.
 
-`specs/` is ignored, so it exists only in this checkout: `/Users/adriancelczynski/Projects/degreaser-axi/specs`. In any other worktree, create a symlink `specs -> /Users/adriancelczynski/Projects/degreaser-axi/specs` (the ignore rule covers it) or read the files by absolute path. Never `git add -f` them without an instruction.
+### Private handoff (not needed to build or use the package)
+
+`specs/` is deliberately ignored and absent from clean clones and tarballs.
+Authorized internal agents receive that directory separately from its owner
+through an approved private file transfer, never Git, npm, a public issue/PR,
+or an artifact registry. Do not include credentials, run artifacts or `.lavish/`.
+Keep the received directory outside the checkout and read it by absolute path,
+or link it into a worktree:
+
+```sh
+ln -s /absolute/path/to/private-specs /absolute/path/to/worktree/specs
+```
+
+Only create the link when the destination is absent; preserve any existing local
+specs. Existing ignore rules cover the link. Do not change `.gitignore` or
+force-add private material. If handoff is unavailable, public build/test/package
+work still uses this file and `assets/`; do not reconstruct private decisions
+from historical notes. Implementation decisions needing private intent require
+the owner's handoff.
 
 ## Product constraints
 

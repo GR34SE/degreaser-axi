@@ -10,7 +10,7 @@ import {
   TOP_LEVEL_HELP,
 } from "./commands.js";
 import { loadConfig } from "./config.ts";
-import { DiagnosticError, diagnoseFailure } from "./diagnostics.ts";
+import { diagnoseFailure } from "./diagnostics.ts";
 import { doctor } from "./doctor.ts";
 import { repositoryRoot } from "./git.ts";
 import { CALLER_GUIDANCE, DESCRIPTION } from "./guidance.js";
@@ -21,7 +21,6 @@ import { observedStatus } from "./report.ts";
 import { cancel, readCommand, resume, review } from "./review.ts";
 import { loadInput, loadRun, StateError } from "./storage.ts";
 import { VERSION } from "./version.js";
-import { workerFailure } from "./worker-failure.ts";
 
 function parseCommand(name: string, command: Command, args: string[]) {
   const suggestions = [
@@ -180,47 +179,50 @@ async function execute(
   };
 }
 
+async function withDiagnostics(
+  name: string,
+  action: () =>
+    | string
+    | Record<string, unknown>
+    | Promise<string | Record<string, unknown>>,
+) {
+  try {
+    return await action();
+  } catch (error) {
+    if (error instanceof InputError || error instanceof StateError) {
+      process.exitCode = 2;
+      return {
+        error: error.code,
+        reason: error.message,
+        help: [`degreaser-axi ${name} --help`],
+      };
+    }
+    if (error instanceof AxiError) {
+      process.exitCode = 2;
+      return {
+        error: "invalid-input",
+        reason: error.message,
+        help: error.suggestions,
+      };
+    }
+    const failure = diagnoseFailure(error, `${name} local operation`);
+    process.exitCode = 2;
+    return {
+      error: failure.code,
+      diagnosis: failure.diagnosis,
+      reason: failure.message,
+      ...failure.details,
+      help: failure.help,
+    };
+  }
+}
+
 export async function main(argv: string[]): Promise<void> {
   const commands = Object.fromEntries(
     Object.entries(COMMANDS).map(([name, command]) => [
       name,
-      async (args: string[]) => {
-        try {
-          return await execute(name, command, args);
-        } catch (error) {
-          if (error instanceof InputError || error instanceof StateError) {
-            process.exitCode = 2;
-            return {
-              error: error.code,
-              reason: error.message,
-              help: [`degreaser-axi ${name} --help`],
-            };
-          }
-          if (error instanceof AxiError) {
-            process.exitCode = 2;
-            return {
-              error: "invalid-input",
-              reason: error.message,
-              help: error.suggestions,
-            };
-          }
-          if (
-            error instanceof DiagnosticError ||
-            workerFailure(error) === "environment-blocked"
-          ) {
-            const failure = diagnoseFailure(error, `${name} local operation`);
-            process.exitCode = 2;
-            return {
-              error: failure.code,
-              diagnosis: failure.diagnosis,
-              reason: failure.message,
-              ...failure.details,
-              help: failure.help,
-            };
-          }
-          throw error;
-        }
-      },
+      (args: string[]) =>
+        withDiagnostics(name, () => execute(name, command, args)),
     ]),
   );
   Object.setPrototypeOf(commands, null);
@@ -229,7 +231,7 @@ export async function main(argv: string[]): Promise<void> {
     version: VERSION,
     description: DESCRIPTION,
     topLevelHelp: TOP_LEVEL_HELP,
-    home,
+    home: () => withDiagnostics("home", home),
     commands,
     renderUnknownCommand: (command) =>
       `error: invalid-input\nreason: ${JSON.stringify(`Unknown command: ${command}`)}\nhelp: ${JSON.stringify(`Valid commands: ${Object.keys(COMMANDS).join(", ")}. Run degreaser-axi --help.`)}\n`,

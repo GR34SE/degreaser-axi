@@ -10,7 +10,7 @@ export const SUPPORTED_NATIVE_VERSIONS: Record<Agent, string> = {
 export function assertNativeVersion(agent: Agent, observed: string): string {
   const supported = SUPPORTED_NATIVE_VERSIONS[agent];
   // Only a version token is safe diagnostic data, never arbitrary process output.
-  const version = /^\d+\.\d+\.\d+(?:[-+][\w.-]+)?$/.test(observed)
+  const version = /^\d{1,6}\.\d{1,6}\.\d{1,6}$/.test(observed)
     ? observed
     : "unrecognized";
   if (version !== supported)

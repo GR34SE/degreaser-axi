@@ -9,7 +9,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
@@ -46,6 +46,11 @@ try {
       `Unexpected package entry: ${entry}`,
     );
     assert.ok(!entry.endsWith(".ts"), `TypeScript source shipped: ${entry}`);
+    assert.doesNotMatch(
+      entry,
+      /(?:^|\/)(?:specs|\.lavish|\.degreaser|\.references|node_modules|coverage|\.env(?:\.[^/]+)?)(?:\/|$)|\.tgz$/,
+      `Private material shipped: ${entry}`,
+    );
   }
   await writeFile(
     join(temporary, "package.json"),
@@ -61,6 +66,15 @@ try {
   );
   run("pnpm", ["add", "--ignore-scripts", tarball], temporary);
   const installed = join(temporary, "node_modules/degreaser-axi");
+  const readme = join(installed, "README.md");
+  for (const [, target] of (await readFile(readme, "utf8")).matchAll(
+    /\[[^\]]+\]\(([^)\s]+)\)/g,
+  )) {
+    if (!target || /^(?:https?:|#)/.test(target)) continue;
+    await readFile(
+      resolve(dirname(readme), decodeURIComponent(target.split("#")[0] ?? "")),
+    );
+  }
   const bin = join(temporary, "node_modules/.bin/degreaser-axi");
   assert.equal(run(bin, ["--version"], temporary), "0.1.0\n");
   assert.match(run(bin, ["review", "--help"], temporary), /--task-file/);
