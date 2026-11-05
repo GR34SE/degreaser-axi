@@ -290,7 +290,7 @@ export async function liveCallerPermissions(model: string) {
       }),
     );
   } finally {
-    if (stopRuns(cwd, [cli]).length === 0)
+    if ((await stopRuns(cwd, [cli])).length === 0)
       await rm(cwd, { recursive: true, force: true });
     else {
       console.error(

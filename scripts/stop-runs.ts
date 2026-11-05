@@ -1,42 +1,45 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { setTimeout } from "node:timers/promises";
 import { processAlive } from "../src/ownership.ts";
-import type { Run } from "../src/storage.ts";
+import { loadRun } from "../src/storage.ts";
 
-function read(path: string): Run | undefined {
-  try {
-    return JSON.parse(readFileSync(path, "utf8"));
-  } catch {
-    return undefined;
+async function ownerExited(cwd: string, id: string, deadline: number) {
+  for (;;) {
+    let pid: number | undefined;
+    try {
+      pid = loadRun(cwd, id).owner?.pid;
+    } catch {
+      return false;
+    }
+    if (pid === undefined || !processAlive(pid)) return true;
+    if (Date.now() >= deadline) return false;
+    await setTimeout(50);
   }
 }
 
 /**
  * Stops every run in a disposable repository through the public, ownership-
- * verified `cancel` command run by this Node executable with `args`. Returns run IDs whose stop could not be
- * confirmed; callers must then keep the repository as evidence.
+ * verified `cancel` command run by this Node executable with `args`, then
+ * waits for the recorded owner to exit. Returns run IDs whose stop could not
+ * be confirmed; callers must then keep the repository as evidence.
  */
-export function stopRuns(cwd: string, args: string[], timeout = 60_000) {
+export async function stopRuns(cwd: string, args: string[], timeout = 60_000) {
   const runs = join(cwd, ".degreaser/runs");
   if (!existsSync(runs)) return [];
-  return readdirSync(runs).filter((id) => {
-    const path = join(runs, id, "run.json");
-    const before = read(path);
-    if (before && before.status !== "running") return false;
+  const unconfirmed: string[] = [];
+  for (const id of readdirSync(runs)) {
     const result = spawnSync(process.execPath, [...args, "cancel", id], {
       cwd,
       encoding: "utf8",
       timeout,
     });
-    const run = read(path);
-    const terminal =
-      run !== undefined &&
-      (run.status !== "running" || !run.owner || !processAlive(run.owner.pid));
-    return !(
+    const cancelled =
       result.error === undefined &&
-      (result.status === 0 || result.status === 1) &&
-      terminal
-    );
-  });
+      (result.status === 0 || result.status === 1);
+    if (!(cancelled && (await ownerExited(cwd, id, Date.now() + timeout))))
+      unconfirmed.push(id);
+  }
+  return unconfirmed;
 }

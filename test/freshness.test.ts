@@ -296,6 +296,7 @@ test("moving an explicit branch base and copying a run to another repository can
     readFileSync(join(other.root, ".degreaser/runs", run.id, "run.json")),
     before,
   );
+  rmSync(join(other.root, ".degreaser"), { recursive: true });
 });
 
 test("an alternate installed package refuses independently changed instruction, response, schema and rubric bytes", (t) => {

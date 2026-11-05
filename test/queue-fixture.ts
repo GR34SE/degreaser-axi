@@ -163,7 +163,7 @@ export function queueFixture(
     );
     // A throw here skips the Git fixture's removal, retaining the evidence.
     assert.deepEqual(
-      stopRuns(f.root, [cli]),
+      await stopRuns(f.root, [cli]),
       [],
       `Run stop unconfirmed; fixture retained at ${f.root}`,
     );

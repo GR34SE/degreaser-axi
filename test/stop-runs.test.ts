@@ -38,7 +38,7 @@ test("a caller killed after admission leaves an owner that cleanup stops through
   await exited;
   const owner = f.state().owner?.pid;
   assert.ok(owner && alive(owner));
-  assert.deepEqual(stopRuns(f.root, [cli]), []);
+  assert.deepEqual(await stopRuns(f.root, [cli]), []);
   assert.ok(!alive(owner));
   assert.equal(f.state().status, "failed");
 });
@@ -66,7 +66,7 @@ test("cleanup never signals an unverified owner and reports the run as unconfirm
       }),
     );
     const bytes = readFileSync(path);
-    assert.deepEqual(stopRuns(f.root, [cli]), [run.id]);
+    assert.deepEqual(await stopRuns(f.root, [cli]), [run.id]);
     assert.ok(alive(sentinel.pid));
     assert.deepEqual(readFileSync(path), bytes);
   } finally {
@@ -76,16 +76,46 @@ test("cleanup never signals an unverified owner and reports the run as unconfirm
   }
 });
 
-test("a timed-out cancel leaves the run unconfirmed and its owner running", (t) => {
+test("a timed-out cancel leaves the run unconfirmed and its owner running", async (t) => {
   const f = queueFixture(t);
   f.setPlan({ worker: { resultGate: f.gate("never") } });
   assert.equal(f.start(["--aspects", "A06"]).status, 3);
   const run = f.state();
   assert.ok(run.owner);
   assert.deepEqual(
-    stopRuns(f.root, ["-e", "setTimeout(() => {}, 10000)"], 200),
+    await stopRuns(f.root, ["-e", "setTimeout(() => {}, 10000)"], 200),
     [run.id],
   );
   assert.ok(alive(run.owner.pid));
   assert.equal(f.state().status, "running");
+});
+
+test("malformed run state and a terminal run with a live recorded owner stay unconfirmed", async (t) => {
+  const f = queueFixture(t);
+  f.setPlan({ worker: { result: "" } });
+  f.start(["--aspects", "A06"]);
+  assert.equal(f.finish().status, 1);
+  const run = f.state();
+  assert.ok(run.owner);
+  const original = run.owner;
+  await until(() => !alive(original.pid), "Original owner exits");
+  const path = join(f.root, ".degreaser/runs", run.id, "run.json");
+  const sentinel = spawn(process.execPath, ["-e", "setInterval(()=>{},1000)"]);
+  const closed = once(sentinel, "close");
+  assert.ok(sentinel.pid);
+  try {
+    writeFileSync(path, "{}");
+    assert.deepEqual(await stopRuns(f.root, [cli], 2000), [run.id]);
+    assert.equal(readFileSync(path, "utf8"), "{}");
+    writeFileSync(
+      path,
+      JSON.stringify({ ...run, owner: { ...original, pid: sentinel.pid } }),
+    );
+    assert.deepEqual(await stopRuns(f.root, [cli], 2000), [run.id]);
+    assert.ok(alive(sentinel.pid));
+  } finally {
+    writeFileSync(path, JSON.stringify(run));
+    sentinel.kill("SIGKILL");
+    await closed;
+  }
 });

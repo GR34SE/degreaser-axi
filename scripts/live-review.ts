@@ -163,7 +163,7 @@ export async function liveReview(
       console.log(detail.stdout);
     }
   } finally {
-    if (stopRuns(cwd, [cli]).length === 0)
+    if ((await stopRuns(cwd, [cli])).length === 0)
       await rm(cwd, { recursive: true, force: true });
     else {
       console.error(
