@@ -9,6 +9,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { INHERITED_WORKER_ENV } from "../src/native-environment.ts";
 import type { Run } from "../src/storage.ts";
+import { stopRuns } from "./stop-runs.ts";
 
 const cli = fileURLToPath(
   new URL("../dist/bin/degreaser-axi.js", import.meta.url),
@@ -210,7 +211,6 @@ export async function liveCallerPermissions(model: string) {
     await mkdtemp(join(tmpdir(), "degreaser-caller-permissions-")),
   );
   const before = policySnapshot();
-  let run: Run | undefined;
   const state = () => {
     const path = join(cwd, ".degreaser/state.json");
     if (!existsSync(path)) return undefined;
@@ -251,7 +251,7 @@ export async function liveCallerPermissions(model: string) {
       before,
       "Authorized caller must not persist host policy.",
     );
-    run = state();
+    const run = state();
     assert.equal(run?.status, "completed");
     assert.equal(run?.tasks.length, 1);
     assert.equal(run?.tasks[0]?.assignment.model, model);
@@ -290,13 +290,13 @@ export async function liveCallerPermissions(model: string) {
       }),
     );
   } finally {
-    run = state();
-    if (run?.status === "running")
-      spawnSync(process.execPath, [cli, "cancel", run.id], {
-        cwd,
-        timeout: 30000,
-        stdio: "ignore",
-      });
-    await rm(cwd, { recursive: true, force: true });
+    if (stopRuns(cwd, [cli]).length === 0)
+      await rm(cwd, { recursive: true, force: true });
+    else {
+      console.error(
+        `Caller permission cleanup could not confirm owner exit; fixture retained at ${cwd}.`,
+      );
+      process.exitCode = 1;
+    }
   }
 }

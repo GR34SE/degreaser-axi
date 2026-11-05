@@ -3,10 +3,10 @@ import { spawnSync } from "node:child_process";
 import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { setTimeout } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import type { Agent } from "../src/config.ts";
 import type { Run } from "../src/storage.ts";
+import { stopRuns } from "./stop-runs.ts";
 
 export async function liveReview(
   agent: Agent,
@@ -21,7 +21,6 @@ export async function liveReview(
   );
   const runCommand = (command: string, args: string[]) =>
     spawnSync(command, args, { cwd, encoding: "utf8", timeout: 180_000 });
-  let owner: number | undefined;
   try {
     for (const args of [
       ["init", "--initial-branch=main"],
@@ -106,8 +105,6 @@ export async function liveReview(
       await readFile(join(cwd, ".degreaser/state.json"), "utf8"),
     );
     const path = join(cwd, ".degreaser/runs", id, "run.json");
-    const initial: Run = JSON.parse(await readFile(path, "utf8"));
-    owner = initial.owner?.pid;
     const waited = runCommand(process.execPath, [
       cli,
       "wait",
@@ -116,7 +113,6 @@ export async function liveReview(
       "160",
     ]);
     const saved: Run = JSON.parse(await readFile(path, "utf8"));
-    owner = saved.owner?.pid;
     const report = runCommand(process.execPath, [cli, "report", id, "--full"]);
     console.log(
       JSON.stringify(
@@ -129,7 +125,7 @@ export async function liveReview(
           reviewExit: review.status,
           waitExit: waited.status,
           reportExit: report.status,
-          ownerPid: owner,
+          ownerPid: saved.owner?.pid,
           status: saved.status,
           tasks: saved.tasks.map((t) => ({
             assignment: t.assignment,
@@ -167,32 +163,11 @@ export async function liveReview(
       console.log(detail.stdout);
     }
   } finally {
-    let stopped = !owner;
-    if (owner) {
-      try {
-        process.kill(owner, "SIGTERM");
-      } catch (error) {
-        if (
-          !(error instanceof Error && "code" in error && error.code === "ESRCH")
-        )
-          process.exitCode = 1;
-      }
-      const until = Date.now() + 15_000;
-      while (Date.now() < until) {
-        try {
-          process.kill(owner, 0);
-        } catch (error) {
-          stopped =
-            error instanceof Error && "code" in error && error.code === "ESRCH";
-          break;
-        }
-        await setTimeout(50);
-      }
-    }
-    if (stopped) await rm(cwd, { recursive: true, force: true });
+    if (stopRuns(cwd, [cli]).length === 0)
+      await rm(cwd, { recursive: true, force: true });
     else {
       console.error(
-        "Live review cleanup could not confirm owner exit; fixture retained.",
+        `Live review cleanup could not confirm owner exit; fixture retained at ${cwd}.`,
       );
       process.exitCode = 1;
     }

@@ -4,7 +4,6 @@ import { once } from "node:events";
 import {
   existsSync,
   mkdtempSync,
-  readdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -14,6 +13,7 @@ import { join } from "node:path";
 import type { TestContext } from "node:test";
 import { setTimeout } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
+import { stopRuns } from "../scripts/stop-runs.ts";
 import type { ProjectConfig } from "../src/config.ts";
 import type { Run } from "../src/storage.ts";
 import { fixture } from "./git-fixture.ts";
@@ -161,18 +161,12 @@ export function queueFixture(
         await exited;
       }),
     );
-    if (existsSync(join(f.root, ".degreaser/state.json"))) {
-      for (const id of readdirSync(join(f.root, ".degreaser/runs"))) {
-        const owner = state(id).owner?.pid;
-        if (owner && alive(owner)) {
-          process.kill(owner, "SIGTERM");
-          await until(
-            () => !alive(owner),
-            "Owned run must exit during fixture cleanup",
-          );
-        }
-      }
-    }
+    // A throw here skips the Git fixture's removal, retaining the evidence.
+    assert.deepEqual(
+      stopRuns(f.root, [cli]),
+      [],
+      `Run stop unconfirmed; fixture retained at ${f.root}`,
+    );
     for (const e of events(lifecycleLog)) {
       for (const pid of [e.pid, e.childPid].filter(
         (p): p is number => p !== undefined,
