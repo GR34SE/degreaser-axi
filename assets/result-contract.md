@@ -77,6 +77,47 @@ per-aspect rejection reasons, attempts and exact selected identities.
 Missing usage is unknown, not zero. No-findings and not-applicable are distinct;
 neither a partial review nor an all-not-applicable review certifies clean code.
 
+## Finding order and read surfaces
+
+For the same saved finding set, IDs and order do not depend on worker completion
+or result-list order. Inclusive overlapping intervals on the **same path and
+old/new coordinate side** form transitive groups. Each group, including a
+singleton, receives `G<n>`; every finding retains its own `F<n>`, aspect and
+complete evidence. Equal recommendations never merge findings.
+
+Groups sort by path and their earliest start line, with side (`new` before
+`old`) breaking ties. Members sort by start line, end line, aspect, title,
+quote, evidence, consequence, countercheck, recommendation and uncertainty.
+Text comparisons use case-sensitive UTF-16 order, not locale collation. An
+absent uncertainty precedes an empty one. Identical findings remain separate.
+Group members stay adjacent, so an overlapping group can precede an opposite-side
+finding whose line falls inside it. IDs describe the current saved finding set;
+new results or replacement incomplete evidence can change ordinal IDs.
+
+Short reports expose total `count`, `shown` (at most 30), resolved/selected
+`aspects`, and each aspect's status, reason, limitations and rejection count.
+`report <run-id> --full` retrieves every finding without clipping, including
+uncertainty, and `finding <id> --run <run-id>` includes its aspect's limitations
+and the input's coverage limits. Running reports read the current saved snapshot
+without waiting; omitted rows still have a full-report command.
+
+Full reports distinguish `configuration` (all selected exact identities),
+`coordinator` (applicability results without workers), and `execution` (only
+tasks with actual attempt records). Repository A08 stays configured but appears
+as coordinator-owned not-applicable, never a phantom worker. Usage is reported
+per worker only when all selected workers have recorded metadata; otherwise
+the summary is `unknown`. Full execution rows retain any individually known
+metadata. A coordinator-only run has unknown usage, not an invented zero.
+
+No ID selects the latest run in the current repository; an explicit ID selects
+that repository's historical run without relying on the latest pointer.
+`no-history`, `run-not-found`, `finding-not-found` and `state-corrupt` are distinct
+read failures (exit 2). Damage names its file and never falls back to another run.
+Home reads configuration and history independently, even if the current RC is
+absent or invalid. Home, doctor, report and finding do not install, repair or
+start reviews/models. Doctor only probes local native capability; it does not
+establish account access or model availability.
+
 ## Execution and lifecycle outcomes
 
 All sixteen aspects run by default. The owner admits one worker at a time until

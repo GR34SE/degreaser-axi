@@ -165,6 +165,18 @@ degreaser-axi doctor         # Local configuration/native-version diagnostics, n
 
 Each finding explains what is wrong, where it occurs, why it matters and what would improve it. Incomplete reviews are marked explicitly. Reviewers inspect source; they do not run tests or claim runtime verification.
 
+Short reports show at most 30 findings, with total/shown counts and per-aspect
+coverage, limitations and rejections. Overlapping locations on the same old/new
+side share a group but retain separate evidence. `report --full` and `finding`
+do not clip evidence. Usage is `unknown` unless recorded metadata is available.
+
+Pass `report <run-id>` or `finding F1 --run <run-id>` to read historical evidence;
+otherwise reads select this repository's latest run. Reports of running reviews
+return the current snapshot without waiting. Home reads history even without a
+current RC. These read commands do not start reviews or modify local state.
+Full reports separate configured identities from actual attempts and
+coordinator-only applicability results, including A08 in repository audits.
+
 Results and progress are saved locally in ignored `.degreaser/`. Review context is sent through your chosen harness to its model provider. Degreaser does not apply fixes; your coding agent decides which findings warrant changes.
 
 A real one-aspect Claude Haiku review returned `completed`, `aspects: 1/1` and a

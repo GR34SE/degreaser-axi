@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { AxiError, runAxiCli } from "axi-sdk-js";
@@ -59,44 +60,63 @@ function parseCommand(name: string, command: Command, args: string[]) {
 }
 
 function home() {
-  let local: Record<string, unknown>;
-  let repository: string | undefined;
-  try {
-    repository = repositoryRoot(process.cwd());
-    const config = loadConfig(repository);
-    local = { status: "configured", agent: config.agent, model: config.model };
-    try {
-      const run = loadRun(repository);
-      loadInput(run);
-      local = {
-        ...local,
-        run: run.id,
-        status: observedStatus(run),
-        next: `degreaser-axi report ${run.id}`,
-      };
-    } catch (error) {
-      if (error instanceof StateError) {
-        if (error.code !== "no-history") process.exitCode = 2;
-        local = { ...local, history: error.code, reason: error.message };
-      } else throw error;
-    }
-  } catch (error) {
-    if (repository && existsSync(join(repository, ".degreaserrc.json")))
-      process.exitCode = 2;
-    local = {
-      status: "unconfigured",
-      reason:
-        error instanceof InputError
-          ? error.message
-          : "Local repository context is unavailable.",
-    };
-  }
-  return {
-    ...local,
+  const bin = process.argv[1] ?? "";
+  const local: Record<string, unknown> = {
+    bin: bin.startsWith(`${homedir()}/`)
+      ? `~${bin.slice(homedir().length)}`
+      : bin,
+    description: DESCRIPTION,
+    configuration: "unconfigured",
+    history: "unavailable",
+    status: "unconfigured",
     commands: Object.keys(COMMANDS),
     guidance: CALLER_GUIDANCE,
     help: ["degreaser-axi review --help", "degreaser-axi init --help"],
   };
+  let repository: string;
+  try {
+    repository = repositoryRoot(process.cwd());
+  } catch {
+    return { ...local, reason: "Local repository context is unavailable." };
+  }
+  try {
+    const config = loadConfig(repository);
+    Object.assign(local, {
+      configuration: "configured",
+      status: "configured",
+      agent: config.agent,
+      model: config.model,
+    });
+  } catch (error) {
+    if (!(error instanceof InputError)) throw error;
+    if (existsSync(join(repository, ".degreaserrc.json"))) {
+      process.exitCode = 2;
+      local.configuration = "invalid";
+    }
+    local.reason = error.message;
+  }
+  try {
+    const run = loadRun(repository);
+    loadInput(run);
+    const status = observedStatus(run);
+    Object.assign(local, {
+      history: "available",
+      run: run.id,
+      status,
+      next: `degreaser-axi ${status === "running" ? "wait" : "report"} ${run.id}`,
+      help: [
+        `degreaser-axi ${status === "running" ? "wait" : "report"} ${run.id}`,
+        "degreaser-axi review --help",
+      ],
+    });
+  } catch (error) {
+    if (!(error instanceof StateError || error instanceof InputError))
+      throw error;
+    if (error.code !== "no-history") process.exitCode = 2;
+    local.history = error.code;
+    local.historyReason = error.message;
+  }
+  return local;
 }
 
 async function execute(

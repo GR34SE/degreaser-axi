@@ -8,7 +8,7 @@ import { InputError } from "./input-error.ts";
 import { discoverModels } from "./model-discovery.ts";
 import type { ResumeControls } from "./owner.ts";
 import { assertAvailable, ownerPath, verifyOwner } from "./ownership.ts";
-import { findings, observedStatus, renderReport } from "./report.ts";
+import { observedStatus, renderFinding, renderReport } from "./report.ts";
 import {
   checkHistory,
   createRun,
@@ -239,14 +239,10 @@ export async function readCommand(
         : undefined
       : positionals[0],
   );
-  loadInput(run);
-  if (name === "wait") return waitFor(run, seconds);
+  if (name === "wait") {
+    loadInput(run);
+    return waitFor(run, seconds);
+  }
   if (name === "report") return renderReport(run, values.full === true);
-  const finding = findings(run).find((f) => f.id === positionals[0]);
-  if (!finding)
-    throw new StateError(
-      "finding-not-found",
-      `Finding not found in ${run.id}: ${positionals[0]}`,
-    );
-  return { run: run.id, evidenceLevel: "source-only", ...finding };
+  return renderFinding(run, positionals[0]);
 }

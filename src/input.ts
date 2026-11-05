@@ -181,3 +181,19 @@ export function prepareReview(args: string[], cwd: string) {
 }
 
 export type ReviewInput = ReturnType<typeof prepareReview>;
+
+export function reviewCommand(input: ReviewInput) {
+  const quote = (value: string) =>
+    /^[a-zA-Z0-9_./,:=-]+$/.test(value)
+      ? value
+      : `'${value.replaceAll("'", "'\\''")}'`;
+  return [
+    "degreaser-axi review",
+    `--scope ${input.scope}`,
+    ...(input.baseRef ? [`--base ${quote(input.baseRef)}`] : []),
+    input.taskFile
+      ? `--task-file ${quote(input.taskFile)}`
+      : `--task=${quote(input.task)}`,
+    `--aspects ${input.config.assignments.map((a) => a.aspect).join(",")}`,
+  ].join(" ");
+}

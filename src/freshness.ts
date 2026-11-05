@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { loadConfig, resolveConfig } from "./config.ts";
-import type { ReviewInput } from "./input.ts";
+import { type ReviewInput, reviewCommand } from "./input.ts";
 import { assemblePrompt, reviewIdentity } from "./prompt.ts";
 import { resolveScope } from "./scope.ts";
 import { type Run, StateError } from "./storage.ts";
@@ -41,6 +41,6 @@ export function assertFresh(run: Run, input: ReviewInput) {
   }
   throw new StateError(
     "input-changed",
-    `Review source, task, base, prompt, package fingerprint or selected agent/model changed. Prior evidence is unchanged. Start a new review: degreaser-axi review --scope ${input.scope}${input.baseRef ? ` --base ${JSON.stringify(input.baseRef)}` : ""} ${input.taskFile ? `--task-file ${JSON.stringify(input.taskFile)}` : `--task ${JSON.stringify(input.task)}`}`,
+    `Review source, task, base, prompt, package fingerprint or selected agent/model changed. Prior evidence is unchanged. Start a new review: ${reviewCommand(input)}`,
   );
 }
