@@ -95,13 +95,11 @@ console.log(${JSON.stringify(version)});
       agent: "codex",
       model: "gpt-6-luna",
       aspects: {
-        overrides: {
-          "low-value-comments": {
-            agent: "claude",
-            model: "claude-haiku-4-5-20251001",
-          },
-          "verification-theater": { agent: "pi", model: "openai/gpt-6-luna" },
+        "low-value-comments": {
+          agent: "claude",
+          model: "claude-haiku-4-5-20251001",
         },
+        "verification-theater": { agent: "pi", model: "openai/gpt-6-luna" },
       },
     }),
   );

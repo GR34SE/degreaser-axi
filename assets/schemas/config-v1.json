@@ -23,15 +23,13 @@
       }
     },
     "aspects": {
+      "description": "One entry per built-in aspect: true runs it with the default identity, false turns it off, an object runs it with that agent/model. Omitted aspects are on.",
       "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "enable": { "$ref": "#/definitions/aspectList" },
-        "disable": { "$ref": "#/definitions/aspectList" },
-        "overrides": {
-          "type": "object",
-          "propertyNames": { "$ref": "#/definitions/aspect" },
-          "additionalProperties": {
+      "propertyNames": { "$ref": "#/definitions/aspect" },
+      "additionalProperties": {
+        "anyOf": [
+          { "type": "boolean" },
+          {
             "type": "object",
             "additionalProperties": false,
             "required": ["model"],
@@ -41,7 +39,7 @@
             },
             "allOf": [{ "$ref": "#/definitions/piIdentity" }]
           }
-        }
+        ]
       }
     },
     "exclude": {
@@ -61,11 +59,6 @@
     "positiveInteger": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
     "seconds": { "type": "integer", "minimum": 1, "maximum": 2147483 },
     "aspect": { "type": "string", "enum": ["missed-reuse", "unnecessary-layers", "speculative-flexibility", "masked-errors", "unjustified-defense", "low-value-comments", "convention-drift", "scope-creep", "contract-bypass", "low-value-tests", "incomplete-integration", "wrong-abstraction", "reinvented-infrastructure", "unidiomatic-code", "structural-erosion", "verification-theater"] },
-    "aspectList": {
-      "type": "array",
-      "uniqueItems": true,
-      "items": { "$ref": "#/definitions/aspect" }
-    },
     "piIdentity": {
       "type": "object",
       "if": { "properties": { "agent": { "const": "pi" } }, "required": ["agent"] },
