@@ -51,11 +51,11 @@ For product intent, start from `specs/README.md` and `specs/pending/degreaser.md
 
 ## Change and validation workflow
 
-- Inspect Git root, branch, HEAD, staged/unstaged changes and any active delivery pipeline first. Preserve other work and configured authorship. New manual worktrees belong under `/Users/adriancelczynski/worktrees/manual/<owner-repo>/<task-id>`; use an already assigned worktree and leave tool-managed worktrees with their owner.
+- Inspect Git root, branch, HEAD, staged/unstaged changes and any active delivery pipeline first. Preserve other work and configured authorship. If another session may commit here, use a separate worktree before changing the shared index. New manual worktrees belong under `/Users/adriancelczynski/worktrees/manual/<owner-repo>/<task-id>`; use an already assigned worktree and leave tool-managed worktrees with their owner.
 - Choose the smallest complete change. Keep strict NodeNext/erasable TypeScript, exact dependency and pnpm pins, disabled lifecycle scripts and existing package-age policy. Never weaken global security settings or automatically approve dependency skills.
 - For behavior changes, first demonstrate a meaningful failing case. Prefer public CLI/process boundaries and real disposable Git repositories with independent expectations. Synthetic adapters test orchestration, not model quality or native compatibility. Source assertions cannot prove model interpretation.
 - For **changes limited to `.md` files, skip `no-mistakes`**. Review the diff, referenced paths, commands and consistency with source/contracts; run only checks relevant to changed content. Markdown prompts, rubrics and generated product guidance still require their applicable validation. Do not run the full code pipeline merely because prose changed. This supersedes older blanket requirements in specs/skill indexes, but preserves required CI and branch protection.
-- For code delivery, use the required review skills below, relevant product checks and `no-mistakes --no-publish-intent` before final delivery. One delivery owner manages push/PR/CI/merge; intermediate workers do not start competing pipelines. Autonomous commits and GitHub delivery to `main` are authorized through PR and green required checks. No npm publication; retain `private: true` until separately authorized.
+- For code delivery, use the required review skills below, relevant product checks and `no-mistakes --no-publish-intent` before final delivery. One delivery owner manages push/PR/CI/merge; intermediate workers do not start competing pipelines. Complete authorized delivery through PR, green required checks and merge to `main`; do not ask again for authorization already granted. No npm publication; retain `private: true` until separately authorized.
 
 | Command | When / what it verifies |
 | --- | --- |
@@ -83,4 +83,4 @@ Read skills by repository path under `.agents/skills/`; `.claude/skills/` links 
 
 For library/framework/CLI documentation, use Context7 outside the default sandbox: resolve with `npx ctx7@latest library <name> "<specific question>"`, then `docs <returned-id> "<question>"`; at most three calls per question. Use version-matched primary sources if indexing is ambiguous. Do not send secrets. Report quota failures and suggest login or `CONTEXT7_API_KEY`, rather than silently relying on memory.
 
-Report exactly what was checked, what failed and what remains unverified. Examples, source review, synthetic tests and real native/model runs are different evidence.
+Report checks, failures and remaining uncertainty. Inspected test assertions are source evidence; claim a passing test only after executing it. Examples, synthetic tests and real native/model runs are different evidence.
