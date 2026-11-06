@@ -307,7 +307,7 @@ test("moving an explicit branch base and copying a run to another repository can
     before,
   );
   // Foreign history (a moved or copied repository) does not block new reviews.
-  other.start(["--aspects", "A06"]);
+  other.start(["--aspects", "low-value-comments"]);
   assert.equal(other.finish().status, 0);
   rmSync(join(other.root, ".degreaser"), { recursive: true });
 });
