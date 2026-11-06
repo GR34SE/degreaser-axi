@@ -259,18 +259,19 @@ const integrations: [string, string] = [
   "\r",
 ];
 const project: [string, string] = ["Installation scope", "\r"];
-const acceptModel: [string, string] = ["Choose another model", "\r"];
+const acceptAgent: [string, string] = ["Review agent", "\r"];
+const acceptModel: [string, string] = ["Search models", "\r"];
 const install: [string, string] = ["Proceed with installation?", "\r"];
 
 test("TTY uses multiselect and a prefilled pair without probing unselected agents", (t) => {
   const f = setup(t);
   const result = f.run(
     [],
-    [[integrations[0], " \r"], project, acceptModel, install],
+    [[integrations[0], " \r"], project, acceptAgent, acceptModel, install],
   );
   assert.equal(result.status, 0, result.stdout);
   assert.equal(f.config().model, "gpt-6-luna");
-  assert.match(result.stdout, /Codex \/ gpt-6-luna/);
+  assert.match(result.stdout, /Loading Codex models/);
   assert.match(result.stdout, /Claude Code: \/degreaser review my changes/);
   assert.match(result.stdout, /Pi: \/skill:degreaser review my changes/);
   assert.doesNotMatch(result.stdout, /\$degreaser|doctor/);
@@ -290,9 +291,8 @@ test("TTY can change harness and search an exact model, then retains it on reini
     [
       integrations,
       project,
-      [acceptModel[0], "\x1b[B\r"],
-      ["Agent", "\x1b[B\r"],
-      ["Search models", "haiku\r"],
+      [acceptAgent[0], "\x1b[B\r"],
+      [acceptModel[0], "haiku\r"],
       install,
     ],
   );
@@ -301,9 +301,12 @@ test("TTY can change harness and search an exact model, then retains it on reini
   assert.match(changed.stdout, /approve project and hook trust/);
   assert.equal(f.config().agent, "claude");
   assert.equal(f.config().model, "claude-haiku-4-5-20251001");
-  const again = f.run([], [integrations, project, acceptModel, install]);
+  const again = f.run(
+    [],
+    [integrations, project, acceptAgent, acceptModel, install],
+  );
   assert.equal(again.status, 0, again.stdout);
-  assert.match(again.stdout, /Claude Code \/ claude-haiku-4-5-20251001/);
+  assert.match(again.stdout, /claude-haiku-4-5-20251001 \(current/);
   assert.equal(f.config().agent, "claude");
 });
 
@@ -318,7 +321,7 @@ test("TTY cancellation before discovery or before installation writes nothing", 
   assert.deepEqual(f.unchanged(), before);
   const declined = f.run(
     [],
-    [integrations, project, acceptModel, [install[0], "n\r"]],
+    [integrations, project, acceptAgent, acceptModel, [install[0], "n\r"]],
   );
   assert.equal(declined.status, 2, declined.stdout);
   assert.match(declined.stdout, /Installation cancelled/);
@@ -346,6 +349,7 @@ test("TTY Ctrl+C during discovery stops its adapter and leaves files untouched",
     [
       integrations,
       project,
+      acceptAgent,
       [{ file: f.log, contains: '"type":"session"' }, "\x03"],
     ],
   );
@@ -361,7 +365,10 @@ test("TTY Ctrl+C during discovery stops its adapter and leaves files untouched",
 test("TTY defaults to Claude Haiku when Codex is absent", (t) => {
   const f = setup(t);
   rmSync(join(f.bin, "codex"));
-  const result = f.run([], [integrations, project, acceptModel, install]);
+  const result = f.run(
+    [],
+    [integrations, project, acceptAgent, acceptModel, install],
+  );
   assert.equal(result.status, 0, result.stdout);
   assert.equal(f.config().agent, "claude");
   assert.equal(f.config().model, "claude-haiku-4-5-20251001");
@@ -372,31 +379,35 @@ test("TTY discovery failure leaves configuration untouched", (t) => {
   const f = setup(t);
   f.setPlan({ metadataFailure: true });
   const before = f.unchanged();
-  const result = f.run([], [integrations, project]);
+  const result = f.run([], [integrations, project, acceptAgent]);
   assert.equal(result.status, 2, result.stdout);
   assert.match(result.stdout, /environment-blocked/);
   assert.doesNotMatch(result.stdout, /private diagnostic/);
   assert.deepEqual(f.unchanged(), before);
 });
 
-test("unavailable RC is not silently replaced", (t) => {
+test("unavailable RC is flagged before the user picks a replacement", (t) => {
   const f = setup(t, true);
   f.write(
     ".degreaserrc.json",
     JSON.stringify({ agent: "codex", model: "withdrawn-model" }),
   );
-  const before = f.unchanged();
-  const result = f.run([], [integrations, project, acceptModel, install]);
-  assert.equal(result.status, 2, result.stdout);
-  assert.match(result.stdout, /withdrawn-model/);
-  assert.deepEqual(f.unchanged(), before);
+  const result = f.run(
+    [],
+    [integrations, project, acceptAgent, acceptModel, install],
+  );
+  assert.equal(result.status, 0, result.stdout);
+  assert.match(
+    result.stdout,
+    /Previous model withdrawn-model is no longer available from Codex/,
+  );
 });
 
 test("TTY global selection installs only into the disposable home", (t) => {
   const f = setup(t);
   const result = f.run(
     [],
-    [integrations, [project[0], "\x1b[B\r"], acceptModel, install],
+    [integrations, [project[0], "\x1b[B\r"], acceptAgent, acceptModel, install],
   );
   assert.equal(result.status, 0, result.stdout);
   assert.ok(existsSync(join(f.home, ".degreaser/integrations.json")));
@@ -461,13 +472,17 @@ test("a displayed next command is runnable only after explicit user selection", 
 
 test("TTY partial flags constrain prefill instead of being silently ignored", (t) => {
   const f = setup(t, true);
-  for (const [args, expected] of [
-    [["--agent", "pi"], { agent: "pi", model: "openai/gpt-6-luna" }],
-    [["--model", "exact-codex"], { agent: "codex", model: "exact-codex" }],
+  for (const [args, expected, steps] of [
+    [["--agent", "pi"], { agent: "pi", model: "openai/gpt-6-luna" }, []],
+    [
+      ["--model", "exact-codex"],
+      { agent: "codex", model: "exact-codex" },
+      [acceptAgent],
+    ],
   ] as const) {
     const result = f.run(
       [...args],
-      [integrations, project, acceptModel, install],
+      [integrations, project, ...steps, acceptModel, install],
     );
     assert.equal(result.status, 0, result.stdout);
     assert.deepEqual(f.config(), { schemaVersion: 1, ...expected });

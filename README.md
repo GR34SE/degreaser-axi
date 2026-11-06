@@ -76,9 +76,10 @@ degreaser-axi init
 
 In a terminal, select your agents with Space and confirm with Enter. Init detects
 Codex, Claude Code and Pi on PATH without starting them, then asks where to
-install: Project or Global. Accept the suggested agent/model pair, or choose
-another agent and search its models. Only the selected review agent's catalog
-is loaded; switching agents loads that agent's catalog on demand.
+install: Project or Global. Pick the review agent, then press Enter on the
+highlighted model or type to search that agent's catalog. Only the selected
+review agent's catalog is loaded. If your previous model is no longer offered,
+init says so before you choose another.
 
 Every init, including reinit, requires you to confirm or change the model.
 An existing configuration prefills your previous choice. Without

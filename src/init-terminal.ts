@@ -7,6 +7,7 @@ import {
   confirm,
   intro,
   isCancel,
+  log,
   multiselect,
   select,
 } from "@clack/prompts";
@@ -87,94 +88,89 @@ export async function configureTerminal(
     const catalog = async (agent: Agent) => {
       let result = cache.get(agent);
       if (!result) {
+        // ponytail: no clack spinner; its block() exits 0 on Ctrl+C and skips adapter cleanup.
+        log.step(`Loading ${names[agent]} models…`, terminal);
         result = await load(agent, controller.signal);
         cache.set(agent, result);
       }
       if (controller.signal.aborted)
         throw new StateError("decision-required", "Installation cancelled.");
-      const first = result.candidates[0];
-      if (!first)
+      if (!result.candidates.length)
         throw new StateError(
           "environment-blocked",
           `${names[agent]} returned no models. Log in to it or choose another agent, then rerun degreaser init.`,
         );
-      return {
-        ...result,
-        defaultModel: result.recommendation?.model ?? first.model,
-      };
+      return result;
     };
     const previous =
       !options.model || options.previous?.model === options.model
         ? options.previous
         : undefined;
-    const agent = options.agent ?? previous?.agent ?? detected[0];
-    if (!agent)
+    const defaultAgent = options.agent ?? previous?.agent ?? detected[0];
+    if (!defaultAgent)
       throw new StateError("environment-blocked", "No review agent available.");
-    let choices = await catalog(agent);
-    let identity: Identity = {
-      agent,
-      model:
-        options.model ??
-        (options.previous?.agent === agent
-          ? options.previous.model
-          : undefined) ??
-        choices.defaultModel,
-    };
-    const selection = answered(
-      await select({
+    const available = options.agent
+      ? [options.agent]
+      : [...new Set([...detected, defaultAgent])];
+    const agent =
+      available.length > 1
+        ? answered(
+            await select<Agent>({
+              ...terminal,
+              message: "Review agent",
+              options: available.map((value) => ({
+                value,
+                label: names[value],
+              })),
+              initialValue: defaultAgent,
+            }),
+          )
+        : defaultAgent;
+    const choices = await catalog(agent);
+    const models = choices.candidates.filter(
+      (candidate) => !options.model || candidate.model === options.model,
+    );
+    const first = models[0];
+    if (!first)
+      throw new StateError("environment-blocked", "No matching models.");
+    const current =
+      options.previous?.agent === agent ? options.previous.model : undefined;
+    if (
+      current &&
+      !options.model &&
+      !models.some((candidate) => candidate.model === current)
+    )
+      log.warn(
+        `Previous model ${current} is no longer available from ${names[agent]}. Choose another one.`,
+        terminal,
+      );
+    const recommended = choices.recommendation?.model;
+    const prefill = [options.model, current, recommended].find((model) =>
+      models.some((candidate) => candidate.model === model),
+    );
+    const model = answered(
+      await autocomplete({
         ...terminal,
         message: "Review model",
-        options: [
-          {
-            value: "keep",
-            label: `${names[identity.agent]} / ${identity.model}`,
-          },
-          { value: "change", label: "Choose another model" },
-        ],
-        initialValue: "keep",
-      }),
-    );
-    if (selection === "change") {
-      const available = options.agent
-        ? [options.agent]
-        : [...new Set([...detected, identity.agent])];
-      const chosenAgent = answered(
-        await select<Agent>({
-          ...terminal,
-          message: "Agent",
-          options: available.map((value) => ({ value, label: names[value] })),
-          initialValue: identity.agent,
-        }),
-      );
-      choices = await catalog(chosenAgent);
-      const models = choices.candidates.filter(
-        (candidate) => !options.model || candidate.model === options.model,
-      );
-      const first = models[0];
-      if (!first)
-        throw new StateError("environment-blocked", "No matching models.");
-      const recommended = choices.recommendation?.model;
-      const model = answered(
-        await autocomplete({
-          ...terminal,
-          message: "Model",
-          placeholder: "Search models",
-          options: models.map((candidate) => ({
+        placeholder: "Search models",
+        options: models.map((candidate) => {
+          const hint = [
+            candidate.model === current && "current",
+            candidate.model === recommended && "recommended",
+          ]
+            .filter(Boolean)
+            .join(", ");
+          return {
             value: candidate.model,
             label: candidate.model,
-            ...(candidate.model === recommended ? { hint: "recommended" } : {}),
-          })),
-          initialValue:
-            chosenAgent === identity.agent &&
-            models.some((candidate) => candidate.model === identity.model)
-              ? identity.model
-              : (models.find((candidate) => candidate.model === recommended)
-                  ?.model ?? first.model),
-          maxItems: 6,
+            ...(hint ? { hint } : {}),
+          };
         }),
-      );
-      identity = { agent: chosenAgent, model };
-    }
+        initialValue: prefill ?? first.model,
+        maxItems: 6,
+      }),
+    );
+    const identity: Identity = { agent, model };
     if (
       !answered(
         await confirm({
