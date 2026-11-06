@@ -27,7 +27,7 @@ const args = [
   "--task",
   "Synthetic source review",
   "--aspects",
-  "A06",
+  "low-value-comments",
 ];
 
 function setup(t: TestContext) {
@@ -89,7 +89,9 @@ for (const override of [false, true]) {
             agent: "codex",
             model: "gpt-6-luna",
             aspects: {
-              overrides: { A06: { agent: "claude", model: "gpt-6-luna" } },
+              overrides: {
+                "low-value-comments": { agent: "claude", model: "gpt-6-luna" },
+              },
             },
           }
         : { agent: "claude", model: "gpt-6-luna" },
@@ -97,8 +99,8 @@ for (const override of [false, true]) {
     const rc = readFileSync(join(f.root, ".degreaserrc.json"));
     const result = f.run();
     assert.equal(result.status, 2, result.stdout);
-    assert.match(result.stdout, /error: invalid-input/);
-    assert.match(result.stdout, /A06.*claude.*exact model list/);
+    assert.match(result.stdout, /code: invalid-input/);
+    assert.match(result.stdout, /low-value-comments.*claude.*exact model list/);
     assert.ok(!existsSync(join(f.root, ".degreaser")));
     assert.deepEqual(readFileSync(join(f.root, ".degreaserrc.json")), rc);
     assert.deepEqual(
@@ -122,14 +124,20 @@ test("public admission discovers only selected exact identities, deduplicates an
     model: "gpt-6-luna",
     aspects: {
       overrides: {
-        A01: { model: "unselected-model" },
-        A04: { model: "exact-codex" },
-        A09: { agent: "claude", model: "claude-haiku-4-5-20251001" },
-        A16: { agent: "pi", model: "openai/gpt-6-luna" },
+        "missed-reuse": { model: "unselected-model" },
+        "masked-errors": { model: "exact-codex" },
+        "contract-bypass": {
+          agent: "claude",
+          model: "claude-haiku-4-5-20251001",
+        },
+        "verification-theater": { agent: "pi", model: "openai/gpt-6-luna" },
       },
     },
   });
-  const result = f.run([...args.slice(0, -1), "A04,A05,A06,A09,A16"]);
+  const result = f.run([
+    ...args.slice(0, -1),
+    "masked-errors,unjustified-defense,low-value-comments,contract-bypass,verification-theater",
+  ]);
   assert.equal(result.status, 0, result.stdout);
   const sessions = f
     .events()
@@ -193,7 +201,7 @@ test("public syntax errors, empty diff and coordinator-only audit skip metadata 
     "--task",
     "Audit",
     "--aspects",
-    "A08",
+    "scope-creep",
   ]);
   assert.equal(audit.status, 0, audit.stdout);
   assert.deepEqual(f.events(), []);

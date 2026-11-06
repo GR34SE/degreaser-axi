@@ -96,7 +96,7 @@ export async function liveReview(
       "--task",
       "Add a source-level sum helper for two numbers. Do not execute code.",
       "--aspects",
-      "A06",
+      "low-value-comments",
       "--wait",
       "1",
     ]);
@@ -145,7 +145,7 @@ export async function liveReview(
     assert.equal(saved.status, "completed");
     assert.equal(saved.tasks.length, 1);
     assert.deepEqual(saved.tasks[0]?.assignment, {
-      aspect: "A06",
+      aspect: "low-value-comments",
       agent,
       model,
     });

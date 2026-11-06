@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { alive, queueFixture, until } from "./queue-fixture.ts";
 
 const clean = {
-  aspect: "A06",
+  aspect: "low-value-comments",
   status: "no-findings",
   findings: [],
   limitations: [],
@@ -83,7 +83,7 @@ for (const [name, worker, retries, count, status] of [
       },
     });
     f.setPlan({ worker });
-    f.start(["--aspects", "A06"]);
+    f.start(["--aspects", "low-value-comments"]);
     const done = f.finish();
     assert.equal(done.status, status === "completed" ? 0 : 1, done.stdout);
     const task = f.state().tasks[0];
@@ -161,7 +161,7 @@ for (const [label, worker, expected, cancel, status] of [
         "--task",
         "Update source",
         "--aspects",
-        "A06",
+        "low-value-comments",
         "--wait",
         "1",
       ],
@@ -234,8 +234,8 @@ for (const [name, error, expected] of [
 ] as const) {
   test(`${name} is classified without retries, identity fallback or lost peers`, (t) => {
     const f = queueFixture(t, { maxRetries: 3, concurrency: 2 });
-    f.setPlan({ workers: { A06: { error } } });
-    f.start(["--aspects", "A04,A06"]);
+    f.setPlan({ workers: { "low-value-comments": { error } } });
+    f.start(["--aspects", "masked-errors,low-value-comments"]);
     const done = f.finish();
     assert.equal(done.status, 1, done.stdout);
     assert.equal(f.state().status, "partial");
@@ -274,7 +274,7 @@ for (const [stop, message, expected, afterEvidence] of [
     });
     f.setPlan({
       workers: {
-        A06: {
+        "low-value-comments": {
           resultGate: f.gate("fail"),
           [afterEvidence ? "afterError" : "error"]: {
             message: `${message}; private-provider-diagnostic`,
@@ -284,14 +284,17 @@ for (const [stop, message, expected, afterEvidence] of [
         },
       },
     });
-    f.start(["--aspects", "A04,A06"]);
+    f.start(["--aspects", "masked-errors,low-value-comments"]);
     await until(
       () => f.state().tasks[0]?.status === "no-findings",
       "Peer result committed before provider fault",
     );
     f.release("fail");
     await until(
-      () => f.lifecycle().some((e) => e.aspect === "A06" && e.type === "close"),
+      () =>
+        f
+          .lifecycle()
+          .some((e) => e.aspect === "low-value-comments" && e.type === "close"),
       "Provider fault reached cleanup",
     );
     const done =
@@ -364,7 +367,7 @@ for (const [name, worker, status, failure] of [
         result: { ...clean, status: "findings", findings: [finding] },
       },
     });
-    f.start(["--aspects", "A06"]);
+    f.start(["--aspects", "low-value-comments"]);
     const done = f.finish();
     assert.equal(done.status, status === "completed" ? 0 : 1, done.stdout);
     assert.equal(f.state().status, status);
@@ -395,14 +398,14 @@ for (const [label, results, expected] of [
   [
     "all not-applicable",
     {
-      A04: {
-        aspect: "A04",
+      "masked-errors": {
+        aspect: "masked-errors",
         status: "not-applicable",
         findings: [],
         limitations: [],
         reason: "No error handling.",
       },
-      A06: {
+      "low-value-comments": {
         ...clean,
         status: "not-applicable",
         reason: "No explanatory comments.",
@@ -412,19 +415,25 @@ for (const [label, results, expected] of [
   ],
   [
     "with findings",
-    { A06: { ...clean, status: "findings", findings: [finding] } },
+    {
+      "low-value-comments": {
+        ...clean,
+        status: "findings",
+        findings: [finding],
+      },
+    },
     "completed",
   ],
   [
     "all incomplete zero findings",
     {
-      A04: {
-        aspect: "A04",
+      "masked-errors": {
+        aspect: "masked-errors",
         status: "incomplete",
         findings: [],
         limitations: ["Callers unavailable."],
       },
-      A06: {
+      "low-value-comments": {
         ...clean,
         status: "incomplete",
         limitations: ["Callers unavailable."],
@@ -435,7 +444,7 @@ for (const [label, results, expected] of [
   [
     "incomplete with evidence",
     {
-      A06: {
+      "low-value-comments": {
         ...clean,
         status: "incomplete",
         findings: [finding],
@@ -444,14 +453,25 @@ for (const [label, results, expected] of [
     },
     "partial",
   ],
-  ["useful plus malformed", { A06: "" }, "partial"],
-  ["all malformed", { A04: "", A06: "" }, "failed"],
-  ["wrong aspect", { A04: clean, A06: { ...clean, aspect: "A04" } }, "failed"],
+  ["useful plus malformed", { "low-value-comments": "" }, "partial"],
+  [
+    "all malformed",
+    { "masked-errors": "", "low-value-comments": "" },
+    "failed",
+  ],
+  [
+    "wrong aspect",
+    {
+      "masked-errors": clean,
+      "low-value-comments": { ...clean, aspect: "masked-errors" },
+    },
+    "failed",
+  ],
 ] as const) {
   test(`terminal matrix: ${label}`, (t) => {
     const f = queueFixture(t);
     f.setPlan({ results });
-    f.start(["--aspects", "A04,A06"]);
+    f.start(["--aspects", "masked-errors,low-value-comments"]);
     const done = f.finish();
     assert.equal(done.status, expected === "completed" ? 0 : 1, done.stdout);
     assert.equal(f.state().status, expected);
@@ -477,13 +497,16 @@ for (const useful of [false, true]) {
     });
     f.setPlan({
       workers: {
-        A01: useful ? {} : { hang: true, descendant: true },
-        A02: { hang: true, descendant: true },
-        A03: {},
+        "missed-reuse": useful ? {} : { hang: true, descendant: true },
+        "unnecessary-layers": { hang: true, descendant: true },
+        "speculative-flexibility": {},
       },
     });
     const start = Date.now();
-    f.start(["--aspects", "A01,A02,A03"]);
+    f.start([
+      "--aspects",
+      "missed-reuse,unnecessary-layers,speculative-flexibility",
+    ]);
     const originalDeadline = f.state().deadline;
     const done = f.finish();
     const state = f.state();
@@ -494,7 +517,7 @@ for (const useful of [false, true]) {
     assert.ok(Date.now() - start < 12000, "Errors cannot reset the run budget");
     if (useful) {
       const completed = state.tasks[0];
-      assert.equal(completed?.assignment.aspect, "A01");
+      assert.equal(completed?.assignment.aspect, "missed-reuse");
       assert.equal(completed?.status, "no-findings");
       assert.equal(completed?.result?.status, "no-findings");
       assert.equal(completed?.attempts.length, 1);
@@ -545,7 +568,7 @@ test("runtime passes supported maxTurns and reports unsupported enforcement in t
             : "gpt-6-luna",
       limits: { maxTurns: 3, workerTimeoutSeconds: 10, runTimeoutSeconds: 20 },
     });
-    f.start(["--aspects", "A06"]);
+    f.start(["--aspects", "low-value-comments"]);
     assert.equal(f.finish().status, 0);
     const session = f.lifecycle().find((e) => e.type === "session");
     assert.equal(session?.meta?.claudeCode?.options?.maxTurns, 3);
@@ -563,7 +586,7 @@ test("runtime passes supported maxTurns and reports unsupported enforcement in t
 test("actual ACP permission requests are denied while valid evidence is retained", (t) => {
   const f = queueFixture(t, { maxRetries: 2 });
   f.setPlan({ worker: { permissionRequest: true } });
-  f.start(["--aspects", "A06"]);
+  f.start(["--aspects", "low-value-comments"]);
   const done = f.finish();
   assert.equal(done.status, 0, done.stdout);
   assert.deepEqual(
@@ -584,7 +607,7 @@ test("a valid result followed by an attempt timeout remains useful but unresolve
       afterHang: true,
     },
   });
-  f.start(["--aspects", "A06"]);
+  f.start(["--aspects", "low-value-comments"]);
   const done = f.finish();
   assert.equal(done.status, 1, done.stdout);
   assert.equal(f.state().status, "partial");
@@ -612,7 +635,7 @@ test("a silent worker stops at the idle limit, long before its hard timeout", (t
   });
   f.setPlan({ worker: { hang: true } });
   const started = Date.now();
-  f.start(["--aspects", "A06"]);
+  f.start(["--aspects", "low-value-comments"]);
   const done = f.finish();
   assert.equal(done.status, 1, done.stdout);
   assert.ok(Date.now() - started < 30_000);

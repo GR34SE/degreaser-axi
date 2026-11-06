@@ -36,7 +36,10 @@ fs.readFileSync = (path, ...args) => {
   const fault = plan();
   const name = path instanceof URL ? fileURLToPath(path) : String(path);
   const value = read(path, ...args);
-  if (name.includes("/aspects/a06-") && (!fault.afterAdmission || admitted)) {
+  if (
+    name.includes("/aspects/low-value-comments.md") &&
+    (!fault.afterAdmission || admitted)
+  ) {
     if (fault.mode === "prompt-mismatch") return `${value}\nChanged rubric.`;
     if (fault.mode === "prompt-error")
       throw new Error("Synthetic unexpected task error with SECRET-canary");

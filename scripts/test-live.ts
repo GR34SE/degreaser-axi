@@ -11,7 +11,7 @@ const { values } = parseArgs({
 });
 if (values.help) {
   console.log(
-    "pnpm test:live --run --case <native-worker|review|init|models|caller|caller-permissions|fleet> --agent <codex|claude|pi> --model <exact-id>\nOpt-in subscription-backed synthetic-file and public review pilots. Init exercises decisions before the same real review; models reads native metadata without inference. Caller tests project startup, skill discovery and personally waiting through terminal before continuation. Caller-permissions tests authorized/restricted Codex callers only. Fleet runs default uncapped A01-A16 for Codex or Claude, checks fresh quota and monitors actual host pressure with owned cancellation. Build and check quota first. Other scenarios are not implemented.",
+    "pnpm test:live --run --case <native-worker|review|init|models|caller|caller-permissions|fleet> --agent <codex|claude|pi> --model <exact-id>\nOpt-in subscription-backed synthetic-file and public review pilots. Init exercises decisions before the same real review; models reads native metadata without inference. Caller tests project startup, skill discovery and personally waiting through terminal before continuation. Caller-permissions tests authorized/restricted Codex callers only. Fleet runs all default aspects uncapped for Codex or Claude, checks fresh quota and monitors actual host pressure with owned cancellation. Build and check quota first. Other scenarios are not implemented.",
   );
 } else if (
   values.run &&

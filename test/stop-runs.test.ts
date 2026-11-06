@@ -22,7 +22,7 @@ test("a caller killed after admission leaves an owner that cleanup stops through
     "--task",
     "Update source",
     "--aspects",
-    "A06",
+    "low-value-comments",
     "--wait",
     "30",
   ]);
@@ -46,7 +46,7 @@ test("a caller killed after admission leaves an owner that cleanup stops through
 test("cleanup never signals an unverified owner and reports the run as unconfirmed", async (t) => {
   const f = queueFixture(t);
   f.setPlan({ worker: { result: "" } });
-  f.start(["--aspects", "A06"]);
+  f.start(["--aspects", "low-value-comments"]);
   assert.equal(f.finish().status, 1);
   const run = f.state();
   assert.ok(run.owner);
@@ -79,7 +79,7 @@ test("cleanup never signals an unverified owner and reports the run as unconfirm
 test("a timed-out cancel leaves the run unconfirmed and its owner running", async (t) => {
   const f = queueFixture(t);
   f.setPlan({ worker: { resultGate: f.gate("never") } });
-  assert.equal(f.start(["--aspects", "A06"]).status, 3);
+  assert.equal(f.start(["--aspects", "low-value-comments"]).status, 3);
   const run = f.state();
   assert.ok(run.owner);
   assert.deepEqual(
@@ -93,7 +93,7 @@ test("a timed-out cancel leaves the run unconfirmed and its owner running", asyn
 test("malformed run state and a terminal run with a live recorded owner stay unconfirmed", async (t) => {
   const f = queueFixture(t);
   f.setPlan({ worker: { result: "" } });
-  f.start(["--aspects", "A06"]);
+  f.start(["--aspects", "low-value-comments"]);
   assert.equal(f.finish().status, 1);
   const run = f.state();
   assert.ok(run.owner);

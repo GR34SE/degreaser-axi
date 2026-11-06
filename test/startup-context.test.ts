@@ -67,7 +67,7 @@ test("worker, corrupt config and corrupt history are silent", (t) => {
 test("reports a real synthetic review and suggests report or wait", async (t) => {
   const f = queueFixture(t);
   f.setPlan({ worker: { resultGate: f.gate("result") } });
-  assert.equal(f.start(["--aspects", "A01"]).status, 3);
+  assert.equal(f.start(["--aspects", "missed-reuse"]).status, 3);
   const running = f.state();
   const before = hook(f.root, { plain: true });
   assert.match(before, new RegExp(`wait ${running.id}`));

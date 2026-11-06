@@ -80,7 +80,7 @@ export async function liveModels(agent: Agent, model: string) {
                   model: "gpt-6-luna",
                   aspects: {
                     overrides: {
-                      A06: { agent, model: unsupported },
+                      "low-value-comments": { agent, model: unsupported },
                     },
                   },
                 }
@@ -97,7 +97,7 @@ export async function liveModels(agent: Agent, model: string) {
             "--task",
             "Synthetic metadata refusal",
             "--aspects",
-            "A06",
+            "low-value-comments",
           ],
           { cwd, encoding: "utf8", timeout: 45000 },
         );
@@ -106,7 +106,7 @@ export async function liveModels(agent: Agent, model: string) {
           2,
           "Real incompatible pair must refuse before admission.",
         );
-        assert.match(result.stdout, /error: invalid-input/);
+        assert.match(result.stdout, /code: invalid-input/);
         assert.match(result.stdout, /exact model list/);
         await assert.rejects(stat(join(cwd, ".degreaser")), {
           code: "ENOENT",

@@ -1,4 +1,4 @@
-# A02 · Unnecessary layers
+# Unnecessary layers
 
 `unnecessary-layers` · default ON
 
@@ -11,12 +11,12 @@
 **Boundaries:** Do not report a layer just because it is short. Check consumers outside the module before recommending removal.
 
 **Not here (another reviewer):**
-- An option, parameter or extension point without a current consumer: A03.
-- A shared layer combining cases with divergent rules and accumulating flags: A12.
+- An option, parameter or extension point without a current consumer: speculative-flexibility.
+- A shared layer combining cases with divergent rules and accumulating flags: wrong-abstraction.
 
 Sources / inspiration: S04. Teaching excerpts; context states omitted setup. These have not been executed as programs or model evaluations.
 
-## A02-B1 · REPORT
+## unnecessary-layers-B1 · REPORT
 
 **Context:** The layer is neither a public API, DI seam nor project boundary; every caller merely passes through it to the same service.
 
@@ -29,7 +29,7 @@ class UserManager {
 
 **Why:** Its only responsibility is forwarding. In this context it adds a type and navigation step without necessary behavior.
 
-## A02-B2 · REPORT
+## unnecessary-layers-B2 · REPORT
 
 **Context:** The application has one parser and no requirement for interchangeability, a public contract or resource initialization.
 
@@ -43,7 +43,7 @@ parser = ParserFactory().create()
 
 **Why:** The factory makes no decision and establishes no useful boundary. Direct parser use preserves the required contract.
 
-## A02-B3 · REPORT
+## unnecessary-layers-B3 · REPORT
 
 **Context:** Two nearly identical interfaces are added in front of one internal adapter. Both belong to the same module, and the repository has no port/gateway convention.
 
@@ -55,7 +55,7 @@ const gateway: ReaderGateway = port;
 
 **Why:** The second name requires synchronizing the same contract without a distinct owner or meaning. Check consumers before recommending removal.
 
-## A02-G1 · PRESERVE
+## unnecessary-layers-G1 · PRESERVE
 
 **Context:** The adapter separates an external SDK from a domain model that must remain stable when vendors change.
 
@@ -68,7 +68,7 @@ async function findUser(id: string): Promise<User> {
 
 **Why:** The layer maps the model and maintains a real boundary. A wrapper is not inherently a defect.
 
-## A02-G2 · PRESERVE
+## unnecessary-layers-G2 · PRESERVE
 
 **Context:** Every payment operation requires a transaction and audit record; the wrapper owns that shared policy.
 
@@ -84,7 +84,7 @@ async function charge(order: Order) {
 
 **Why:** The layer adds required behavior and guarantees ordering. Removing it would change the contract.
 
-## A02-G3 · PRESERVE
+## unnecessary-layers-G3 · PRESERVE
 
 **Context:** The package maintains a stable export consumed outside the repository, although it currently delegates to a short internal function.
 

@@ -1,25 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { ASPECT_IDS } from "../src/config.ts";
 import { alive, queueFixture, until } from "./queue-fixture.ts";
 
-const all = [
-  "A01",
-  "A02",
-  "A03",
-  "A04",
-  "A05",
-  "A06",
-  "A07",
-  "A08",
-  "A09",
-  "A10",
-  "A11",
-  "A12",
-  "A13",
-  "A14",
-  "A15",
-  "A16",
-];
+const all = [...ASPECT_IDS].sort();
 
 test("default fleet holds at session readiness, then sixteen real workers overlap before any result", async (t) => {
   const f = queueFixture(t);
@@ -45,7 +29,7 @@ test("default fleet holds at session readiness, then sixteen real workers overla
       .sort(),
     all,
   );
-  assert.equal(f.events()[0]?.aspect, "A01");
+  assert.equal(f.events()[0]?.aspect, "missed-reuse");
   assert.ok(f.events().every((e) => alive(e.pid)));
   assert.ok(f.state().tasks.every((task) => task.status === "running"));
   f.release("result");
@@ -59,17 +43,28 @@ for (const cap of [1, 2, 20]) {
     const f = queueFixture(t, { concurrency: cap });
     f.setPlan({
       workers: Object.fromEntries(
-        ["A04", "A06", "A09"].map((id) => [id, { resultGate: f.gate(id) }]),
+        ["masked-errors", "low-value-comments", "contract-bypass"].map((id) => [
+          id,
+          { resultGate: f.gate(id) },
+        ]),
       ),
     });
-    assert.equal(f.start(["--aspects", "A04,A06,A09"]).status, 3);
+    assert.equal(
+      f.start(["--aspects", "masked-errors,low-value-comments,contract-bypass"])
+        .status,
+      3,
+    );
     const slots = Math.min(cap, 3);
     await until(() => f.events().length === slots, "Initial slots fill");
     assert.equal(
       f.state().tasks.filter((task) => task.attempts.length).length,
       slots,
     );
-    for (const [index, id] of ["A04", "A06", "A09"].entries()) {
+    for (const [index, id] of [
+      "masked-errors",
+      "low-value-comments",
+      "contract-bypass",
+    ].entries()) {
       await until(
         () => f.events().some((e) => e.aspect === id),
         `${id} admitted`,
@@ -87,7 +82,7 @@ for (const cap of [1, 2, 20]) {
         .events()
         .map((e) => e.aspect)
         .sort(),
-      ["A04", "A06", "A09"],
+      ["contract-bypass", "low-value-comments", "masked-errors"],
     );
     for (const task of f.state().tasks) assert.equal(task.attempts.length, 1);
   });
@@ -97,15 +92,28 @@ test("a pre-invocation failure does not release the whole cold fleet", async (t)
   const f = queueFixture(t);
   f.setPlan({
     workers: {
-      A01: { startupError: { message: "Authentication required" } },
-      A02: { invocationGate: f.gate("invoke"), resultGate: f.gate("result") },
-      A03: { resultGate: f.gate("result") },
+      "missed-reuse": { startupError: { message: "Authentication required" } },
+      "unnecessary-layers": {
+        invocationGate: f.gate("invoke"),
+        resultGate: f.gate("result"),
+      },
+      "speculative-flexibility": { resultGate: f.gate("result") },
     },
   });
-  assert.equal(f.start(["--aspects", "A01,A02,A03"]).status, 3);
+  assert.equal(
+    f.start([
+      "--aspects",
+      "missed-reuse,unnecessary-layers,speculative-flexibility",
+    ]).status,
+    3,
+  );
   await until(
     () =>
-      f.lifecycle().some((e) => e.aspect === "A02" && e.type === "set-model"),
+      f
+        .lifecycle()
+        .some(
+          (e) => e.aspect === "unnecessary-layers" && e.type === "set-model",
+        ),
     "Second worker warms after first failure",
   );
   assert.equal(f.lifecycle().filter((e) => e.type === "initialize").length, 2);
@@ -121,7 +129,10 @@ test("all pre-invocation failures terminate within the watchdog with no prompt o
   f.setPlan({
     worker: { startupError: { message: "Authentication required" } },
   });
-  f.start(["--aspects", "A01,A02,A03"]);
+  f.start([
+    "--aspects",
+    "missed-reuse,unnecessary-layers,speculative-flexibility",
+  ]);
   assert.equal(f.finish().status, 1);
   assert.equal(f.state().status, "failed");
   assert.equal(f.events().length, 0);
@@ -133,7 +144,7 @@ test("whole attempt budget includes profile startup before adapter dispatch", (t
     limits: { workerTimeoutSeconds: 1, runTimeoutSeconds: 10 },
   });
   f.setPlan({ profileDelayMs: 1800 });
-  f.start(["--aspects", "A06"]);
+  f.start(["--aspects", "low-value-comments"]);
   assert.equal(f.finish().status, 1);
   assert.equal(f.events().length, 0);
   assert.equal(f.state().tasks[0]?.attempts[0]?.failure, "timeout");
@@ -143,16 +154,24 @@ test("retries retain their cap slot and join the prior process before a fresh se
   const f = queueFixture(t, { concurrency: 2, maxRetries: 1 });
   f.setPlan({
     workers: {
-      A01: { attempts: [{ result: "" }, { resultGate: f.gate("retry") }] },
-      A02: { resultGate: f.gate("peer") },
+      "missed-reuse": {
+        attempts: [{ result: "" }, { resultGate: f.gate("retry") }],
+      },
+      "unnecessary-layers": { resultGate: f.gate("peer") },
     },
   });
-  assert.equal(f.start(["--aspects", "A01,A02,A03"]).status, 3);
+  assert.equal(
+    f.start([
+      "--aspects",
+      "missed-reuse,unnecessary-layers,speculative-flexibility",
+    ]).status,
+    3,
+  );
   await until(
-    () => f.events().filter((e) => e.aspect === "A01").length === 2,
+    () => f.events().filter((e) => e.aspect === "missed-reuse").length === 2,
     "Fresh retry admitted",
   );
-  const [first, retry] = f.events().filter((e) => e.aspect === "A01");
+  const [first, retry] = f.events().filter((e) => e.aspect === "missed-reuse");
   assert.ok(first && retry);
   assert.notEqual(first.sessionId, retry.sessionId);
   assert.equal(first.prompt, retry.prompt);
@@ -160,12 +179,12 @@ test("retries retain their cap slot and join the prior process before a fresh se
   assert.ok(alive(retry.pid));
   assert.equal(f.events().filter((e) => alive(e.pid)).length, 2);
   assert.ok(
-    !f.events().some((e) => e.aspect === "A03"),
+    !f.events().some((e) => e.aspect === "speculative-flexibility"),
     "Retry did not free a third slot",
   );
   f.release("retry");
   await until(
-    () => f.events().some((e) => e.aspect === "A03"),
+    () => f.events().some((e) => e.aspect === "speculative-flexibility"),
     "Completed retry refills the slot",
   );
   assert.equal(

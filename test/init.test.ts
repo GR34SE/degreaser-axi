@@ -36,22 +36,22 @@ const defaultSettings = {
   },
   aspects: {
     enable: [
-      "A01",
-      "A02",
-      "A03",
-      "A04",
-      "A05",
-      "A06",
-      "A07",
-      "A08",
-      "A09",
-      "A10",
-      "A11",
-      "A12",
-      "A13",
-      "A14",
-      "A15",
-      "A16",
+      "missed-reuse",
+      "unnecessary-layers",
+      "speculative-flexibility",
+      "masked-errors",
+      "unjustified-defense",
+      "low-value-comments",
+      "convention-drift",
+      "scope-creep",
+      "contract-bypass",
+      "low-value-tests",
+      "incomplete-integration",
+      "wrong-abstraction",
+      "reinvented-infrastructure",
+      "unidiomatic-code",
+      "structural-erosion",
+      "verification-theater",
     ],
     disable: [],
     overrides: {},
@@ -168,7 +168,7 @@ for (const existing of [false, true]) {
     ]) {
       const result = f.run(args);
       assert.equal(result.status, 2, result.stdout);
-      assert.match(result.stdout, /error: decision-required/);
+      assert.match(result.stdout, /code: decision-required/);
       assert.match(result.stdout, /candidates/);
       assert.match(result.stdout, /recommendation/);
       assert.match(result.stdout, /codex,gpt-6-luna/);
@@ -191,7 +191,7 @@ test("explicit selection persists exact identity and preserves RC controls, then
   const controls = {
     concurrency: 2,
     maxRetries: 0,
-    aspects: { disable: ["A08"] },
+    aspects: { disable: ["scope-creep"] },
   };
   f.write(
     ".degreaserrc.json",
@@ -220,7 +220,9 @@ test("explicit selection persists exact identity and preserves RC controls, then
       aspects: {
         ...defaultSettings.aspects,
         ...controls.aspects,
-        enable: defaultSettings.aspects.enable.filter((id) => id !== "A08"),
+        enable: defaultSettings.aspects.enable.filter(
+          (id) => id !== "scope-creep",
+        ),
       },
     });
   }
@@ -242,7 +244,7 @@ test("explicit selection persists exact identity and preserves RC controls, then
       "--task",
       "Add sum",
       "--aspects",
-      "A06",
+      "low-value-comments",
     ],
     { cwd: f.root, env: f.env, encoding: "utf8", timeout: 30_000 },
   );

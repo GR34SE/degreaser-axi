@@ -42,7 +42,7 @@ console.log("99.0.0");
         "--task",
         "Review synthetic source",
         "--aspects",
-        "A06",
+        "low-value-comments",
       ],
     ]) {
       const result = spawnSync(process.execPath, [cli, ...args], {
@@ -96,8 +96,11 @@ console.log(${JSON.stringify(version)});
       model: "gpt-6-luna",
       aspects: {
         overrides: {
-          A06: { agent: "claude", model: "claude-haiku-4-5-20251001" },
-          A16: { agent: "pi", model: "openai/gpt-6-luna" },
+          "low-value-comments": {
+            agent: "claude",
+            model: "claude-haiku-4-5-20251001",
+          },
+          "verification-theater": { agent: "pi", model: "openai/gpt-6-luna" },
         },
       },
     }),
@@ -178,7 +181,7 @@ test("typed input errors are not reclassified from user-controlled field names",
       env: { HOME: f.root, PATH: process.env.PATH },
     });
     assert.equal(result.status, 2, result.stdout);
-    assert.match(result.stdout, /error: invalid-input/);
+    assert.match(result.stdout, /code: (invalid-input|VALIDATION_ERROR)/);
     assert.doesNotMatch(result.stdout, /diagnosis: permission/);
   }
 });
@@ -252,7 +255,7 @@ test("actual native Codex read-only sandbox refuses review but permits local hom
     "--task",
     "Synthetic source",
     "--aspects",
-    "A06",
+    "low-value-comments",
   ]);
   assert.equal(denied.status, 2, denied.stdout + denied.stderr);
   assert.match(denied.stdout, /environment-blocked/);

@@ -127,7 +127,7 @@ without waiting; omitted rows still have a full-report command.
 
 Full reports distinguish `configuration` (all selected exact identities),
 `coordinator` (applicability results without workers), and `execution` (only
-tasks with actual attempt records). Repository A08 stays configured but appears
+tasks with actual attempt records). Repository scope-creep stays configured but appears
 as coordinator-owned not-applicable, never a phantom worker.
 
 `usageScope: latest-attempt-per-aspect` applies to summary `usage` and full

@@ -1,4 +1,4 @@
-# A06 · Low-value comments
+# Low-value comments
 
 `low-value-comments` · default ON
 
@@ -11,11 +11,11 @@
 **Boundaries:** Preserve rationale, security information, public API documentation and required headers. A comment required by a language or repository convention, such as documentation of an exported Go name, stays even if it repeats the name.
 
 **Not here (another reviewer):**
-- Comments suppressing type checking or lint rules, such as @ts-ignore, # type: ignore or eslint-disable: A09.
+- Comments suppressing type checking or lint rules, such as @ts-ignore, # type: ignore or eslint-disable: contract-bypass.
 
 Sources / inspiration: S01. Teaching excerpts; context states omitted setup. These have not been executed as programs or model evaluations.
 
-## A06-B1 · REPORT
+## low-value-comments-B1 · REPORT
 
 **Context:** The repository does not require narrative comments on obvious statements.
 
@@ -26,7 +26,7 @@ count += 1;
 
 **Why:** The comment repeats the visible operation without explaining a reason or constraint.
 
-## A06-B2 · REPORT
+## low-value-comments-B2 · REPORT
 
 **Context:** The function is private to the module, and the repository does not require docstrings. Its name describes the read; the comment adds no contract or special condition.
 
@@ -38,7 +38,7 @@ def get_user(user_id):
 
 **Why:** The information adds nothing to the name and single statement. Public API or required documentation conventions would reverse the verdict; see G3.
 
-## A06-B3 · REPORT
+## low-value-comments-B3 · REPORT
 
 **Context:** The comment comes from generation narration rather than a program requirement.
 
@@ -49,7 +49,7 @@ const result = parse(input);
 
 **Why:** A generic quality claim explains neither behavior nor risk. It makes important notes harder to distinguish from filler.
 
-## A06-G1 · PRESERVE
+## low-value-comments-G1 · PRESERVE
 
 **Context:** The vendor has a documented batch limit; the number does not follow from domain logic.
 
@@ -60,7 +60,7 @@ const batchSize = 50;
 
 **Why:** The comment preserves the reason for a constraint needed during future changes.
 
-## A06-G2 · PRESERVE
+## low-value-comments-G2 · PRESERVE
 
 **Context:** Resource shutdown order matters but cannot easily be inferred from method names alone.
 
@@ -72,7 +72,7 @@ socket.Close()
 
 **Why:** The comment describes the consequence of incorrect ordering instead of repeating the code.
 
-## A06-G3 · PRESERVE
+## low-value-comments-G3 · PRESERVE
 
 **Context:** This is a public Go package. Go documentation conventions call for comments on exported names, and this repository enforces them with a linter.
 
