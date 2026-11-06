@@ -113,3 +113,61 @@ test("a final not-applicable pass cannot relabel an aspect earlier passes found 
   assert.equal(task.status, "no-findings");
   assert.equal(task.result.reason, undefined);
 });
+
+test("paths of rejected findings are not covered, so a focused pass judges them again", (t) => {
+  const f = setup(t, [
+    pass("findings", ["a.ts", "source.ts"], {
+      findings: [
+        { ...finding, location: { ...finding.location, path: "a.ts" } },
+      ],
+    }),
+    pass("no-findings", ["a.ts", "b.ts"]),
+  ]);
+  const task = run(f);
+  const second = f.events().map((e) => e.prompt as string)[1] ?? "";
+  const focus = second.slice(second.indexOf("# Focused coverage continuation"));
+  assert.match(focus, /paths\[2\]: a\.ts,b\.ts/);
+  assert.equal(task.status, "no-findings");
+  assert.equal(task.rejections.length, 1);
+});
+
+test("a worker cleanup failure stops coverage continuation and certifies nothing", (t) => {
+  const f = queueFixture(t, { agent: "pi", model: "openai/gpt-6-luna" });
+  f.write("a.ts", "export const a = 1;\n");
+  f.write("b.ts", "export const b = 2;\n");
+  f.setPlan({
+    workers: {
+      A06: {
+        closeError: { message: "Synthetic close failure", code: -32603 },
+        attempts: [
+          pass("incomplete", ["a.ts"]),
+          pass("no-findings", ["b.ts", "source.ts"]),
+        ],
+      },
+    },
+  });
+  const task = run(f);
+  assert.equal(task.attempts.length, 1);
+  assert.equal(task.status, "incomplete");
+  assert.deepEqual(task.result.examinedPaths, []);
+});
+
+test("A08 not-applicable cannot skip coverage once an earlier pass found it applicable", (t) => {
+  const f = setup(t, []);
+  const a08 = (status: string, examinedPaths: string[]) => ({
+    result: { ...pass(status, examinedPaths).result, aspect: "A08" },
+  });
+  f.setPlan({
+    workers: {
+      A08: {
+        attempts: [
+          a08("incomplete", ["a.ts"]),
+          { result: { ...a08("not-applicable", []).result, reason: "None." } },
+        ],
+      },
+    },
+  });
+  f.start(["--aspects", "A08"]);
+  f.finish();
+  assert.equal(f.state().tasks[0]?.status, "incomplete");
+});

@@ -39,7 +39,10 @@ export function mergePass(
     (f) => !seen.has(JSON.stringify(f)) && Boolean(seen.add(JSON.stringify(f))),
   );
   // A08's rubric decides applicability from the task's feature scope, not from files.
-  const taskScoped = pass.aspect === "A08" && pass.status === "not-applicable";
+  const taskScoped =
+    pass.aspect === "A08" &&
+    pass.status === "not-applicable" &&
+    !earlierApplicable;
   const missing = taskScoped ? [] : uncovered(input, examined);
   const merged: WorkerResult = {
     aspect: pass.aspect,
