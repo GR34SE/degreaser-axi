@@ -162,6 +162,14 @@ export function atomicWrite(path: string, value: string) {
     );
   }
 }
+/** Dismissal entries use the same schema they take inside review input. */
+export const validDismissals = (value: unknown): boolean =>
+  Boolean(
+    ajv.validate(
+      "https://degreaser.dev/schemas/input-v1.json#/properties/dismissed",
+      value,
+    ),
+  );
 function checked<T>(
   value: unknown,
   schema: ValidateFunction<T>,

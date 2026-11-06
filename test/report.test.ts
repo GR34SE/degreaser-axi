@@ -684,6 +684,10 @@ test("a dismissed finding is stored per repository and passed to later reviews o
   const prompts = f.events().map((e) => e.prompt ?? "");
   assert.doesNotMatch(prompts[0] ?? "", /Kept for old clients/);
   assert.match(prompts.at(-1) ?? "", /Kept for old clients/);
+  writeFileSync(stored, "[null]\n");
+  const corrupt = f.start(["--aspects", "A06"]);
+  assert.equal(corrupt.status, 2, corrupt.stdout);
+  assert.equal(decode(corrupt.stdout).code, "state-corrupt");
 });
 
 test("export prints the run as plain JSON with flattened, unclipped findings", (t) => {
