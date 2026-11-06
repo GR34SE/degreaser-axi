@@ -141,3 +141,27 @@ test("bare version stays close to the Node startup floor", () => {
     JSON.stringify({ floor, version }),
   );
 });
+
+test("setup errors name the command that resolves them", (t) => {
+  const outside = mkdtempSync(join(tmpdir(), "degreaser-outside-"));
+  t.after(() => rmSync(outside, { recursive: true, force: true }));
+  const run = (cwd: string, args: string[]) =>
+    spawnSync(process.execPath, [cli, ...args], {
+      cwd,
+      encoding: "utf8",
+      env: { ...process.env, HOME: outside },
+    });
+  const notRepo = run(outside, ["report"]);
+  assert.equal(notRepo.status, 2, notRepo.stdout);
+  assert.match(notRepo.stdout, /Not inside a Git repository/);
+  spawnSync("git", ["init", "-q"], { cwd: outside });
+  const unconfigured = run(outside, [
+    "review",
+    "--scope",
+    "worktree",
+    "--task",
+    "Check",
+  ]);
+  assert.equal(unconfigured.status, 2, unconfigured.stdout);
+  assert.match(unconfigured.stdout, /help\[1\]: degreaser-axi init/);
+});

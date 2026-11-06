@@ -306,7 +306,8 @@ export function dismissCommand(
   if (observedStatus(run) === "running")
     throw new StateError(
       "run-active",
-      `${run.id} is still running and its finding IDs can change. Run degreaser-axi wait ${run.id}, then dismiss from the final report.`,
+      `${run.id} is still running and its finding IDs can change. Wait for it, then dismiss from the final report.`,
+      [`degreaser-axi wait ${run.id}`],
     );
   const id = positionals[0];
   const finding = findings(run).find((f) => f.id === id);

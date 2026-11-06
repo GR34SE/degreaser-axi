@@ -521,7 +521,12 @@ test("public default/narrowed/restored selections retain exact overrides and exc
     f.input().paths.map((p: { path: string }) => p.path),
     ["source.ts"],
   );
-  assert.match(narrowed.stdout, /context without becoming reviewed coverage/);
+  // Standing input limitations stay out of short reports but remain in --full.
+  assert.doesNotMatch(narrowed.stdout, /context without becoming reviewed/);
+  assert.match(
+    f.run(["report", "--full"]).stdout,
+    /context without becoming reviewed coverage/,
+  );
   for (const selection of ["unnecessary-layers", "A99", "reuse-existing", ""])
     assert.equal(
       f.run([

@@ -86,9 +86,12 @@ export function terminalStatus(tasks: RunTask[]): Run["status"] {
 }
 export class StateError extends Error {
   code: string;
-  constructor(code: string, message: string) {
+  /** Commands that resolve this error; defaults to the command's --help. */
+  help: string[] | undefined;
+  constructor(code: string, message: string, help?: string[]) {
     super(message);
     this.code = code;
+    this.help = help;
   }
 }
 const ajv = new Ajv({ strict: true, allErrors: true });
