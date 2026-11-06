@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { requireGit } from "./git.ts";
-import { atomicWrite, StateError } from "./storage.ts";
+import { atomicWrite, StateError, validDismissals } from "./storage.ts";
 
 export interface Dismissal {
   aspect: string;
@@ -33,10 +33,11 @@ function readDismissals(path: string): Dismissal[] {
   } catch {
     value = null;
   }
-  if (!Array.isArray(value))
+  if (Array.isArray(value) && value.length === 0) return [];
+  if (!validDismissals(value))
     throw new StateError(
-      "invalid-state",
-      `${path} must contain a JSON array of dismissed findings.`,
+      "state-corrupt",
+      `${path} must be a JSON array of dismissed findings. Fix or delete it.`,
     );
   return value as Dismissal[];
 }
