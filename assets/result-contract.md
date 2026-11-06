@@ -86,7 +86,9 @@ the authoritative store fails.
 `review` and `wait` return completed/0, partial or failed/1, or running/3.
 `report` reads without launching work. `finding` retrieves complete evidence.
 The default report shows at most 30 findings; `report --full` shows every finding,
-per-aspect rejection reasons, attempts and exact selected identities.
+per-aspect rejection reasons, attempts and exact selected identities. It reports
+the reviewed path count as `paths`; `pathList` names the run's resolved input
+(`.degreaser/runs/<run-id>/input/review.json`) that holds the complete list.
 Missing usage is unknown, not zero. No-findings and not-applicable are distinct;
 neither a partial review nor an all-not-applicable review certifies clean code.
 
@@ -108,7 +110,11 @@ finding whose line falls inside it. IDs describe the current saved finding set;
 new results or replacement incomplete evidence can change ordinal IDs.
 
 Short reports expose total `count`, `shown` (at most 30), resolved/selected
-`aspects`, and each aspect's status, reason, limitations and rejection count.
+`aspects`, and each aspect's status, reason (omitted when none), limitations and
+rejection count. Run-level `limitations` lists every input, harness and aspect
+limitation once. Native harness/profile limitations shared by every worker of an
+agent appear only there; an aspect row lists only its own worker-reported and
+attempt limitations, excluding text identical to its reason.
 `report <run-id> --full` retrieves every finding without clipping, including
 uncertainty, and `finding <id> --run <run-id>` includes its aspect's limitations
 and the input's coverage limits. Running reports read the current saved snapshot

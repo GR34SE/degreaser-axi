@@ -36,6 +36,15 @@ export interface WorkerOutcome {
   limitations: string[];
 }
 
+/** Harness-wide, not aspect-specific: reports show it once at run level. */
+export function turnBudgetLimitations(agent: string, maxTurns: number) {
+  return agent === "claude"
+    ? []
+    : [
+        `${agent} does not natively enforce maxTurns (${maxTurns}); the instruction budget is advisory. Attempt and run deadlines are enforced.`,
+      ];
+}
+
 /** One fresh runtime/session per attempt. acpx, not this module, owns the process tree. */
 export async function executeWorker(
   request: WorkerRequest,
@@ -59,12 +68,11 @@ export async function executeWorker(
     output: "",
     usage: null,
     cleanupFailed: false,
-    limitations: [...profile.limitations],
+    limitations: [
+      ...profile.limitations,
+      ...turnBudgetLimitations(profile.agent, request.maxTurns),
+    ],
   };
-  if (profile.agent !== "claude")
-    outcome.limitations.push(
-      `${profile.agent} does not natively enforce maxTurns (${request.maxTurns}); the instruction budget is advisory. Attempt and run deadlines are enforced.`,
-    );
   if (request.signal?.aborted) return { ...outcome, failure: "cancelled" };
   const records = new Map<string, AcpSessionRecord>();
   const runtime = createAcpRuntime({

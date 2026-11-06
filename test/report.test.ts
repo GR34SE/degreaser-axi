@@ -232,7 +232,14 @@ test("short coverage attributes incomplete limitations and full reports separate
   f.setPlan({
     results: {
       A01: result("A01", [finding(1), finding(1, 1, "new", "absent.ts")]),
-      A04: result("A04", [], ["Could not inspect the error handler."]),
+      A04: {
+        ...result(
+          "A04",
+          [],
+          ["Could not inspect the error handler.", "Generated caller skipped."],
+        ),
+        reason: "Could not inspect the error handler.",
+      },
       A06: result("A06", []),
     },
   });
@@ -255,12 +262,36 @@ test("short coverage attributes incomplete limitations and full reports separate
   const incomplete = short.coverage.find(
     (row: { aspect: string }) => row.aspect === "A04",
   );
-  assert.match(incomplete.reason, /Could not inspect the error handler/);
+  // Reason is not repeated; harness/profile limitations appear once at run level.
+  assert.equal(incomplete.reason, "Could not inspect the error handler.");
+  assert.ok(incomplete.limitations.includes("Generated caller skipped."));
   assert.ok(
-    incomplete.limitations.includes("Could not inspect the error handler."),
+    !incomplete.limitations.includes("Could not inspect the error handler."),
   );
+  const harness = [
+    "Synthetic external adapter; not a live provider result.",
+    "codex does not natively enforce maxTurns (40); the instruction budget is advisory. Attempt and run deadlines are enforced.",
+  ];
+  for (const limitation of [...harness, "Generated caller skipped."])
+    assert.equal(
+      short.limitations.filter((l: string) => l === limitation).length,
+      1,
+      limitation,
+    );
+  for (const row of short.coverage)
+    for (const limitation of harness)
+      assert.ok(!row.limitations.includes(limitation), row.aspect);
+  const clean = short.coverage.find(
+    (row: { aspect: string }) => row.aspect === "A06",
+  );
+  assert.ok(!("reason" in clean));
   assert.equal(short.coverage[0].rejected, 1);
   const full = decode(f.run(["report", "--full"]).stdout);
+  assert.equal(full.pathList, `.degreaser/runs/${short.run}/input/review.json`);
+  assert.equal(
+    full.paths,
+    JSON.parse(readFileSync(join(f.root, full.pathList), "utf8")).paths.length,
+  );
   assert.deepEqual(
     full.configuration,
     ["A01", "A04", "A06", "A08"].map((aspect) => ({

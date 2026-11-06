@@ -1,6 +1,5 @@
 import { lstatSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { createInterface } from "node:readline/promises";
 import {
   type Agent,
   type Identity,
@@ -12,6 +11,7 @@ import { DiagnosticError } from "./diagnostics.ts";
 import { repositoryRoot } from "./git.ts";
 import { ensureStateIgnored } from "./init-ignore.ts";
 import { InputError } from "./input-error.ts";
+import type { InstallationScope } from "./integration-targets.ts";
 import { prepareIntegrations } from "./integrations.ts";
 import { discoverModels } from "./model-discovery.ts";
 import { atomicWrite, StateError } from "./storage.ts";
@@ -55,13 +55,19 @@ function readConfigText(path: string): string | null {
   }
 }
 
-async function catalog(cwd: string) {
+export type Catalog = Awaited<ReturnType<typeof catalog>>;
+
+async function catalog(
+  cwd: string,
+  selected: Agent[] = agents,
+  signal?: AbortSignal,
+) {
   const candidates: Candidate[] = [];
   const discovery: { agent: Agent; status: string; reason: string }[] = [];
   // Native probes share subscription resources; each joins before the next.
-  for (const agent of agents) {
+  for (const agent of selected) {
     try {
-      const models = await discoverModels({ agent }, cwd);
+      const models = await discoverModels({ agent }, cwd, 120_000, signal);
       const ids = [...new Set(models.availableModelIds)];
       if (ids.length === 0)
         throw new StateError(
@@ -83,6 +89,7 @@ async function catalog(cwd: string) {
         reason: "Native model metadata; no inference.",
       });
     } catch (error) {
+      if (signal?.aborted) throw error;
       if (!(error instanceof StateError || error instanceof DiagnosticError))
         throw error;
       discovery.push({
@@ -108,60 +115,10 @@ function sameIdentity(left: Identity, right: Identity) {
   return left.agent === right.agent && left.model === right.model;
 }
 
-async function confirm(
-  candidates: Candidate[],
-  prefill: Identity | null,
-  harnesses: Agent[],
-): Promise<{ identity: Identity; harnesses: Agent[] }> {
-  process.stderr.write(`${metadataNotice}\n`);
-  for (const [index, c] of candidates.entries())
-    process.stderr.write(`${index + 1}. ${c.agent}/${c.model}, ${c.account}\n`);
-  const terminal = createInterface({
-    input: process.stdin,
-    output: process.stderr,
-  });
-  const closed = new AbortController();
-  terminal.once("close", () => closed.abort());
-  terminal.once("SIGINT", () => terminal.close());
-  try {
-    const answer = await terminal.question(
-      `Confirm model${prefill ? ` [${prefill.agent}/${prefill.model}]` : ""}: Enter to confirm or type a candidate number > `,
-      { signal: closed.signal },
-    );
-    const identity =
-      answer.trim() === ""
-        ? prefill
-        : /^\d+$/.test(answer.trim())
-          ? candidates[Number(answer.trim()) - 1]
-          : undefined;
-    if (!identity)
-      throw new InputError(
-        "Choose a listed model number. No model was selected automatically.",
-      );
-    const targets = await terminal.question(
-      `Confirm harnesses [${harnesses.join(",")}]: Enter to confirm or type codex,claude,pi targets > `,
-      { signal: closed.signal },
-    );
-    return {
-      identity,
-      harnesses: harnessChoices(targets.trim() || harnesses.join(",")),
-    };
-  } catch (error) {
-    if (closed.signal.aborted)
-      throw new StateError(
-        "decision-required",
-        "Init was cancelled before confirmation. No files were written. Run degreaser-axi init again.",
-      );
-    throw error;
-  } finally {
-    terminal.close();
-  }
-}
-
 export async function init(
   values: Record<string, unknown>,
   cwd: string,
-): Promise<Record<string, unknown>> {
+): Promise<Record<string, unknown> | string> {
   if (process.env.DEGREASER_WORKER)
     throw new StateError(
       "nested-review",
@@ -179,9 +136,10 @@ export async function init(
     values.harnesses === undefined
       ? undefined
       : harnessChoices(String(values.harnesses));
-  const scope = values["installation-scope"] ?? "project";
-  if (scope !== "project" && scope !== "user")
+  const requestedScope = values["installation-scope"] ?? "project";
+  if (requestedScope !== "project" && requestedScope !== "user")
     throw new InputError("--installation-scope must be project or user.");
+  let scope: InstallationScope = requestedScope;
   const repository = repositoryRoot(cwd);
   const path = join(repository, ".degreaserrc.json");
   const before = readConfigText(path);
@@ -194,9 +152,24 @@ export async function init(
       throw new InputError("Root .degreaserrc.json must contain valid JSON.");
     }
   }
-  const choices = await catalog(repository);
+  const tty = Boolean(process.stdin.isTTY && process.stderr.isTTY);
+  let choices: Catalog;
   let identity: Identity | undefined =
     agent && model ? { agent, model } : undefined;
+  if (tty) {
+    const { configureTerminal } = await import("./init-terminal.ts");
+    const selected = await configureTerminal(
+      { agent, model, previous, harnesses, scope },
+      (selectedAgent, signal) => catalog(repository, [selectedAgent], signal),
+    );
+    if (!selected) return "";
+    identity = selected.identity;
+    harnesses = selected.harnesses;
+    scope = selected.scope;
+    choices = selected.choices;
+  } else {
+    choices = await catalog(repository);
+  }
   const matchesFlags = (candidate: Identity) =>
     (!agent || candidate.agent === agent) &&
     (!model || candidate.model === model);
@@ -211,25 +184,7 @@ export async function init(
     ...(!agent || !model ? ["model"] : []),
     ...(!harnesses ? ["harnesses"] : []),
   ];
-  if (process.stdin.isTTY && process.stderr.isTTY) {
-    for (const d of choices.discovery)
-      process.stderr.write(`${d.agent}: ${d.status}. ${d.reason}\n`);
-    if (choices.candidates.length === 0)
-      throw new StateError(
-        "environment-blocked",
-        "No model catalog is available. Repair native harness access and run degreaser-axi init again. No files were written.",
-      );
-    const selected = await confirm(
-      choices.candidates,
-      prefill,
-      harnesses ??
-        choices.discovery
-          .filter((d) => d.status === "discovered")
-          .map((d) => d.agent),
-    );
-    identity = selected.identity;
-    harnesses = selected.harnesses;
-  } else if (missing.length) {
+  if (!tty && missing.length) {
     process.exitCode = 2;
     const shellQuote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
     const example =
@@ -312,6 +267,28 @@ export async function init(
         "Resolve the reported failure, then rerun init with freshly confirmed model and harness choices.",
       ],
     };
+  }
+  if (tty) {
+    const { log, outro } = await import("@clack/prompts");
+    if (ignore.tracked)
+      log.warn(
+        "Files in .degreaser/ are already tracked by Git. Review them before sharing.",
+        { output: process.stderr },
+      );
+    const invoke = {
+      claude: "Claude Code: /degreaser review my changes",
+      codex:
+        "Codex: $degreaser review my changes (approve project and hook trust when asked)",
+      pi: "Pi: /skill:degreaser review my changes",
+    };
+    outro(
+      [
+        "Ready. In a new session, ask for a review:",
+        ...harnesses.map((h) => `  ${invoke[h]}`),
+      ].join("\n"),
+      { output: process.stderr },
+    );
+    return "";
   }
   return {
     status: "configured",
