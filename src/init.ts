@@ -12,8 +12,12 @@ import { DiagnosticError } from "./diagnostics.ts";
 import { git, repositoryRoot } from "./git.ts";
 import { ensureStateIgnored } from "./init-ignore.ts";
 import { InputError } from "./input-error.ts";
-import type { InstallationScope } from "./integration-targets.ts";
-import { prepareIntegrations } from "./integrations.ts";
+import { IntegrationConflict } from "./integration-files.ts";
+import {
+  type InstallationScope,
+  skillInstallChoice,
+} from "./integration-targets.ts";
+import { prepareIntegrations, type SkillInstall } from "./integrations.ts";
 import { discoverModels } from "./model-discovery.ts";
 import { atomicWrite, StateError } from "./storage.ts";
 
@@ -124,6 +128,11 @@ export async function init(
   if (requestedScope !== "project" && requestedScope !== "user")
     throw new InputError("--installation-scope must be project or user.");
   let scope: InstallationScope = requestedScope;
+  const requestedSkillInstall =
+    values["skill-install"] === undefined
+      ? undefined
+      : skillInstallChoice(values);
+  let skillInstall: SkillInstall = requestedSkillInstall ?? "copy";
   const repository = repositoryRoot(cwd);
   const path = join(repository, ".degreaserrc.json");
   const before = readConfigText(path);
@@ -143,13 +152,21 @@ export async function init(
   if (tty) {
     const { configureTerminal } = await import("./init-terminal.ts");
     const selected = await configureTerminal(
-      { agent, model, previous, harnesses, scope },
+      {
+        agent,
+        model,
+        previous,
+        harnesses,
+        scope,
+        skillInstall: requestedSkillInstall,
+      },
       (selectedAgent, signal) => catalog(repository, [selectedAgent], signal),
     );
     if (!selected) return "";
     identity = selected.identity;
     harnesses = selected.harnesses;
     scope = selected.scope;
+    skillInstall = selected.skillInstall;
     choices = selected.choices;
   } else {
     choices = await catalog(repository);
@@ -222,7 +239,31 @@ export async function init(
       ".degreaserrc.json changed during init. Rerun init to confirm the current configuration.",
     );
   const text = `${JSON.stringify(config, null, 2)}\n`;
-  const integrations = prepareIntegrations(repository, harnesses, scope);
+  const replace = new Set<string>();
+  let integrations: ReturnType<typeof prepareIntegrations>;
+  for (;;) {
+    try {
+      integrations = prepareIntegrations(repository, harnesses, scope, {
+        skillInstall,
+        replace,
+      });
+      break;
+    } catch (error) {
+      if (
+        !tty ||
+        !(error instanceof IntegrationConflict) ||
+        !error.replaceable ||
+        replace.has(error.path)
+      )
+        throw error;
+      if (!(await confirmReplace(error.path, repository)))
+        throw new StateError(
+          "decision-required",
+          `Kept ${error.path}. Nothing was installed; preserve your edits, then rerun init.`,
+        );
+      replace.add(error.path);
+    }
+  }
   const ignore = ensureStateIgnored(repository);
   let installed = false;
   try {
@@ -272,25 +313,37 @@ export async function init(
     .map((line) => line.slice(3));
   const commitHint = `Commit ${uncommitted.join(", ")} so new Git worktrees and teammates get this configuration. Init never stages or commits.`;
   if (tty) {
-    const { log, outro } = await import("@clack/prompts");
-    if (uncommitted.length) log.info(commitHint, { output: process.stderr });
+    const { log, note, outro } = await import("@clack/prompts");
+    const output = { output: process.stderr };
     if (ignore.tracked)
       log.warn(
         "Files in .degreaser/ are already tracked by Git. Review them before sharing.",
         { output: process.stderr },
       );
     const invoke = {
-      claude: "Claude Code: /degreaser review my changes",
-      codex:
-        "Codex: $degreaser review my changes (approve project and hook trust when asked)",
-      pi: "Pi: /skill:degreaser review my changes",
-    };
+      codex: ["Codex", "$degreaser review my changes"],
+      claude: ["Claude Code", "/degreaser review my changes"],
+      pi: ["Pi", "/skill:degreaser review my changes"],
+    } as const;
+    const width = Math.max(...harnesses.map((h) => invoke[h][0].length));
+    note(
+      harnesses
+        .map((h) => `${invoke[h][0].padEnd(width)}  ${invoke[h][1]}`)
+        .join("\n"),
+      "Ask for a review in a new session",
+      output,
+    );
+    if (uncommitted.length)
+      note(
+        uncommitted.sort().join("\n"),
+        "Commit these so worktrees and teammates get Degreaser",
+        output,
+      );
     outro(
-      [
-        "Ready. In a new session, ask for a review:",
-        ...harnesses.map((h) => `  ${invoke[h]}`),
-      ].join("\n"),
-      { output: process.stderr },
+      harnesses.includes("codex")
+        ? "Done. Codex asks you to trust the project and its hook on first start."
+        : "Done.",
+      output,
     );
     return "";
   }
@@ -319,4 +372,17 @@ export async function init(
       "degreaser-axi review --help",
     ],
   };
+}
+
+async function confirmReplace(path: string, repository: string) {
+  const { confirm, isCancel } = await import("@clack/prompts");
+  const shown = path.startsWith(`${repository}/`)
+    ? relative(repository, path)
+    : path;
+  const answer = await confirm({
+    message: `${shown} differs from this Degreaser version (an older install, another checkout, or your edits). Replace it? Edits in it will be lost.`,
+    initialValue: false,
+    output: process.stderr,
+  });
+  return !isCancel(answer) && answer;
 }

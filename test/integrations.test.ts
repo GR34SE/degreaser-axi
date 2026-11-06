@@ -2,10 +2,12 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import {
   existsSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
+  readlinkSync,
   realpathSync,
   rmSync,
   symlinkSync,
@@ -348,4 +350,66 @@ test("foreign files, malformed native config and symlink ancestors are never ove
     "Foreign skill",
   );
   assert.ok(!existsSync(join(f.root, ".codex/hooks.json")));
+});
+
+test("reinstall without the local receipt adopts identical files and the marked hook", (t) => {
+  const f = setup(t);
+  assert.equal(f.maintenance("codex,claude,pi").status, 0);
+  // The rebuilt receipt may differ (an adopted hook file was not created by us).
+  const files = () => {
+    const { "/.degreaser/integrations.json": _receipt, ...rest } = snapshot(
+      f.root,
+    );
+    return rest;
+  };
+  const installed = files();
+  rmSync(join(f.root, ".degreaser/integrations.json"));
+  const again = f.maintenance("codex,claude,pi");
+  assert.equal(again.status, 0, again.stdout);
+  assert.deepEqual(files(), installed);
+  f.write(".agents/skills/degreaser/SKILL.md", "older Degreaser skill");
+  rmSync(join(f.root, ".degreaser/integrations.json"));
+  const stale = f.maintenance("codex");
+  assert.equal(stale.status, 2, stale.stdout);
+  assert.match(stale.stdout, /delete it and rerun/);
+});
+
+test("Claude's skill can link to the shared .agents copy and switch back to a copy", (t) => {
+  const f = setup(t);
+  const dir = join(f.root, ".claude/skills/degreaser");
+  const linkArgs = [
+    "setup",
+    "hooks",
+    "--harnesses",
+    "codex,claude",
+    "--skill-install",
+    "link",
+  ];
+  assert.equal(f.maintenance("codex,claude").status, 0);
+  assert.ok(lstatSync(dir).isDirectory());
+  const linked = f.run(linkArgs);
+  assert.equal(linked.status, 0, linked.stdout);
+  assert.equal(readlinkSync(dir), "../../.agents/skills/degreaser");
+  assert.equal(
+    readFileSync(join(dir, "SKILL.md"), "utf8"),
+    readFileSync(join(f.root, ".agents/skills/degreaser/SKILL.md"), "utf8"),
+  );
+  assert.equal(f.run(linkArgs).status, 0);
+  const copied = f.maintenance("codex,claude");
+  assert.equal(copied.status, 0, copied.stdout);
+  assert.ok(lstatSync(dir).isDirectory());
+  assert.ok(lstatSync(join(dir, "SKILL.md")).isFile());
+  assert.equal(f.run(linkArgs).status, 0);
+  assert.equal(f.maintenance("claude", "project", true).status, 0);
+  assert.equal(existsSync(dir), false);
+  assert.ok(existsSync(join(f.root, ".agents/skills/degreaser/SKILL.md")));
+  const alone = f.run([
+    "setup",
+    "hooks",
+    "--harnesses",
+    "claude",
+    "--skill-install",
+    "link",
+  ]);
+  assert.equal(alone.status, 2, alone.stdout);
 });

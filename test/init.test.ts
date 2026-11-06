@@ -298,7 +298,8 @@ const integrations: [string, string] = [
   "\r",
 ];
 const project: [string, string] = ["Installation scope", "\r"];
-const acceptAgent: [string, string] = ["Review agent", "\r"];
+const skill: [string, string] = ["get the Degreaser skill?", "\r"];
+const acceptAgent: [string, string] = ["agent should run the reviews?", "\r"];
 const acceptModel: [string, string] = ["Search models", "\r"];
 const install: [string, string] = ["Proceed with installation?", "\r"];
 
@@ -306,13 +307,20 @@ test("TTY uses multiselect and a prefilled pair without probing unselected agent
   const f = setup(t);
   const result = f.run(
     [],
-    [[integrations[0], " \r"], project, acceptAgent, acceptModel, install],
+    [
+      [integrations[0], " \r"],
+      project,
+      skill,
+      acceptAgent,
+      acceptModel,
+      install,
+    ],
   );
   assert.equal(result.status, 0, result.stdout);
   assert.equal(f.config().model, "gpt-6-luna");
   assert.match(result.stdout, /Loading Codex models/);
-  assert.match(result.stdout, /Claude Code: \/degreaser review my changes/);
-  assert.match(result.stdout, /Pi: \/skill:degreaser review my changes/);
+  assert.match(result.stdout, /Claude Code +\/degreaser review my changes/);
+  assert.match(result.stdout, /Pi +\/skill:degreaser review my changes/);
   assert.doesNotMatch(result.stdout, /\$degreaser|doctor/);
   assert.doesNotMatch(
     result.stdout,
@@ -330,19 +338,20 @@ test("TTY can change harness and search an exact model, then retains it on reini
     [
       integrations,
       project,
+      skill,
       [acceptAgent[0], "\x1b[B\r"],
       [acceptModel[0], "haiku\r"],
       install,
     ],
   );
   assert.equal(changed.status, 0, changed.stdout);
-  assert.match(changed.stdout, /Codex: \$degreaser review my changes/);
-  assert.match(changed.stdout, /approve project and hook trust/);
+  assert.match(changed.stdout, /Codex +\$degreaser review my changes/);
+  assert.match(changed.stdout, /Codex asks you to trust the project/);
   assert.equal(f.config().agent, "claude");
   assert.equal(f.config().model, "claude-haiku-4-5-20251001");
   const again = f.run(
     [],
-    [integrations, project, acceptAgent, acceptModel, install],
+    [integrations, project, skill, acceptAgent, acceptModel, install],
   );
   assert.equal(again.status, 0, again.stdout);
   assert.match(again.stdout, /claude-haiku-4-5-20251001 \(current/);
@@ -360,7 +369,14 @@ test("TTY cancellation before discovery or before installation writes nothing", 
   assert.deepEqual(f.unchanged(), before);
   const declined = f.run(
     [],
-    [integrations, project, acceptAgent, acceptModel, [install[0], "n\r"]],
+    [
+      integrations,
+      project,
+      skill,
+      acceptAgent,
+      acceptModel,
+      [install[0], "n\r"],
+    ],
   );
   assert.equal(declined.status, 2, declined.stdout);
   assert.match(declined.stdout, /Installation cancelled/);
@@ -388,6 +404,7 @@ test("TTY Ctrl+C during discovery stops its adapter and leaves files untouched",
     [
       integrations,
       project,
+      skill,
       acceptAgent,
       [{ file: f.log, contains: '"type":"session"' }, "\x03"],
     ],
@@ -406,7 +423,7 @@ test("TTY defaults to Claude Haiku when Codex is absent", (t) => {
   rmSync(join(f.bin, "codex"));
   const result = f.run(
     [],
-    [integrations, project, acceptAgent, acceptModel, install],
+    [integrations, project, skill, acceptAgent, acceptModel, install],
   );
   assert.equal(result.status, 0, result.stdout);
   assert.equal(f.config().agent, "claude");
@@ -418,7 +435,7 @@ test("TTY discovery failure leaves configuration untouched", (t) => {
   const f = setup(t);
   f.setPlan({ metadataFailure: true });
   const before = f.unchanged();
-  const result = f.run([], [integrations, project, acceptAgent]);
+  const result = f.run([], [integrations, project, skill, acceptAgent]);
   assert.equal(result.status, 2, result.stdout);
   assert.match(result.stdout, /environment-blocked/);
   assert.doesNotMatch(result.stdout, /private diagnostic/);
@@ -433,7 +450,7 @@ test("unavailable RC is flagged before the user picks a replacement", (t) => {
   );
   const result = f.run(
     [],
-    [integrations, project, acceptAgent, acceptModel, install],
+    [integrations, project, skill, acceptAgent, acceptModel, install],
   );
   assert.equal(result.status, 0, result.stdout);
   assert.match(
@@ -446,7 +463,14 @@ test("TTY global selection installs only into the disposable home", (t) => {
   const f = setup(t);
   const result = f.run(
     [],
-    [integrations, [project[0], "\x1b[B\r"], acceptAgent, acceptModel, install],
+    [
+      integrations,
+      [project[0], "\x1b[B\r"],
+      skill,
+      acceptAgent,
+      acceptModel,
+      install,
+    ],
   );
   assert.equal(result.status, 0, result.stdout);
   assert.ok(existsSync(join(f.home, ".degreaser/integrations.json")));
@@ -522,7 +546,7 @@ test("TTY partial flags constrain prefill instead of being silently ignored", (t
   ] as const) {
     const result = f.run(
       [...args],
-      [integrations, project, ...steps, acceptModel, install],
+      [integrations, project, skill, ...steps, acceptModel, install],
     );
     assert.equal(result.status, 0, result.stdout);
     assert.deepEqual(f.config(), {
@@ -549,4 +573,31 @@ test("init names its uncommitted project files so new worktrees inherit them", (
   const again = f.run(explicit);
   assert.equal(again.status, 0, again.stdout);
   assert.doesNotMatch(again.stdout, /uncommitted|new Git worktrees/);
+});
+
+test("TTY offers to replace a stale Degreaser skill instead of failing", (t) => {
+  const f = setup(t);
+  assert.equal(f.run(explicit).status, 0);
+  f.write(".agents/skills/degreaser/SKILL.md", "older Degreaser skill");
+  rmSync(join(f.root, ".degreaser/integrations.json"));
+  const steps: [string, string][] = [
+    integrations,
+    project,
+    skill,
+    acceptAgent,
+    acceptModel,
+    install,
+  ];
+  const kept = f.run([], [...steps, ["Replace it?", "\r"]]);
+  assert.equal(kept.status, 2, kept.stdout);
+  assert.equal(
+    readFileSync(join(f.root, ".agents/skills/degreaser/SKILL.md"), "utf8"),
+    "older Degreaser skill",
+  );
+  const replaced = f.run([], [...steps, ["Replace it?", "y"]]);
+  assert.equal(replaced.status, 0, replaced.stdout);
+  assert.match(
+    readFileSync(join(f.root, ".claude/skills/degreaser/SKILL.md"), "utf8"),
+    /name: degreaser/,
+  );
 });

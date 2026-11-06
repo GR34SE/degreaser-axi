@@ -109,6 +109,11 @@ Global in the terminal or pass `--installation-scope user` for user-wide integra
 setup still belong to the current project. Nothing changes global permissions,
 Codex features/rules, or your AGENTS.md and CLAUDE.md instructions.
 
+Claude Code reads skills from `.claude/skills`, Codex and Pi from
+`.agents/skills`. When Claude and Codex or Pi are selected, init asks whether
+Claude gets a symlink to the shared `.agents/skills/degreaser` copy or its own
+copy; pass `--skill-install link` or `copy` (default) without a terminal.
+
 Start a new harness session after installation (or reload Pi). **Installed does
 not mean active:** host trust and hook policy still apply. Codex 0.165.0 enables
 hooks by default but separately requires project and hook trust. Approve through
@@ -124,6 +129,9 @@ being overwritten. Preserve your edits elsewhere or restore the owned content
 before retrying. Ownership receipts live in `.degreaser/integrations.json` at
 the selected project or home root; keep them for safe maintenance. Codex and Pi
 share `.agents/skills/degreaser`, retained until both owners are removed.
+Without a receipt (a fresh clone or new worktree), files identical to this
+version and Degreaser's marked hook entries are adopted; a Degreaser file that
+differs is a conflict, which an interactive init offers to replace.
 
 Startup reads only compact local context. It starts no models or reviews and
 is disabled in review workers. Missing executables or invalid local state do
