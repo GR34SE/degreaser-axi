@@ -1,3 +1,4 @@
+import { StateError } from "./storage.ts";
 export const INHERITED_WORKER_ENV = [
   "HOME",
   "PATH",
@@ -58,4 +59,10 @@ export function assertSubscriptionEnvironment(env: NodeJS.ProcessEnv): void {
     throw new Error(
       "Subscription-only worker blocked by credential or routing overrides.",
     );
+}
+
+/** Workers run with DEGREASER_WORKER set and must never drive Degreaser. */
+export function assertNotWorker(action: string) {
+  if (process.env.DEGREASER_WORKER)
+    throw new StateError("nested-review", `Workers cannot ${action}.`);
 }
