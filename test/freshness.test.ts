@@ -300,12 +300,15 @@ test("moving an explicit branch base and copying a run to another repository can
   });
   const copied = other.run(["resume", run.id]);
   assert.equal(copied.status, 2, copied.stdout);
-  assert.match(copied.stdout, /invalid-input/);
+  assert.match(copied.stdout, /foreign-run/);
   assert.deepEqual(other.events(), []);
   assert.deepEqual(
     readFileSync(join(other.root, ".degreaser/runs", run.id, "run.json")),
     before,
   );
+  // Foreign history (a moved or copied repository) does not block new reviews.
+  other.start(["--aspects", "A06"]);
+  assert.equal(other.finish().status, 0);
   rmSync(join(other.root, ".degreaser"), { recursive: true });
 });
 

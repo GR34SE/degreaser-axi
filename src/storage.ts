@@ -227,8 +227,8 @@ function checkedRun(
   const run = checked(value, runSchema, path);
   if (run.repository !== repository)
     throw new StateError(
-      "invalid-input",
-      `Run belongs to another repository: ${path}`,
+      "foreign-run",
+      `Run ${id} was recorded for ${run.repository}, not this repository (moved or copied). Start a new review here.`,
     );
   if (
     run.id !== id ||
@@ -297,8 +297,14 @@ export function loadInput(run: Run): ReviewInput {
   }
 }
 export function checkHistory(repository: string) {
-  if (existsSync(statePath(repository, "state.json")))
+  if (!existsSync(statePath(repository, "state.json"))) return;
+  try {
     loadInput(loadRun(repository));
+  } catch (error) {
+    // History from a moved or copied repository must not block new reviews.
+    if (!(error instanceof StateError && error.code === "foreign-run"))
+      throw error;
+  }
 }
 export function createRun(input: ReviewInput): Run {
   checked(input, inputSchema, "input/review.json");
