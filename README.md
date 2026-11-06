@@ -353,6 +353,7 @@ The CLI follows [AXI](https://axi.md/): a short summary, details on demand, and 
 degreaser-axi report          # Latest run and findings.
 degreaser-axi report --full   # Full evidence.
 degreaser-axi finding F1     # One finding from the latest run.
+degreaser-axi export > r.json # Findings, coverage and limitations as JSON for other tools.
 degreaser-axi doctor         # Local configuration/native-version diagnostics, no inference.
 ```
 

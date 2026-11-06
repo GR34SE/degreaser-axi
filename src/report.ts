@@ -264,3 +264,33 @@ export function renderReport(run: Run, full = false) {
           ],
   };
 }
+
+/** Stable JSON for other tools; findings are flattened and never clipped. */
+export function exportRun(run: Run) {
+  const input = loadInput(run);
+  const status = observedStatus(run);
+  return `${JSON.stringify(
+    {
+      schemaVersion: 1,
+      run: run.id,
+      status,
+      scope: input.scope,
+      task: input.task,
+      base: input.base,
+      tree: input.tree,
+      findings: findings(run).map(({ location, ...finding }) => ({
+        ...finding,
+        ...location,
+      })),
+      coverage: run.tasks.map((t) =>
+        coverage(t, input, status === "interrupted"),
+      ),
+      limitations: [
+        ...input.limitations.map((l) => l.message),
+        ...new Set(run.tasks.flatMap(taskLimitations)),
+      ],
+    },
+    null,
+    2,
+  )}\n`;
+}

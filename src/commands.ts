@@ -149,6 +149,17 @@ export const COMMANDS: Record<string, Command> = {
     positionals: { min: 0, max: 1 },
     examples: ["degreaser-axi report", "degreaser-axi report <run-id> --full"],
   },
+  export: {
+    description:
+      "Print a run's findings, coverage and limitations as JSON for other tools",
+    usage: "export [run-id]",
+    flags: {},
+    positionals: { min: 0, max: 1 },
+    examples: [
+      "degreaser-axi export > degreaser.json",
+      "degreaser-axi export <run-id>",
+    ],
+  },
   finding: {
     description: "Show a finding's full source evidence",
     usage: "finding <id> [--run <run-id>]",

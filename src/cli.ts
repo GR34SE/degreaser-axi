@@ -188,7 +188,7 @@ async function execute(
     return resume(parsed.positionals[0] ?? "", parsed.values, process.cwd());
   if (name === "dismiss")
     return dismissCommand(parsed.positionals, parsed.values, process.cwd());
-  if (["wait", "report", "finding"].includes(name))
+  if (["wait", "report", "export", "finding"].includes(name))
     return readCommand(name, parsed.positionals, parsed.values, process.cwd());
   process.exitCode = 2;
   return {

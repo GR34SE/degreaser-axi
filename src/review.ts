@@ -16,6 +16,7 @@ import {
   verifyOwner,
 } from "./ownership.ts";
 import {
+  exportRun,
   findings,
   observedStatus,
   renderFinding,
@@ -277,6 +278,7 @@ export async function readCommand(
     return waitFor(run, seconds);
   }
   if (name === "report") return renderReport(run, values.full === true);
+  if (name === "export") return exportRun(run);
   return renderFinding(run, positionals[0]);
 }
 
