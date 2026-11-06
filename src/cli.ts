@@ -195,8 +195,8 @@ async function execute(
     error: "environment-blocked",
     reason:
       name === "update"
-        ? "This package is not published. Registry self-update is disabled."
-        : `${name} is not implemented in this development build. No work started.`,
+        ? "Self-update is not available yet. Run npm install -g degreaser-axi@latest instead."
+        : `${name} is not available in this version. No work started.`,
     help: [`degreaser-axi ${name} --help`],
   };
 }

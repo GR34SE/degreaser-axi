@@ -112,7 +112,7 @@ test("help, version and strict routing work without repo, credentials or side ef
     }
     const update = run(["update"]);
     assert.equal(update.status, 2);
-    assert.match(update.stdout, /unpublished|not published/i);
+    assert.match(update.stdout, /npm install -g degreaser-axi@latest/);
   } finally {
     rmSync(cwd, { recursive: true, force: true });
   }

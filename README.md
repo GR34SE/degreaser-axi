@@ -6,8 +6,6 @@ The `degreaser` and `degreaser-axi` commands are equivalent.
 
 Degreaser gives your coding agent a second look at the feature it just built. It distributes the review across small models: each reviewer starts with a fresh context, investigates one kind of code slop, and returns evidence. Your coding agent decides what to fix.
 
-> Not released yet. This development build runs source-only reviews, waits for detached runs, cancels active runs, resumes unresolved unchanged work, and reads saved reports/findings. Init confirms worker models and installs selected native startup integrations and skills.
-
 - **Review the change, understand the repository.** Reviewers assess your diff and can follow callers, tests, dependencies and existing helpers across the repo.
 - **One aspect per reviewer.** Sixteen focused reviews, each with examples of problems to report and justified code to preserve.
 - **Findings with evidence.** Each finding includes a location, quoted code, a concrete consequence, a checked counterargument and a suggested direction.
@@ -17,44 +15,25 @@ Degreaser gives your coding agent a second look at the feature it just built. It
 
 You need macOS, Node 24.0.0 or newer, Git, and an authenticated supported native harness. Workers support Codex, Claude Code and Pi. Linux, Windows, Droid and Grok Build are not supported in v1. Model calls use your native subscription login through [acpx](https://github.com/openclaw/acpx); Degreaser does not manage credentials or fall back to paid API keys.
 
-To inspect the current interface from a local checkout (pnpm 12.14.0):
+Install it globally:
+
+```sh
+npm install -g degreaser-axi
+degreaser-axi --version
+```
+
+Startup integrations call the installed executable, so keep a stable global
+installation rather than running `init` through `npx`. To try commands without
+installing, use `npx -y degreaser-axi --help`; the installed skill falls back to
+`npx -y degreaser-axi` when the command is not on PATH.
+
+To run from source instead (pnpm 12.14.0):
 
 ```sh
 pnpm install --frozen-lockfile --ignore-scripts
 pnpm build
-node dist/bin/degreaser-axi.js --help
-node dist/bin/degreaser-axi.js --version
+pnpm link --global
 ```
-
-There is no published npm installation or self-update path.
-
-### Install a local tarball
-
-From the built checkout, create a local package:
-
-```sh
-pnpm pack
-```
-
-Install it in a separate tools directory, not in the repository you want to
-review. Replace the absolute paths below with your own:
-
-```sh
-mkdir -p /absolute/path/to/degreaser-local
-cd /absolute/path/to/degreaser-local
-printf '%s\n' '{"private":true,"packageManager":"pnpm@12.14.0"}' > package.json
-pnpm add --ignore-scripts /absolute/path/to/degreaser-axi/degreaser-axi-0.1.0.tgz
-export PATH="/absolute/path/to/degreaser-local/node_modules/.bin:$PATH"
-degreaser-axi --version
-degreaser-axi review --help
-```
-
-Use a new tools directory so the `package.json` command does not overwrite an
-existing project. Preserve your package manager's security policy; resolve a
-blocked dependency explicitly rather than disabling checks. Keep this installation
-at a stable path: installed startup integrations reference its executable.
-Alternatively, use `node /absolute/path/to/degreaser-axi/dist/bin/degreaser-axi.js`
-from a built checkout wherever the examples say `degreaser-axi`.
 
 Run subsequent commands **inside the Git repository you want to review**.
 Init confirms its worker model, writes `.degreaserrc.json`, installs selected
