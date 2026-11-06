@@ -20,7 +20,8 @@ support, not whether the recommendation is correct. The caller makes that decisi
 Workers also list the assessed paths they examined. Paths outside the review are
 dropped. The coordinator certifies findings, no-findings or not-applicable only
 when the accumulated `examinedPaths` cover every readable assessed path (binaries
-and gitlinks are not required). Otherwise it starts a focused pass, in a fresh
+and gitlinks are not required). A08 not-applicable is the exception: its rubric
+decides applicability from the task's feature scope, not from files. Otherwise it starts a focused pass, in a fresh
 worker session, over only the unexamined paths and merges that pass's coverage
 and findings (an exact repeat is kept once). Passes continue while
 each one adds coverage, so the loop is bounded by the path count and

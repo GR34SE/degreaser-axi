@@ -25,6 +25,7 @@ export function mergePass(
   input: ReviewInput,
   prior: WorkerResult | null,
   pass: WorkerResult,
+  earlierApplicable = false,
 ): WorkerResult {
   const examined = [
     ...new Set([
@@ -37,7 +38,9 @@ export function mergePass(
   const findings = [...(prior?.findings ?? []), ...pass.findings].filter(
     (f) => !seen.has(JSON.stringify(f)) && Boolean(seen.add(JSON.stringify(f))),
   );
-  const missing = uncovered(input, examined);
+  // A08's rubric decides applicability from the task's feature scope, not from files.
+  const taskScoped = pass.aspect === "A08" && pass.status === "not-applicable";
+  const missing = taskScoped ? [] : uncovered(input, examined);
   const merged: WorkerResult = {
     aspect: pass.aspect,
     status:
@@ -45,15 +48,18 @@ export function mergePass(
         ? "incomplete"
         : findings.length
           ? "findings"
-          : pass.status === "not-applicable"
+          : pass.status === "not-applicable" && !earlierApplicable
             ? "not-applicable"
             : "no-findings",
     findings,
     limitations: [],
     examinedPaths: examined,
   };
+  // A not-applicable reason from one focused pass must not describe a whole
+  // aspect that earlier passes found applicable.
   const reason = pass.reason ?? prior?.reason;
-  if (reason) merged.reason = reason;
+  if (reason && ["not-applicable", "incomplete"].includes(merged.status))
+    merged.reason = reason;
   if (missing.length) {
     const shown = missing.slice(0, 20).join(", ");
     const more = missing.length > 20 ? ` and ${missing.length - 20} more` : "";
