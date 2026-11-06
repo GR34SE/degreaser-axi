@@ -202,8 +202,8 @@ export async function init(
       ),
     );
     return {
-      error: "decision-required",
-      reason:
+      code: "decision-required",
+      error:
         "Ask the user to confirm or change the model and harness selection, then rerun with explicit flags. Existing RC and recommendations are only prefill. No product files were written.",
       missing,
       ...choices,
@@ -280,9 +280,9 @@ export async function init(
       throw error;
     process.exitCode = 2;
     return {
-      error: "init-incomplete",
+      error: error.message,
+      code: "init-incomplete",
       cause: error.code,
-      reason: error.message,
       configuration: "unchanged",
       ignore: "Shared root ignore is in place; the index is unchanged.",
       integrations: installed

@@ -106,13 +106,13 @@ test("help, version and strict routing work without repo, credentials or side ef
     ] as const) {
       const result = run([...args]);
       assert.equal(result.status, 2, args.join(" "));
-      assert.match(result.stdout, /^error: invalid-input\n/);
+      assert.match(result.stdout, /code: VALIDATION_ERROR/);
       assert.ok(result.stdout.includes(name), result.stdout);
       assert.ok(result.stdout.includes(correction), result.stdout);
     }
-    const update = run(["update"]);
+    const update = run(["update", "--now"]);
     assert.equal(update.status, 2);
-    assert.match(update.stdout, /npm install -g degreaser-axi@latest/);
+    assert.match(update.stdout, /Unknown update option: --now/);
   } finally {
     rmSync(cwd, { recursive: true, force: true });
   }
