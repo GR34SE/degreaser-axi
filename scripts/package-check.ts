@@ -178,7 +178,7 @@ assert.deepEqual(validateReviewInput(JSON.parse(JSON.stringify(input))), input);
 console.log("Installed input/config schemas and real-Git boundary passed.");
 const cli = join(installed, "dist/bin/degreaser-axi.js");
 for (const args of [
-  ["review", "--scope", "repository", "--task", "Installed coordinator-only audit", "--aspects", "A08"],
+  ["review", "--scope", "repository", "--task", "Installed coordinator-only audit", "--aspects", "scope-creep"],
   ["report", "--full"]
 ]) {
   const result = spawnSync(process.execPath, [cli, ...args], {cwd,encoding:"utf8",timeout:15000});

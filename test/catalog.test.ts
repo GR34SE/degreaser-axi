@@ -1,36 +1,18 @@
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import test from "node:test";
+import { ASPECT_IDS } from "../src/config.ts";
 
 const root = new URL("../dist/assets/", import.meta.url);
-const slugs = [
-  "reuse-existing",
-  "unnecessary-layers",
-  "speculative-flexibility",
-  "masked-errors",
-  "unjustified-defense",
-  "low-value-comments",
-  "repo-conventions",
-  "scope-creep",
-  "contract-bypass",
-  "test-value",
-  "incomplete-integration",
-  "wrong-abstraction",
-  "external-library-fit",
-  "native-idioms",
-  "structural-erosion",
-  "verification-theater",
-];
 
 test("distribution carries the fixed sixteen rubrics and 96 contextual examples", () => {
-  const names = slugs.map(
-    (slug, i) => `a${String(i + 1).padStart(2, "0")}-${slug}.md`,
+  assert.deepEqual(
+    readdirSync(new URL("aspects/", root)).sort(),
+    ASPECT_IDS.map((id) => `${id}.md`).sort(),
   );
-  assert.deepEqual(readdirSync(new URL("aspects/", root)).sort(), names);
-  for (const [i, name] of names.entries()) {
-    const rubric = readFileSync(new URL(`aspects/${name}`, root), "utf8");
-    const id = `A${String(i + 1).padStart(2, "0")}`;
-    assert.ok(rubric.startsWith(`# ${id}`));
+  for (const id of ASPECT_IDS) {
+    const rubric = readFileSync(new URL(`aspects/${id}.md`, root), "utf8");
+    assert.match(rubric, new RegExp(`^# .+\\n\\n\`${id}\` · default ON`));
     for (const section of [
       "Question",
       "Applies when",
@@ -74,44 +56,32 @@ test("distribution carries the fixed sixteen rubrics and 96 contextual examples"
 });
 
 test("each neighboring rubric exposes its reciprocal routing boundary", () => {
-  const boundaries = slugs.map(
-    (slug, i) =>
-      readFileSync(
-        new URL(`aspects/a${String(i + 1).padStart(2, "0")}-${slug}.md`, root),
-        "utf8",
-      )
-        .split("**Not here")[1]
-        ?.split("## ")[0] ?? "",
-  );
-  const pairs = [
-    [1, 13],
-    [1, 14],
-    [1, 7],
-    [2, 3],
-    [2, 12],
-    [3, 12],
-    [3, 8],
-    [4, 5],
-    [4, 9],
-    [5, 9],
-    [7, 15],
-    [8, 11],
-    [10, 16],
-    [12, 15],
+  const boundary = (id: string) =>
+    readFileSync(new URL(`aspects/${id}.md`, root), "utf8")
+      .split("**Not here")[1]
+      ?.split("## ")[0] ?? "";
+  const pairs: [string, string][] = [
+    ["missed-reuse", "reinvented-infrastructure"],
+    ["missed-reuse", "unidiomatic-code"],
+    ["missed-reuse", "convention-drift"],
+    ["unnecessary-layers", "speculative-flexibility"],
+    ["unnecessary-layers", "wrong-abstraction"],
+    ["speculative-flexibility", "wrong-abstraction"],
+    ["speculative-flexibility", "scope-creep"],
+    ["masked-errors", "unjustified-defense"],
+    ["masked-errors", "contract-bypass"],
+    ["unjustified-defense", "contract-bypass"],
+    ["convention-drift", "structural-erosion"],
+    ["scope-creep", "incomplete-integration"],
+    ["low-value-tests", "verification-theater"],
+    ["wrong-abstraction", "structural-erosion"],
   ];
-  for (const [left, right] of pairs) {
-    assert.ok(left && right);
+  for (const [left, right] of pairs)
     for (const [from, to] of [
       [left, right],
       [right, left],
-    ]) {
-      assert.ok(from && to);
-      assert.ok(
-        boundaries[from - 1]?.includes(`A${String(to).padStart(2, "0")}`),
-        `${from} -> ${to}`,
-      );
-    }
-  }
-  assert.match(boundaries[5] ?? "", /A09/);
-  assert.match(boundaries[14] ?? "", /A01/);
+    ] as const)
+      assert.ok(boundary(from).includes(to), `${from} -> ${to}`);
+  assert.match(boundary("low-value-comments"), /contract-bypass/);
+  assert.match(boundary("structural-erosion"), /missed-reuse/);
 });

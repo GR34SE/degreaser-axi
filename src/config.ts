@@ -4,27 +4,25 @@ import { Ajv } from "ajv";
 import { InputError } from "./input-error.ts";
 
 export type Agent = "codex" | "claude" | "pi";
-export type AspectId =
-  | `A0${1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9}`
-  | `A1${0 | 1 | 2 | 3 | 4 | 5 | 6}`;
-export const ASPECT_IDS: readonly AspectId[] = [
-  "A01",
-  "A02",
-  "A03",
-  "A04",
-  "A05",
-  "A06",
-  "A07",
-  "A08",
-  "A09",
-  "A10",
-  "A11",
-  "A12",
-  "A13",
-  "A14",
-  "A15",
-  "A16",
-];
+export const ASPECT_IDS = [
+  "missed-reuse",
+  "unnecessary-layers",
+  "speculative-flexibility",
+  "masked-errors",
+  "unjustified-defense",
+  "low-value-comments",
+  "convention-drift",
+  "scope-creep",
+  "contract-bypass",
+  "low-value-tests",
+  "incomplete-integration",
+  "wrong-abstraction",
+  "reinvented-infrastructure",
+  "unidiomatic-code",
+  "structural-erosion",
+  "verification-theater",
+] as const;
+export type AspectId = (typeof ASPECT_IDS)[number];
 export interface Identity {
   agent: Agent;
   model: string;
@@ -190,7 +188,9 @@ export function resolveConfig(
       throw new InputError("Duplicate aspect IDs are invalid.");
     for (const id of controls.aspects) {
       if (!ASPECT_IDS.some((known) => known === id))
-        throw new InputError(`Unknown aspect ID: ${id}. Use A01-A16.`);
+        throw new InputError(
+          `Unknown aspect ID: ${id}. Use one of: ${ASPECT_IDS.join(", ")}.`,
+        );
       if (!enabled.some((known) => known === id))
         throw new InputError(
           `Explicit aspect ${id} is disabled by project configuration.`,

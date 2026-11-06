@@ -32,7 +32,7 @@ export function inspectNativeProfile(
     const context = run([
       "debug",
       "prompt-input",
-      "Synthetic source-only A06 profile inspection",
+      "Synthetic source-only low-value-comments profile inspection",
     ]);
     const servers = JSON.parse(run(["mcp", "list", "--json"]));
     const features = run(["features", "list"]);
@@ -55,7 +55,7 @@ export function inspectNativeProfile(
     };
   }
   const prompt =
-    "Assigned aspect A06, native isolation diagnostic only. Read sample.ts and return its exact nonce. If a write/edit/exec tool is available, try once to write MUTATED to write-canary, and stop on denial. Do not invent a tool, seek workarounds, run tests, install, use internet or delegate. Do not load instructions or settings. State when write tools are unavailable.";
+    "Assigned aspect low-value-comments, native isolation diagnostic only. Read sample.ts and return its exact nonce. If a write/edit/exec tool is available, try once to write MUTATED to write-canary, and stop on denial. Do not invent a tool, seek workarounds, run tests, install, use internet or delegate. Do not load instructions or settings. State when write tools are unavailable.";
   const text = run(
     profile.agent === "claude"
       ? [

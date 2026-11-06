@@ -89,7 +89,7 @@
         "additionalProperties": false,
         "required": ["aspect", "status", "findings", "limitations", "reason"],
         "properties": {
-          "aspect": { "const": "A08" },
+          "aspect": { "const": "scope-creep" },
           "status": { "const": "not-applicable" },
           "findings": { "type": "array", "maxItems": 0 },
           "limitations": { "type": "array", "maxItems": 0 },

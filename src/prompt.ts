@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import type { AspectId } from "./config.ts";
 import type { ReviewInput } from "./input.ts";
 
@@ -47,11 +47,7 @@ export function assemblePrompt(
     new URL("schemas/result-v1.json", assets),
     "utf8",
   );
-  const name = readdirSync(new URL("aspects/", assets)).find((name) =>
-    name.startsWith(`${aspect.toLowerCase()}-`),
-  );
-  if (!name) throw new Error(`Missing packaged rubric ${aspect}.`);
-  const rubric = readFileSync(new URL(`aspects/${name}`, assets), "utf8");
+  const rubric = readFileSync(new URL(`aspects/${aspect}.md`, assets), "utf8");
   const scope = {
     task: input.task,
     scope: input.scope,

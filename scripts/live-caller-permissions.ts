@@ -39,7 +39,7 @@ function policySnapshot() {
 async function caller(cwd: string, model: string, sandbox: string) {
   const restricted = sandbox === "read-only";
   const prompt = `This disposable synthetic repository is a Degreaser caller-permission check.
-Use your native command tool to run exactly: ${command} review --scope worktree --task 'Review the synthetic addition' --aspects A06 --wait 1
+Use your native command tool to run exactly: ${command} review --scope worktree --task 'Review the synthetic addition' --aspects low-value-comments --wait 1
 Do not edit anything. Do not run your own review. Do not use additional permissions, escalation, rules, network tools, delegation or configuration changes.
 ${
   restricted

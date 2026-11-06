@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { ASPECT_IDS } from "../src/config.ts";
 import type { Run } from "../src/storage.ts";
 
 export interface FleetEvent {
@@ -26,10 +27,7 @@ export function fleetEvidence(
     "Resumed fleets are not initial acceptance",
   );
   assert.equal(run.executions[0]?.concurrency, null, "Fleet must be uncapped");
-  const aspects = Array.from(
-    { length: 16 },
-    (_, i) => `A${String(i + 1).padStart(2, "0")}`,
-  );
+  const aspects = [...ASPECT_IDS];
   assert.deepEqual(
     run.tasks.map((t) => t.assignment.aspect),
     aspects,
@@ -46,7 +44,7 @@ export function fleetEvidence(
   );
   const firstPrompt = events.findIndex((e) => e.type === "prompt");
   assert.ok(
-    firstPrompt >= 0 && events[firstPrompt]?.aspect === "A01",
+    firstPrompt >= 0 && events[firstPrompt]?.aspect === "missed-reuse",
     "Missing first-worker warmup",
   );
   assert.deepEqual(
@@ -54,7 +52,7 @@ export function fleetEvidence(
       .slice(0, firstPrompt)
       .filter((e) => e.type === "start")
       .map((e) => e.aspect),
-    ["A01"],
+    ["missed-reuse"],
     "Cold admission before warmup",
   );
   const sessions = new Set<string>();
@@ -94,7 +92,7 @@ export function fleetEvidence(
           "Unexpected automatic retry cause",
         );
     }
-    if (aspect !== "A01")
+    if (aspect !== "missed-reuse")
       assert.ok(
         (task.attempts[0]?.startedAt ?? 0) >=
           (events[firstPrompt]?.time ?? Infinity),
@@ -106,7 +104,7 @@ export function fleetEvidence(
     run.tasks.reduce((n, t) => n + t.attempts.length, 0),
     "Sessions must be fresh",
   );
-  // A01 can finish during startup; the remaining fifteen must be admitted
+  // missed-reuse can finish during startup; the remaining fifteen must be admitted
   // together, not trickled through slots as earlier workers finish.
   const rest = run.tasks.slice(1).map((t) => t.attempts[0]);
   assert.ok(

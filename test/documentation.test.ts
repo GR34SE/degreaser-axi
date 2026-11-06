@@ -57,8 +57,8 @@ test("README configuration and neutral report excerpt match the public CLI", (t)
   );
   f.setPlan({
     results: {
-      A06: {
-        aspect: "A06",
+      "low-value-comments": {
+        aspect: "low-value-comments",
         status: "findings",
         limitations: [],
         findings: [
@@ -75,7 +75,7 @@ test("README configuration and neutral report excerpt match the public CLI", (t)
       },
     },
   });
-  f.start(["--aspects", "A06"]);
+  f.start(["--aspects", "low-value-comments"]);
   assert.equal(f.finish().status, 0);
   const report = f.run(["report"]);
   assert.equal(report.status, 0);

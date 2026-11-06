@@ -115,7 +115,8 @@ export const COMMANDS: Record<string, Command> = {
       },
       aspects: {
         type: "string",
-        description: "Comma-separated A01-A16 subset (default all enabled)",
+        description:
+          "Comma-separated aspect IDs, e.g. missed-reuse,scope-creep (default all enabled)",
       },
       concurrency,
       wait,

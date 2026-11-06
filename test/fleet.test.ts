@@ -28,7 +28,7 @@ for (const retry of [false, true]) {
       ...(retry
         ? {
             workers: {
-              A06: {
+              "low-value-comments": {
                 attempts: [
                   {
                     resultGate: f.gate("results"),
