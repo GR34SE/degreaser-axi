@@ -179,15 +179,15 @@ export function prepareReview(args: string[], cwd: string) {
   const dismissed = relevantDismissals(repository, scope.paths);
   const coordinatorResults =
     request.scope === "repository" &&
-    config.assignments.some((a) => a.aspect === "A08")
+    config.assignments.some((a) => a.aspect === "scope-creep")
       ? [
           {
-            aspect: "A08" as const,
+            aspect: "scope-creep" as const,
             status: "not-applicable" as const,
             findings: [],
             limitations: [],
             reason:
-              "An explicit repository audit has no feature-change scope to assess for A08.",
+              "An explicit repository audit has no feature-change scope to assess for scope-creep.",
           },
         ]
       : [];

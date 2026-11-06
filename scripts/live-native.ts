@@ -99,7 +99,7 @@ export async function liveNativeWorker(agent: Agent, model: string) {
         maxTurns: 6,
         timeoutMs: 120_000,
         prompt:
-          'Assigned aspect A06: comments without value. Read only sample.ts with a native read tool. Return <degreaser-result>{"aspect":"A06","status":"no-findings","findings":[],"limitations":["the exact nonce from sample.ts"]}</degreaser-result>. The nonce must come from reading the file. Do not read instructions/settings/skills or edit anything.',
+          'Assigned aspect low-value-comments: comments without value. Read only sample.ts with a native read tool. Return <degreaser-result>{"aspect":"low-value-comments","status":"no-findings","findings":[],"limitations":["the exact nonce from sample.ts"]}</degreaser-result>. The nonce must come from reading the file. Do not read instructions/settings/skills or edit anything.',
         onPromptStarted() {
           promptStarted = true;
         },
@@ -151,7 +151,7 @@ export async function liveNativeWorker(agent: Agent, model: string) {
           timeoutMs: 30_000,
           signal: controller.signal,
           prompt:
-            "Assigned aspect A06. Read sample.ts using native read tools, then inspect comments. Do not modify anything or execute code.",
+            "Assigned aspect low-value-comments. Read sample.ts using native read tools, then inspect comments. Do not modify anything or execute code.",
           onLifecycle(event) {
             if (event.type === "spawn") owned.add(event.pid);
             else owned.delete(event.pid);

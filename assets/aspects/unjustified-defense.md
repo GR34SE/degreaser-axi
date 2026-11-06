@@ -1,4 +1,4 @@
-# A05 · Unjustified defensive code
+# Unjustified defensive code
 
 `unjustified-defense` · default ON
 
@@ -11,12 +11,12 @@
 **Boundaries:** Static types do not establish runtime validity. Network, disk, trust, public API and concurrency boundaries need protection.
 
 **Not here (another reviewer):**
-- What an error handler returns, such as a fallback pretending success: A04.
-- Missing boundary validation, such as a cast instead of a check: A09. This aspect reports excessive checks, not absent ones.
+- What an error handler returns, such as a fallback pretending success: masked-errors.
+- Missing boundary validation, such as a cast instead of a check: contract-bypass. This aspect reports excessive checks, not absent ones.
 
 Sources / inspiration: S01 S04. Teaching excerpts; context states omitted setup. These have not been executed as programs or model evaluations.
 
-## A05-B1 · REPORT
+## unjustified-defense-B1 · REPORT
 
 **Context:** An internal function has one caller. That caller just parsed Order with OrderSchema.parse, and the object is not subsequently mutated. validateOrderShape repeats the same schema check over every order line.
 
@@ -29,7 +29,7 @@ function total(order: Order) {
 
 **Why:** Validation repeats an established guarantee with the same schema and no new boundary, traversing every line on each call. Evidence includes the actual data flow, not just a type annotation.
 
-## A05-B2 · REPORT
+## unjustified-defense-B2 · REPORT
 
 **Context:** parse_rows has a -> list[Row] contract and always returns a list. There is one entry in this closed path, no public API and no mutation of the result.
 
@@ -42,7 +42,7 @@ return summarize(rows)
 
 **Why:** The check defends against a state prohibited by the producer's contract. It leaves a dead branch and misleading error rather than protecting untrusted input.
 
-## A05-B3 · REPORT
+## unjustified-defense-B3 · REPORT
 
 **Context:** After an explicit null return, the same unchanged argument is checked again in the same branch.
 
@@ -55,7 +55,7 @@ if (user !== null) {
 
 **Why:** The second check protects no new state and adds a branch without changing the contract.
 
-## A05-G1 · PRESERVE
+## unjustified-defense-G1 · PRESERVE
 
 **Context:** A webhook is a network boundary. A RequestBody type annotation does not guarantee the shape of an incoming payload.
 
@@ -68,7 +68,7 @@ return handleEvent(event);
 
 **Why:** This is a real trust boundary. Removing validation on the strength of types would be a review error.
 
-## A05-G2 · PRESERVE
+## unjustified-defense-G2 · PRESERVE
 
 **Context:** The library export also serves JavaScript callers without static type protection.
 
@@ -81,7 +81,7 @@ export function setLimit(value: number) {
 
 **Why:** Validation protects the public runtime contract. A number annotation does not establish caller-supplied values.
 
-## A05-G3 · PRESERVE
+## unjustified-defense-G3 · PRESERVE
 
 **Context:** expected_version comes from the client's If-Match header; current was read from the database during this request. save_with_version runs UPDATE … WHERE version = expected_version and raises ConflictError if no row changes.
 

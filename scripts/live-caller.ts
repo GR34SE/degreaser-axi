@@ -168,7 +168,7 @@ export async function liveCaller(agent: Agent, model: string) {
     const prompt = `This is an authorized synthetic Degreaser acceptance task in a disposable project.
 Discover and read the installed degreaser skill, then follow it. Do not do your own review.
 The installed unpublished CLI command is ${command}.
-Run exactly one review: ${command} review --scope worktree --task 'Add a source-level sum helper; review the synthetic comment only' --aspects A06 --wait 1
+Run exactly one review: ${command} review --scope worktree --task 'Add a source-level sum helper; review the synthetic comment only' --aspects low-value-comments --wait 1
 ${agent === "codex" ? "For this exercise use yield_time_ms=1 on the review command." : agent === "claude" ? "For this exercise use Bash with timeout=61000 and run_in_background=true on the review command." : "Use normal bash with no timeout argument."}
 Use the installed skill's waiting instructions. Keep this task active through the result.
 Do not edit source or Git index. Only AFTER a terminal result is visible to you, perform this separately authorized continuation: write exactly '${nonce}' to continuation.txt with no newline. Do not change anything else or configure permissions. Finish with the observed run status.`;

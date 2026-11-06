@@ -149,7 +149,7 @@ test("branch uses the merge-base rather than the diverged base tip and includes 
   }
 });
 
-test("repository audit has explicit coverage, no patch and coordinator-owned A08", (t) => {
+test("repository audit has explicit coverage, no patch and coordinator-owned scope-creep", (t) => {
   const f = fixture(t);
   for (const path of [
     "src/main.ts",
@@ -183,19 +183,19 @@ test("repository audit has explicit coverage, no patch and coordinator-owned A08
   assert.ok(r.excludedPaths.includes("dist/generated"));
   assert.equal(r.workers.length, 15);
   assert.equal(
-    r.workers.some((a) => a.aspect === "A08"),
+    r.workers.some((a) => a.aspect === "scope-creep"),
     false,
   );
   assert.deepEqual(
     r.coordinatorResults.map((a) => [a.aspect, a.status]),
-    [["A08", "not-applicable"]],
+    [["scope-creep", "not-applicable"]],
   );
   assert.match(
     r.coordinatorResults[0]?.reason ?? "",
     /no feature-change scope/,
   );
   const only = prepareReview(
-    ["--scope", "repository", "--task", "Audit", "--aspects", "A08"],
+    ["--scope", "repository", "--task", "Audit", "--aspects", "scope-creep"],
     f.root,
   );
   assert.deepEqual(only.workers, []);

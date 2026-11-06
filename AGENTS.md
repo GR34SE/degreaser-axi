@@ -51,7 +51,7 @@ Skills live in `.agents/skills/` (read natively by Codex and Pi). `.claude/skill
 - During implementation, use `deslop-scoped` and `thermo-nuclear-code-quality-review` on the authorized change and the caller-selected scope, not an assumed main branch. For test work also read `test-audit`. Read thermo-nuclear by path: it disables model auto-invocation.
 - `no-mistakes` is required for the final delivery feature after real checks and product validation pass. That feature owns init, push, PR, CI and merge towards public `origin`; intermediate workers must not start a competing pipeline. Always use `--no-publish-intent`. Do not publish private specification details.
 - Backpass is a read-only reference at `.references/backpass/`, excluded from Git. Do not edit, install or execute it. Inspect its README, `src/analyze.js`, `src/state.js`, `src/acpx.js` and `src/acpx-output.js` when reviewing queue, state and worker invocation design.
-- `effect-ts-is-king` informed the generic reuse-existing aspect. Its example does not choose Effect as Degreaser's implementation stack and does not mandate Effect in reviewed projects.
+- `effect-ts-is-king` informed the generic missed-reuse aspect. Its example does not choose Effect as Degreaser's implementation stack and does not mandate Effect in reviewed projects.
 
 For library, framework or CLI documentation use Context7: resolve with `npx ctx7@latest library <name> "<specific question>"` before `docs <id> "<question>"`; at most three calls per question. Use version-matched primary sources if the indexed documentation is ambiguous. Never put secrets in queries. A quota failure must be reported; suggest login or `CONTEXT7_API_KEY` rather than silently relying on memory.
 

@@ -1,6 +1,6 @@
-# A10 · Misleading and redundant tests
+# Misleading and redundant tests
 
-`test-value` · default ON
+`low-value-tests` · default ON
 
 **Question:** Can the test detect a plausible regression not already detected by a stronger retained test?
 
@@ -11,11 +11,11 @@
 **Boundaries:** Neither unit nor smoke tests are prohibited categories. A mock or fake does not invalidate a test unless it implements the rule instead of the code under test. Without execution, describe source analysis, not a demonstrated mutation-test result.
 
 **Not here (another reviewer):**
-- Verification outside a test runner, including runtime code, CI, scripts and check/verify commands: A16.
+- Verification outside a test runner, including runtime code, CI, scripts and check/verify commands: verification-theater.
 
 Sources / inspiration: S02 S03 S05. Teaching excerpts; context states omitted setup. These have not been executed as programs or model evaluations.
 
-## A10-B1 · REPORT
+## low-value-tests-B1 · REPORT
 
 **Context:** The test is meant to protect production discount calculation but executes a local fake instead.
 
@@ -26,7 +26,7 @@ assert.equal(discount(), 90);
 
 **Why:** The test never exercises the rule it claims to protect. Production discount logic can break without affecting this test.
 
-## A10-B2 · REPORT
+## low-value-tests-B2 · REPORT
 
 **Context:** The expected amount should follow the billing contract; the test reproduces the production formula to calculate it.
 
@@ -37,7 +37,7 @@ assert.strictEqual(calculateTax(order), expected);
 
 **Why:** The expectation copies the production formula, so a shared mistake such as a wrong rate or missing rounding remains invisible. Independent verification needs values from the billing contract.
 
-## A10-B3 · REPORT
+## low-value-tests-B3 · REPORT
 
 **Context:** Under the same configuration, an existing test checks the complete result. A new smoke test executes the identical path with only a weaker assertion.
 
@@ -48,7 +48,7 @@ def test_export_smoke():
 
 **Why:** Given that coverage, the new test detects no additional regression. Before removal, identify the stronger retained test and confirm identical conditions.
 
-## A10-G1 · PRESERVE
+## low-value-tests-G1 · PRESERVE
 
 **Context:** The domain contract requires converting amounts in this format to integer cents. The test imports assert from node:assert/strict.
 
@@ -59,7 +59,7 @@ assert.equal(parseAmount("12.34"), 1234);
 
 **Why:** Expectations come from an independent contract and can detect a scaling error. This unit test has value.
 
-## A10-G2 · PRESERVE
+## low-value-tests-G2 · PRESERVE
 
 **Context:** The test installs the current commit's npm pack tarball into an empty directory. Module tests do not cover manifest bin/files fields or missing packaged files.
 
@@ -71,7 +71,7 @@ assert.match(result.stdout, VERSION_PATTERN);
 
 **Why:** The smoke test protects a distinct packaging and launch boundary. Its small size does not imply redundancy.
 
-## A10-G3 · PRESERVE
+## low-value-tests-G3 · PRESERVE
 
 **Context:** The rule requires publishing an event only after durable order storage. A fake repository and publisher append their calls to a shared log.
 
