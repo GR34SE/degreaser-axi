@@ -282,7 +282,7 @@ Exit codes: **0** completed/no changes/already completed, **1** partial/failed/i
 - Reviews are source-only, not tests, runtime verification or a guarantee of defect detection. Codex uses a read-only filesystem sandbox but retains shell/code mode for reads. Claude and Pi use native read-tool allowlists, not a universal OS no-exec sandbox. Host-managed policy still applies.
 - Git clean filters can execute local commands during scope resolution. Binary contents and submodule contents are not reviewed as source. The resolved Git tree does not freeze live repository context; do not edit while reviewers run.
 - All sixteen reviewers can consume substantial memory and subscription quota. Set `concurrency` for your machine/account. No silent model or harness switch occurs when access, quota or compatibility fails.
-- v1 has no custom aspects, automatic fixes or registry self-update.
+- v1 has no custom aspects or automatic fixes.
 
 ## Check a checkout
 
