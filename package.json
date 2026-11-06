@@ -12,6 +12,7 @@
   ],
   "packageManager": "pnpm@12.14.0",
   "bin": {
+    "degreaser": "dist/bin/degreaser-axi.js",
     "degreaser-axi": "dist/bin/degreaser-axi.js"
   },
   "files": [
@@ -35,6 +36,7 @@
   "dependencies": {
     "@agentclientprotocol/claude-agent-acp": "0.95.0",
     "@agentclientprotocol/codex-acp": "2.5.0",
+    "@clack/prompts": "1.8.1",
     "acpx": "0.21.1",
     "ajv": "8.20.0",
     "axi-sdk-js": "0.1.13",

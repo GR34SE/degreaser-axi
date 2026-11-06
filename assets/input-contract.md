@@ -5,7 +5,7 @@ Result completeness and local data limits are described in [result-contract.md](
 
 ## Request
 
-Review requires an explicit `worktree`, `branch` or `repository` scope and exactly one nonempty task, supplied as `--task` or a readable UTF-8 `--task-file`. File paths resolve from the invocation directory. Task text preserves whitespace and line breaks. Duplicate flags, unknown flags, positional arguments, empty selections and noninteger controls fail before run creation. Only `branch` accepts `--base`, which is mandatory and never inferred.
+Review requires an explicit `worktree`, `branch` or `repository` scope and exactly one nonempty task, supplied as `--task` or a readable UTF-8 `--task-file`. File paths resolve from the invocation directory. Task text preserves whitespace and line breaks. Duplicate flags (other than repeatable `--path`), unknown flags, positional arguments, empty selections and noninteger controls fail before run creation. Only `branch` accepts `--base`, which is mandatory and never inferred.
 
 The repository root comes from Git, including nested invocations and linked worktrees. Only its `.degreaserrc.json` is loaded. There is no parent-directory or global configuration search and no default agent/model.
 
@@ -31,7 +31,9 @@ Invalid syntax fails before discovery. Empty change scopes and coordinator-only 
 
 ## Assessed paths and exclusions
 
-`exclude` is a list of **literal repository-relative file names or directory prefixes**, for example `["vendor", "package-lock.json", "src/generated"]`. No leading/trailing slash, `.`/`..` components, backslashes, negation or glob syntax. Entries are never interpreted as Git pathspecs. `vendor` also excludes `vendor/file`, but not `vendor-other`. There is no additional path-selector flag.
+`exclude` is a list of **literal repository-relative file names or directory prefixes**, for example `["vendor", "package-lock.json", "src/generated"]`. No leading/trailing slash, `.`/`..` components, backslashes, negation or glob syntax. Entries are never interpreted as Git pathspecs. `vendor` also excludes `vendor/file`, but not `vendor-other`.
+
+`review --path <pattern>` is a repeatable one-run selection for every scope. Patterns are Git-root-relative regardless of the invocation directory. Each pattern selects paths it matches as a Git `:(top,glob)` pathspec, everything beneath a matched directory, and the literal path as written (so `app/[slug]` works). `landing` selects everything under `landing/`; `*`, `?` and `[...]` do not cross `/`; `**/` matches any number of directories (`'landing/**/*.tsx'`); `'packages/*/src'` selects everything under each matching `src`. Empty patterns, a leading `/` or `:`, empty (including trailing), `.` or `..` components, backslashes, NUL and duplicate patterns are `invalid-input` before run creation; users cannot supply other pathspec magic. Selection composes with exclusions: built-ins and `exclude` still remove matching files, and `excludedPaths` lists only selected omissions. A selected repository audit with no assessable files is `invalid-input` naming the patterns, with no run or reviewer. A selected worktree/branch change without matching files is `no-changes`. Resolved input records the patterns as `pathPatterns` (absent when unselected) plus a `path-selection` limitation; they are part of review identity, so resume treats different patterns as different input. Unselected files remain readable context, not reviewed coverage.
 
 Built-ins always exclude root `.degreaser` and components named `node_modules`, `dist`, `build` or `coverage` at any depth. They cannot be re-enabled. Git-ignored untracked files are not collected. Already tracked ignored files remain eligible except for these assessed-path exclusions. A rename crossing a coverage boundary follows Git's filtered comparison, appearing as an addition or deletion where appropriate.
 
@@ -43,7 +45,7 @@ Exclusions restrict assessed coverage, not read access. Reading an excluded mani
 - **Branch:** the unique merge-base of HEAD and the explicit available base commit, through feature commits and final local contents. No HEAD, an invalid ref, unresolved index conflicts, unrelated/missing history or multiple merge-bases fails without fetch, guessed bases or repairs.
 - **Repository:** an explicit audit path list from the resolved final tree. `base` and `patch` are `null`, not an invented empty-tree change. A08 gets a coordinator `not-applicable` result with the no-feature-change-scope reason, never a worker, even in an A08-only audit.
 
-One temporary index produces one final tree. The coordinator uses Git's NUL-delimited path/metadata formats, literal input pathspecs, tree IDs, blob IDs and patches, not a custom diff algorithm. It clears assume-unchanged/skip-worktree flags only in the copy and supports split indices. Git hooks and filesystem monitors are disabled per command; inherited Git routing variables are not used. Diff helpers/textconv/color are disabled, with explicit prefixes, Myers diff, three context lines and 50% similarity rename detection. Temporary files are removed on success or failure.
+One temporary index produces one final tree. The coordinator uses Git's NUL-delimited path/metadata formats, literal input pathspecs (plus the `--path` selection above), tree IDs, blob IDs and patches, not a custom diff algorithm. It clears assume-unchanged/skip-worktree flags only in the copy and supports split indices. Git hooks and filesystem monitors are disabled per command; inherited Git routing variables are not used. Diff helpers/textconv/color are disabled, with explicit prefixes, Myers diff, three context lines and 50% similarity rename detection. Temporary files are removed on success or failure.
 
 The primitive writes Git objects. It does not stage into the user's index, move refs, checkout files or edit source. Local clean filters can execute commands and transform contents, including LFS pointers. This is not a sandbox for those user-configured commands. The caller must trust their Git filters.
 
@@ -51,7 +53,7 @@ Binary contents are not supplied as text evidence. Submodules are only gitlinks;
 
 ## Persistence boundary
 
-[input-v1.json](schemas/input-v1.json) describes the serializable resolved input: repository, scope, explicit base reference, resolved base/tree, task, effective execution identities/settings, assessed path records, exclusions, patch, limitations, worker assignments and coordinator results. Path records retain old/new blob IDs and modes, rename source/destination, and binary markers. JSON preserves newline/tab/Unicode paths without line-splitting ambiguity.
+[input-v1.json](schemas/input-v1.json) describes the serializable resolved input: repository, scope, explicit base reference, optional path patterns, resolved base/tree, task, effective execution identities/settings, assessed path records, exclusions, patch, limitations, worker assignments and coordinator results. Path records retain old/new blob IDs and modes, rename source/destination, and binary markers. JSON preserves newline/tab/Unicode paths without line-splitting ambiguity.
 
 `prepareReview` computes this input but creates no run or model session. The owner must validate it with `validateReviewInput` before persistence and after reading it, retain the resolved input for all workers, and add assembled-prompt identity when that prompt exists. `ready` is an internal admission status, not a public completed review. `no-changes` has no workers and does not certify clean code or become an audit.
 

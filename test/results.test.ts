@@ -143,3 +143,27 @@ test("single rubric follows escaped input; inline and file-backed patches have i
   assert.equal((inline.text.match(/^# A\d\d/gm) ?? []).length, 1);
   assert.match(large.text, /\/synthetic\/patch.json/);
 });
+
+test("repository-audit prompt makes assessed paths the scope instead of a missing patch", (t) => {
+  const f = fixture(t);
+  f.write("src/main.ts", "export const value = 1;\n");
+  const input = prepareReview(
+    ["--scope", "repository", "--task", "Audit source", "--aspects", "A06"],
+    f.root,
+  );
+  const { text } = assemblePrompt(input, "A06", "/synthetic/patch.json");
+  assert.match(text, /"scope":"repository"/);
+  assert.match(text, /"patch":null/);
+  const instruction = text.slice(0, text.indexOf("# Worker response contract"));
+  const audit = instruction.slice(instruction.indexOf("Repository audit"));
+  assert.notEqual(audit, instruction);
+  assert.match(audit, /assessed `paths`/);
+  assert.match(audit, /the assessed files contain/);
+  assert.match(audit, /`side: "new"`/);
+  assert.match(audit, /do not return `incomplete` or `not-applicable`/i);
+  const response = text.slice(
+    text.indexOf("# Worker response contract"),
+    text.indexOf("Response JSON Schema:"),
+  );
+  assert.match(response, /in an audit, the assessed code/);
+});

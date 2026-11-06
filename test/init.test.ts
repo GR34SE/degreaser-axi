@@ -6,6 +6,7 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -14,6 +15,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
+import { stripVTControlCharacters } from "node:util";
 import { fixture } from "./git-fixture.ts";
 
 const cli = fileURLToPath(
@@ -76,7 +78,7 @@ function snapshot(root: string): Record<string, string> {
 function setup(t: TestContext, existing = false) {
   const f = fixture(t);
   if (!existing) rmSync(join(f.root, ".degreaserrc.json"));
-  const external = mkdtempSync(join(tmpdir(), "degreaser-init-"));
+  const external = realpathSync(mkdtempSync(join(tmpdir(), "degreaser-init-")));
   t.after(() => rmSync(external, { recursive: true, force: true }));
   const home = join(external, "home");
   mkdirSync(home);
@@ -92,12 +94,30 @@ function setup(t: TestContext, existing = false) {
       }),
     );
   setPlan();
-  const env = { ...process.env, HOME: home, SYNTHETIC_PLAN: plan };
-  const run = (args: string[] = [], answers?: string[]) => {
+  const bin = join(external, "bin");
+  mkdirSync(bin);
+  for (const agent of ["codex", "claude", "pi"])
+    writeFileSync(join(bin, agent), "#!/bin/sh\nexit 99\n", { mode: 0o755 });
+  const env = {
+    ...process.env,
+    HOME: home,
+    CODEX_HOME: join(home, ".codex"),
+    CLAUDE_CONFIG_DIR: join(home, ".claude"),
+    PI_CODING_AGENT_DIR: join(home, ".pi/agent"),
+    PATH: `${bin}:/usr/bin:/bin`,
+    TERM: "xterm-256color",
+    CI: "",
+    SYNTHETIC_PLAN: plan,
+  };
+  const run = (
+    args: string[] = [],
+    answers?: [string | { file: string; contains: string }, string][],
+  ) => {
     const result = answers
       ? spawnSync(
           "python3",
           [
+            "-B",
             pty,
             JSON.stringify(answers),
             process.execPath,
@@ -115,7 +135,7 @@ function setup(t: TestContext, existing = false) {
           { cwd: f.root, env, encoding: "utf8", timeout: 30_000 },
         );
     assert.equal(result.error, undefined);
-    return result;
+    return { ...result, stdout: stripVTControlCharacters(result.stdout) };
   };
   const events = () =>
     existsSync(log)
@@ -127,7 +147,7 @@ function setup(t: TestContext, existing = false) {
   const unchanged = () => ({ repo: snapshot(f.root), home: snapshot(home) });
   const config = () =>
     JSON.parse(readFileSync(join(f.root, ".degreaserrc.json"), "utf8"));
-  return { ...f, env, home, run, events, setPlan, unchanged, config };
+  return { ...f, env, home, bin, log, run, events, setPlan, unchanged, config };
 }
 
 for (const existing of [false, true]) {
@@ -268,81 +288,164 @@ test("invalid selections and failed discovery never replace config or create pro
   );
 });
 
-test("TTY first init and reinit require confirm or change, keeping RC only as prefill", (t) => {
+const integrations: [string, string] = [
+  "Which agents do you want to install to?",
+  "\r",
+];
+const project: [string, string] = ["Installation scope", "\r"];
+const acceptAgent: [string, string] = ["Review agent", "\r"];
+const acceptModel: [string, string] = ["Search models", "\r"];
+const install: [string, string] = ["Proceed with installation?", "\r"];
+
+test("TTY uses multiselect and a prefilled pair without probing unselected agents", (t) => {
   const f = setup(t);
-  const first = f.run([], ["\n", "claude,pi\n"]);
-  assert.equal(first.status, 0, first.stdout);
-  assert.match(first.stdout, /Confirm model \[codex\/gpt-6-luna\]/);
+  const result = f.run(
+    [],
+    [[integrations[0], " \r"], project, acceptAgent, acceptModel, install],
+  );
+  assert.equal(result.status, 0, result.stdout);
   assert.equal(f.config().model, "gpt-6-luna");
-  const changed = f.run([], ["3\n", "codex\n"]);
+  assert.match(result.stdout, /Loading Codex models/);
+  assert.match(result.stdout, /Claude Code: \/degreaser review my changes/);
+  assert.match(result.stdout, /Pi: \/skill:degreaser review my changes/);
+  assert.doesNotMatch(result.stdout, /\$degreaser|doctor/);
+  assert.doesNotMatch(
+    result.stdout,
+    /account identity|Native catalogs|found in PATH|Confirm model/,
+  );
+  assert.ok(!existsSync(join(f.root, ".codex/hooks.json")));
+  assert.ok(existsSync(join(f.root, ".claude/skills/degreaser/SKILL.md")));
+  assert.deepEqual([...new Set(f.events().map((e) => e.agent))], ["codex"]);
+});
+
+test("TTY can change harness and search an exact model, then retains it on reinit", (t) => {
+  const f = setup(t);
+  const changed = f.run(
+    [],
+    [
+      integrations,
+      project,
+      [acceptAgent[0], "\x1b[B\r"],
+      [acceptModel[0], "haiku\r"],
+      install,
+    ],
+  );
   assert.equal(changed.status, 0, changed.stdout);
+  assert.match(changed.stdout, /Codex: \$degreaser review my changes/);
+  assert.match(changed.stdout, /approve project and hook trust/);
   assert.equal(f.config().agent, "claude");
   assert.equal(f.config().model, "claude-haiku-4-5-20251001");
-  const again = f.run([], ["\n", "\n"]);
-  assert.equal(again.status, 0, again.stdout);
-  assert.match(
-    again.stdout,
-    /Confirm model \[claude\/claude-haiku-4-5-20251001\]/,
+  const again = f.run(
+    [],
+    [integrations, project, acceptAgent, acceptModel, install],
   );
+  assert.equal(again.status, 0, again.stdout);
+  assert.match(again.stdout, /claude-haiku-4-5-20251001 \(current/);
   assert.equal(f.config().agent, "claude");
 });
 
-test("TTY cancellation or invalid answer has no writes", (t) => {
+test("TTY cancellation before discovery or before installation writes nothing", (t) => {
   const f = setup(t);
   const before = f.unchanged();
-  for (const answers of [["\x04"], ["999\n"], ["\n", "droid\n"]]) {
-    const result = f.run([], answers);
-    assert.equal(result.status, 2, result.stdout);
-    assert.match(result.stdout, /Confirm model/);
-    assert.match(result.stdout, /decision-required|invalid-input/);
-    assert.deepEqual(f.unchanged(), before);
-  }
-});
-
-test("TTY discovery failure is actionable before any empty model prompt", (t) => {
-  const f = setup(t);
-  f.setPlan({ metadataFailure: true });
-  const before = f.unchanged();
-  const result = f.run([], []);
-  assert.equal(result.status, 2, result.stdout);
-  assert.match(result.stdout, /codex.*unavailable/);
-  assert.match(
-    result.stdout,
-    /Inspect the selected native harness diagnostics locally/,
+  const cancelled = f.run([], [[integrations[0], "\x03"]]);
+  assert.equal(cancelled.status, 2, cancelled.stdout);
+  assert.match(cancelled.stdout, /Installation cancelled/);
+  assert.doesNotMatch(cancelled.stdout, /error:|reason:|help\[/);
+  assert.deepEqual(f.events(), []);
+  assert.deepEqual(f.unchanged(), before);
+  const declined = f.run(
+    [],
+    [integrations, project, acceptAgent, acceptModel, [install[0], "n\r"]],
   );
-  assert.match(result.stdout, /cause is unverified/);
-  assert.doesNotMatch(result.stdout, /Confirm model/);
+  assert.equal(declined.status, 2, declined.stdout);
+  assert.match(declined.stdout, /Installation cancelled/);
+  assert.doesNotMatch(declined.stdout, /error:|reason:|help\[/);
   assert.deepEqual(f.unchanged(), before);
 });
 
-test("unavailable RC remains prefill, not a silently replaced selection", (t) => {
+test("TTY absence of harnesses is a short error without discovery or writes", (t) => {
+  const f = setup(t);
+  for (const agent of ["codex", "claude", "pi"]) rmSync(join(f.bin, agent));
+  const before = f.unchanged();
+  const result = f.run([], []);
+  assert.equal(result.status, 2, result.stdout);
+  assert.match(result.stdout, /No supported harnesses found in PATH/);
+  assert.deepEqual(f.events(), []);
+  assert.deepEqual(f.unchanged(), before);
+});
+
+test("TTY Ctrl+C during discovery stops its adapter and leaves files untouched", (t) => {
+  const f = setup(t);
+  f.setPlan({ metadataHang: true });
+  const before = f.unchanged();
+  const result = f.run(
+    [],
+    [
+      integrations,
+      project,
+      acceptAgent,
+      [{ file: f.log, contains: '"type":"session"' }, "\x03"],
+    ],
+  );
+  assert.equal(result.status, 2, result.stdout);
+  assert.match(result.stdout, /Installation cancelled/);
+  assert.deepEqual(f.unchanged(), before);
+  const processes = f.events().filter((event) => event.type === "initialize");
+  assert.equal(processes.length, 1);
+  for (const { pid } of processes)
+    assert.throws(() => process.kill(pid, 0), { code: "ESRCH" });
+});
+
+test("TTY defaults to Claude Haiku when Codex is absent", (t) => {
+  const f = setup(t);
+  rmSync(join(f.bin, "codex"));
+  const result = f.run(
+    [],
+    [integrations, project, acceptAgent, acceptModel, install],
+  );
+  assert.equal(result.status, 0, result.stdout);
+  assert.equal(f.config().agent, "claude");
+  assert.equal(f.config().model, "claude-haiku-4-5-20251001");
+  assert.deepEqual([...new Set(f.events().map((e) => e.agent))], ["claude"]);
+});
+
+test("TTY discovery failure leaves configuration untouched", (t) => {
+  const f = setup(t);
+  f.setPlan({ metadataFailure: true });
+  const before = f.unchanged();
+  const result = f.run([], [integrations, project, acceptAgent]);
+  assert.equal(result.status, 2, result.stdout);
+  assert.match(result.stdout, /environment-blocked/);
+  assert.doesNotMatch(result.stdout, /private diagnostic/);
+  assert.deepEqual(f.unchanged(), before);
+});
+
+test("unavailable RC is flagged before the user picks a replacement", (t) => {
   const f = setup(t, true);
   f.write(
     ".degreaserrc.json",
     JSON.stringify({ agent: "codex", model: "withdrawn-model" }),
   );
-  const before = f.unchanged();
-  const refused = f.run([], ["\n", "\n"]);
-  assert.equal(refused.status, 2, refused.stdout);
-  assert.match(refused.stdout, /Confirm model \[codex\/withdrawn-model\]/);
-  assert.match(refused.stdout, /exact model list/);
-  assert.deepEqual(f.unchanged(), before);
-  const changed = f.run([], ["1\n", "codex\n"]);
-  assert.equal(changed.status, 0, changed.stdout);
-  assert.equal(f.config().model, "gpt-6-luna");
-});
-
-test("a failed harness catalog is disclosed without blocking an explicitly chosen available harness", (t) => {
-  const f = setup(t);
-  f.setPlan({ metadataFailureAgents: ["codex"] });
-  const result = f.run([], ["\n", "pi\n"]);
+  const result = f.run(
+    [],
+    [integrations, project, acceptAgent, acceptModel, install],
+  );
   assert.equal(result.status, 0, result.stdout);
-  assert.match(result.stdout, /codex: unavailable/);
   assert.match(
     result.stdout,
-    /Confirm model \[claude\/claude-haiku-4-5-20251001\]/,
+    /Previous model withdrawn-model is no longer available from Codex/,
   );
-  assert.equal(f.config().agent, "claude");
+});
+
+test("TTY global selection installs only into the disposable home", (t) => {
+  const f = setup(t);
+  const result = f.run(
+    [],
+    [integrations, [project[0], "\x1b[B\r"], acceptAgent, acceptModel, install],
+  );
+  assert.equal(result.status, 0, result.stdout);
+  assert.ok(existsSync(join(f.home, ".degreaser/integrations.json")));
+  assert.ok(!existsSync(join(f.root, ".degreaser/integrations.json")));
 });
 
 test("malformed or symlinked RC is refused before discovery without overwriting it", (t) => {
@@ -404,11 +507,18 @@ test("a displayed next command is runnable only after explicit user selection", 
 
 test("TTY partial flags constrain prefill instead of being silently ignored", (t) => {
   const f = setup(t, true);
-  for (const [args, expected] of [
-    [["--agent", "pi"], { agent: "pi", model: "openai/gpt-6-luna" }],
-    [["--model", "exact-codex"], { agent: "codex", model: "exact-codex" }],
+  for (const [args, expected, steps] of [
+    [["--agent", "pi"], { agent: "pi", model: "openai/gpt-6-luna" }, []],
+    [
+      ["--model", "exact-codex"],
+      { agent: "codex", model: "exact-codex" },
+      [acceptAgent],
+    ],
   ] as const) {
-    const result = f.run([...args], ["\n", "codex\n"]);
+    const result = f.run(
+      [...args],
+      [integrations, project, ...steps, acceptModel, install],
+    );
     assert.equal(result.status, 0, result.stdout);
     assert.deepEqual(f.config(), {
       schemaVersion: 1,

@@ -31,11 +31,31 @@ export function positiveInteger(
   return number;
 }
 
+/** Plain repository-relative patterns; scope.ts alone adds Git pathspec magic. */
+function validPathPatterns(values: unknown): string[] {
+  const patterns = (values ?? []) as string[];
+  for (const pattern of patterns) {
+    if (
+      !pattern ||
+      pattern.startsWith(":") ||
+      /[\\\0]/.test(pattern) ||
+      pattern.split("/").some((part) => ["", ".", ".."].includes(part))
+    )
+      throw new InputError(
+        `Invalid --path ${JSON.stringify(pattern)}: use a nonempty Git-root-relative path or glob without a leading "/" or ":", trailing or repeated "/", "."/".." components, backslashes or NUL.`,
+      );
+  }
+  if (new Set(patterns).size !== patterns.length)
+    throw new InputError("Duplicate --path patterns are ambiguous.");
+  return patterns;
+}
+
 interface ReviewRequest {
   scope: Scope;
   baseRef: string | undefined;
   task: string;
   taskFile?: string;
+  pathPatterns: string[];
   controls: ReviewControls;
   waitSeconds: number;
 }
@@ -66,7 +86,7 @@ export function parseReviewArguments(
   }
   const seen = new Set<string>();
   for (const token of parsed.tokens ?? []) {
-    if (token.kind !== "option") continue;
+    if (token.kind !== "option" || token.name === "path") continue;
     if (seen.has(token.name))
       throw new InputError(`Duplicate --${token.name} is ambiguous.`);
     seen.add(token.name);
@@ -117,6 +137,7 @@ export function parseReviewArguments(
     baseRef,
     task,
     ...(file !== undefined ? { taskFile: resolve(cwd, file) } : {}),
+    pathPatterns: validPathPatterns(parsed.values.path),
     controls: {
       ...(aspects !== undefined ? { aspects: aspects.split(",") } : {}),
       ...(concurrency !== undefined
@@ -143,7 +164,16 @@ export function prepareReview(args: string[], cwd: string) {
     request.scope,
     request.baseRef,
     config.exclude,
+    request.pathPatterns,
   );
+  if (
+    request.scope === "repository" &&
+    request.pathPatterns.length &&
+    !scope.paths.length
+  )
+    throw new InputError(
+      `No assessable repository files match --path ${request.pathPatterns.join(", ")} after exclusions; no review was started.`,
+    );
   const noChanges = request.scope !== "repository" && scope.paths.length === 0;
   const coordinatorResults =
     request.scope === "repository" &&
@@ -172,6 +202,10 @@ export function prepareReview(args: string[], cwd: string) {
     baseRef: request.baseRef ?? null,
     task: request.task,
     ...(request.taskFile ? { taskFile: request.taskFile } : {}),
+    // Absent rather than empty keeps unnarrowed review identities unchanged.
+    ...(request.pathPatterns.length
+      ? { pathPatterns: request.pathPatterns }
+      : {}),
     waitSeconds: request.waitSeconds,
     config,
     ...scope,
@@ -194,6 +228,7 @@ export function reviewCommand(input: ReviewInput) {
     input.taskFile
       ? `--task-file ${quote(input.taskFile)}`
       : `--task=${quote(input.task)}`,
+    ...(input.pathPatterns ?? []).map((p) => `--path ${quote(p)}`),
     `--aspects ${input.config.assignments.map((a) => a.aspect).join(",")}`,
   ].join(" ");
 }

@@ -12,7 +12,8 @@ registerHooks({
       format: "module",
       shortCircuit: true,
       source: `
-      export const PROFILE_LIMITATIONS = {codex: [], claude: [], pi: []};
+      const synthetic = ["Synthetic external adapter; not a live provider result."];
+export const PROFILE_LIMITATIONS = {codex: synthetic, claude: synthetic, pi: synthetic};
       export async function nativeProfile(identity, purpose = "review", signal) {
         const {readFileSync} = await import("node:fs");
         const {setTimeout} = await import("node:timers/promises");
@@ -24,7 +25,7 @@ registerHooks({
           : null;
         return {...identity, command: [process.execPath, ${JSON.stringify(adapter)}, process.env.SYNTHETIC_PLAN],
           environment: {...(actual?.environment ?? {PATH: process.env.PATH, HOME: process.env.HOME, DEGREASER_WORKER: "1"}), SYNTHETIC_AGENT: identity.agent, SYNTHETIC_MODEL: identity.model, SYNTHETIC_ASPECT: identity.aspect ?? "", SYNTHETIC_PURPOSE: purpose},
-          adapterVersion: "synthetic", nativeVersion: "synthetic", limitations: ["Synthetic external adapter; not a live provider result."]};
+          adapterVersion: "synthetic", nativeVersion: "synthetic", limitations: [...PROFILE_LIMITATIONS[identity.agent]]};
       }`,
     };
   },

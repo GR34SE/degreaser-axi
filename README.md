@@ -2,6 +2,8 @@
 
 Focused slop review for coding agents.
 
+The `degreaser` and `degreaser-axi` commands are equivalent.
+
 Degreaser gives your coding agent a second look at the feature it just built. It distributes the review across small models: each reviewer starts with a fresh context, investigates one kind of code slop, and returns evidence. Your coding agent decides what to fix.
 
 > Not released yet. This development build runs source-only reviews, waits for detached runs, cancels active runs, resumes unresolved unchanged work, and reads saved reports/findings. Init confirms worker models and installs selected native startup integrations and skills.
@@ -72,9 +74,15 @@ Discover and confirm a model in your project:
 degreaser-axi init
 ```
 
-Choose the harnesses you use and confirm or change the suggested small model.
-Every init, including reinit, requires your decision. In a terminal, Enter
-confirms the displayed prefill; enter a candidate number to change it. Without
+In a terminal, select your agents with Space and confirm with Enter. Init detects
+Codex, Claude Code and Pi on PATH without starting them, then asks where to
+install: Project or Global. Pick the review agent, then press Enter on the
+highlighted model or type to search that agent's catalog. Only the selected
+review agent's catalog is loaded. If your previous model is no longer offered,
+init says so before you choose another.
+
+Every init, including reinit, requires you to confirm or change the model.
+An existing configuration prefills your previous choice. Without
 a terminal, missing decisions return `decision-required` (exit 2) with exact
 candidates and example commands, without writing product files. After the user
 chooses, provide `--agent`, `--model` and `--harnesses` explicitly. The existing
@@ -84,7 +92,6 @@ For example, **after choosing this exact model and these harnesses**:
 
 ```sh
 degreaser-axi init --agent codex --model gpt-6-luna --harnesses codex,claude,pi
-degreaser-axi doctor
 degreaser-axi review --scope worktree --task "Add CSV import with quoted-field support" --aspects A06
 degreaser-axi report
 ```
@@ -92,12 +99,13 @@ degreaser-axi report
 `--agent` selects the reviewer harness; `--harnesses` selects caller
 integrations. Choose only the integrations you use.
 
-Init reads native catalogs without inference. It shows the credential source,
-not private account identities, and does not guarantee later provider availability.
+Init reads native catalogs without inference. The non-interactive response
+includes credential sources, not private account identities. Catalog entries
+do not guarantee later provider availability.
 Invalid choices or failed discovery never silently select a replacement.
 Init preserves other RC settings and installs both the startup integration and
-skill for each selected harness. Installation defaults to the project; use
-`--installation-scope user` explicitly for user-wide integration. RC and ignore
+skill for each selected harness. Installation defaults to the project; choose
+Global in the terminal or pass `--installation-scope user` for user-wide integration. RC and ignore
 setup still belong to the current project. Nothing changes global permissions,
 Codex features/rules, or your AGENTS.md and CLAUDE.md instructions.
 
@@ -106,7 +114,9 @@ not mean active:** host trust and hook policy still apply. Codex 0.165.0 enables
 hooks by default but separately requires project and hook trust. Approve through
 the host only if you trust the command; Degreaser never grants trust itself.
 
-To repair moved package paths or missing owned files, run
+If something stops working later (an updated harness, a moved installation or
+edited hooks), `degreaser-axi doctor` checks native versions and installed
+integrations without calling a model. To repair moved package paths or missing owned files, run
 `degreaser-axi setup hooks --harnesses codex,claude,pi` with your selected targets
 and the original scope. Add `--remove` to remove only owned entries. Foreign
 settings stay intact; edited owned files or hooks produce a conflict instead of
@@ -119,7 +129,13 @@ Startup reads only compact local context. It starts no models or reviews and
 is disabled in review workers. Missing executables or invalid local state do
 not block the host; use the CLI home view for state errors and setup for repair.
 
-Then ask your coding agent:
+Then invoke the skill in your coding agent:
+
+- Claude Code: `/degreaser review my changes`
+- Codex: `$degreaser review my changes`
+- Pi: `/skill:degreaser review my changes`
+
+Or ask in plain words:
 
 > Run Degreaser on my current changes for the CSV import feature. Wait for the review, assess the findings, and fix the ones that apply.
 
@@ -140,9 +156,21 @@ degreaser-axi review --scope branch --base develop --task "Add CSV import with q
 
 # Whole-repository review is explicit and can cost more.
 degreaser-axi review --scope repository --task "Review the repository for unnecessary complexity"
+
+# Only part of the repository (or of a worktree/branch change).
+degreaser-axi review --scope repository --path landing --path 'packages/*/src' --task "Audit the landing page"
 ```
 
 Use `--task-file <path>` instead of `--task` for a longer brief. An empty diff finishes without starting reviewers.
+
+Repeat `--path <pattern>` to assess only matching files in any scope. Patterns
+are relative to the Git root, wherever you run the command. A directory or file
+name such as `landing` or `landing/app/blog.ts` selects that file or everything
+beneath it; quoted globs (`*`, `**`, `?`, `[...]`) such as `'landing/**/*.tsx'`
+also work, and a matching directory includes its contents. `exclude` and the
+built-in exclusions still apply. A narrowed repository audit that matches no
+files fails without starting reviewers; a narrowed change with no matching
+files finishes as `no-changes`. Other files remain readable context.
 
 If a review returns `running`, use its supplied `degreaser-axi wait <run-id>` command. Keep the code unchanged until the run finishes. If some reviewers fail, their completed peers' results remain available.
 
@@ -285,6 +313,7 @@ run deadline and a 40-turn budget. Configure `maxRetries` and
 `limits.workerTimeoutSeconds`, `limits.runTimeoutSeconds`, `limits.maxTurns`.
 Only Claude enforces the turn budget natively; Codex and Pi treat it as advisory.
 `exclude` accepts literal repository-relative files or directory prefixes, not globs.
+For a one-run selection, use `review --path` instead.
 
 Missing/malformed output, discarded oversized output and attempt timeouts receive
 only the configured bounded retries in fresh sessions. Auth, model, account and
