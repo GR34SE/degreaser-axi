@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { once } from "node:events";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 import { fixture } from "./git-fixture.ts";
 import { queueFixture } from "./queue-fixture.ts";
 
 const entry = new URL("../bin/startup-context.ts", import.meta.url).pathname;
+const cli = new URL("../dist/bin/degreaser-axi.js", import.meta.url).pathname;
 
 function hook(
   cwd: string,
@@ -89,4 +90,25 @@ test("open stdin without input cannot hang a session", async (t) => {
   const [code] = await once(child, "exit");
   clearTimeout(timer);
   assert.equal(code, 0);
+});
+
+test("sparse RC notice lists defaults without rewriting and disappears after config sync", (t) => {
+  const f = fixture(t);
+  const path = join(f.root, ".degreaserrc.json");
+  const before = readFileSync(path);
+  const sparse = hook(f.root, { plain: true });
+  assert.match(sparse, /concurrency=null/);
+  assert.match(sparse, /limits\.maxTurns=40/);
+  assert.match(sparse, /degreaser-axi config sync/);
+  assert.deepEqual(readFileSync(path), before);
+  const sync = spawnSync(process.execPath, [cli, "config", "sync"], {
+    cwd: f.root,
+    encoding: "utf8",
+    timeout: 30_000,
+    env: { ...process.env, DEGREASER_WORKER: "" },
+  });
+  assert.equal(sync.status, 0, sync.stderr);
+  const synced = hook(f.root, { plain: true });
+  assert.doesNotMatch(synced, /config sync|Missing settings/);
+  assert.match(synced, /codex\/gpt-6-luna/);
 });

@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { setTimeout } from "node:timers/promises";
-import { assertSupportedModels } from "./config.ts";
+import { assertSupportedModels, configNotice, loadConfig } from "./config.ts";
 import { assertFresh } from "./freshness.ts";
 import { repositoryRoot } from "./git.ts";
 import { positiveInteger, prepareReview } from "./input.ts";
@@ -105,9 +105,11 @@ async function startOwner(run: Run, controls?: ResumeControls) {
 export async function review(args: string[], cwd: string) {
   nestedGuard();
   const input = prepareReview(args, cwd);
+  const notice = configNotice(loadConfig(input.repository));
   checkHistory(input.repository);
   if (input.status === "no-changes")
     return {
+      ...notice,
       status: "no-changes",
       scope: input.scope,
       task: input.task,
@@ -136,7 +138,7 @@ export async function review(args: string[], cwd: string) {
   process.stderr.write(
     `run: ${run.id}; workers: ${input.workers.length}; identities: ${[...new Set(input.workers.map((w) => `${w.agent}/${w.model}`))].join(",") || "coordinator-only"}; concurrency: ${input.config.concurrency ?? "all"}; deadline: ${new Date(run.deadline).toISOString()}\n`,
   );
-  return waitFor(run, input.waitSeconds);
+  return { ...(await waitFor(run, input.waitSeconds)), ...notice };
 }
 
 export async function resume(
