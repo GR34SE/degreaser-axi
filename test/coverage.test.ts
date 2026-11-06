@@ -171,3 +171,30 @@ test("A08 not-applicable cannot skip coverage once an earlier pass found it appl
   f.finish();
   assert.equal(f.state().tasks[0]?.status, "incomplete");
 });
+
+test("both names of a renamed path count as one examined path across passes", (t) => {
+  const f = queueFixture(t);
+  const body = Array.from(
+    { length: 20 },
+    (_, i) => `export const v${i} = ${i};`,
+  );
+  f.write("old.ts", `${body.join("\n")}\n`);
+  f.git("add", ".");
+  f.git("commit", "--no-gpg-sign", "-m", "Rename base");
+  f.git("mv", "old.ts", "new.ts");
+  f.write("new.ts", `${[...body, "export const extra = 1;"].join("\n")}\n`);
+  f.write("source.ts", "// redundant\nexport const value = 2;\n");
+  f.setPlan({
+    workers: {
+      A06: {
+        attempts: [
+          pass("incomplete", ["new.ts"]),
+          pass("incomplete", ["old.ts"]),
+        ],
+      },
+    },
+  });
+  const task = run(f);
+  assert.equal(task.attempts.length, 2);
+  assert.deepEqual(task.result.examinedPaths, ["new.ts"]);
+});

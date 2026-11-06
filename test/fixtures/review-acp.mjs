@@ -243,15 +243,11 @@ const connection = new AgentSideConnection(
           limitations: [],
         };
       // A planned object without coverage declares the whole persisted scope;
-      // coverage tests set examinedPaths explicitly (null omits the field).
+      // coverage tests set examinedPaths explicitly.
       const result =
         typeof planned === "string"
           ? planned
-          : planned.examinedPaths === null
-            ? Object.fromEntries(
-                Object.entries(planned).filter(([k]) => k !== "examinedPaths"),
-              )
-            : { examinedPaths: assessedPaths(), ...planned };
+          : { examinedPaths: assessedPaths(), ...planned };
       if (plan.toolOnly)
         await connection.sessionUpdate({
           sessionId: p.sessionId,
