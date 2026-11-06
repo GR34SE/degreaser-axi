@@ -47,7 +47,7 @@ test("native JSON cwd and plain mode discover configuration and no history", (t)
   assert.equal(context.hookEventName, "SessionStart");
   assert.match(context.additionalContext, /codex.*gpt-6-luna/i);
   assert.match(context.additionalContext, /no.*run/i);
-  assert.match(context.additionalContext, /degreaser-axi --help/);
+  assert.match(context.additionalContext, /Run degreaser-axi for review/);
   assert.match(hook(join(f.root, "nested"), { plain: true }), /no.*run/i);
 });
 
@@ -92,14 +92,12 @@ test("open stdin without input cannot hang a session", async (t) => {
   assert.equal(code, 0);
 });
 
-test("sparse RC notice lists defaults without rewriting and disappears after config sync", (t) => {
+test("sparse RC notice points to config sync without rewriting and disappears after it", (t) => {
   const f = fixture(t);
   const path = join(f.root, ".degreaserrc.json");
   const before = readFileSync(path);
   const sparse = hook(f.root, { plain: true });
-  assert.match(sparse, /concurrency=null/);
-  assert.match(sparse, /limits\.maxTurns=40/);
-  assert.match(sparse, /degreaser-axi config sync/);
+  assert.match(sparse, /installed defaults; degreaser-axi config sync/);
   assert.deepEqual(readFileSync(path), before);
   const sync = spawnSync(process.execPath, [cli, "config", "sync"], {
     cwd: f.root,
