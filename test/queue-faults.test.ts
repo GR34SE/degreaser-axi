@@ -495,7 +495,7 @@ for (const useful of [false, true]) {
       concurrency: 1,
       maxRetries,
       // The budget must still hold a timed-out attempt plus its retry after a
-      // slow hosted runner's cold A01 start.
+      // slow hosted runner's cold missed-reuse start.
       limits: { workerTimeoutSeconds: 2, runTimeoutSeconds: 8 },
     });
     f.setPlan({

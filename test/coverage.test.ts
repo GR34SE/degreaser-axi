@@ -81,13 +81,13 @@ test("a pass without new coverage stops the loop and names the unexamined paths"
   assert.equal(f.state().status, "partial");
 });
 
-test("A08 not-applicable follows the task's feature scope without path coverage", (t) => {
+test("scope-creep not-applicable follows the task's feature scope without path coverage", (t) => {
   const f = queueFixture(t);
   f.setPlan({
     workers: {
-      A08: {
+      "scope-creep": {
         result: {
-          aspect: "A08",
+          aspect: "scope-creep",
           status: "not-applicable",
           findings: [],
           limitations: [],
@@ -97,7 +97,7 @@ test("A08 not-applicable follows the task's feature scope without path coverage"
       },
     },
   });
-  f.start(["--aspects", "A08"]);
+  f.start(["--aspects", "scope-creep"]);
   f.finish();
   const task = f.state().tasks[0];
   assert.equal(task?.status, "not-applicable");
@@ -137,7 +137,7 @@ test("a worker cleanup failure stops coverage continuation and certifies nothing
   f.write("b.ts", "export const b = 2;\n");
   f.setPlan({
     workers: {
-      A06: {
+      "low-value-comments": {
         closeError: { message: "Synthetic close failure", code: -32603 },
         attempts: [
           pass("incomplete", ["a.ts"]),
@@ -152,14 +152,14 @@ test("a worker cleanup failure stops coverage continuation and certifies nothing
   assert.deepEqual(task.result.examinedPaths, []);
 });
 
-test("A08 not-applicable cannot skip coverage once an earlier pass found it applicable", (t) => {
+test("scope-creep not-applicable cannot skip coverage once an earlier pass found it applicable", (t) => {
   const f = setup(t, []);
   const a08 = (status: string, examinedPaths: string[]) => ({
-    result: { ...pass(status, examinedPaths).result, aspect: "A08" },
+    result: { ...pass(status, examinedPaths).result, aspect: "scope-creep" },
   });
   f.setPlan({
     workers: {
-      A08: {
+      "scope-creep": {
         attempts: [
           a08("incomplete", ["a.ts"]),
           { result: { ...a08("not-applicable", []).result, reason: "None." } },
@@ -167,7 +167,7 @@ test("A08 not-applicable cannot skip coverage once an earlier pass found it appl
       },
     },
   });
-  f.start(["--aspects", "A08"]);
+  f.start(["--aspects", "scope-creep"]);
   f.finish();
   assert.equal(f.state().tasks[0]?.status, "incomplete");
 });
@@ -186,7 +186,7 @@ test("both names of a renamed path count as one examined path across passes", (t
   f.write("source.ts", "// redundant\nexport const value = 2;\n");
   f.setPlan({
     workers: {
-      A06: {
+      "low-value-comments": {
         attempts: [
           pass("incomplete", ["new.ts"]),
           pass("incomplete", ["old.ts"]),

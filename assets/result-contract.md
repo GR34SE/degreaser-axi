@@ -22,7 +22,7 @@ dropped, and so is a path with a rejected finding, so a later pass judges it
 again. A pass whose worker lifecycle failed contributes no coverage and ends the
 aspect's passes. Rejection counts accumulate across passes. The coordinator certifies findings, no-findings or not-applicable only
 when the accumulated `examinedPaths` cover every readable assessed path (binaries
-and gitlinks are not required). A08 not-applicable is the exception: its rubric
+and gitlinks are not required). `scope-creep` not-applicable is the exception: its rubric
 decides applicability from the task's feature scope, not from files. Otherwise it starts a focused pass, in a fresh
 worker session, over only the unexamined paths and merges that pass's coverage
 and findings (an exact repeat is kept once). Passes continue while
