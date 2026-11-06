@@ -527,3 +527,21 @@ test("TTY partial flags constrain prefill instead of being silently ignored", (t
     });
   }
 });
+
+test("init names its uncommitted project files so new worktrees inherit them", (t) => {
+  const f = setup(t);
+  const first = f.run(explicit);
+  assert.equal(first.status, 0, first.stdout);
+  for (const file of [
+    ".claude/settings.json",
+    ".claude/skills/degreaser/SKILL.md",
+    ".pi/extensions/degreaser.ts",
+  ])
+    assert.ok(first.stdout.includes(file), first.stdout);
+  assert.match(first.stdout, /new Git worktrees/);
+  f.git("add", ".");
+  f.git("commit", "--no-gpg-sign", "-m", "Configure Degreaser");
+  const again = f.run(explicit);
+  assert.equal(again.status, 0, again.stdout);
+  assert.doesNotMatch(again.stdout, /uncommitted|new Git worktrees/);
+});

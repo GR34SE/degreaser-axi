@@ -95,7 +95,7 @@ export function loadConfig(repository: string): ProjectConfig {
     );
   } catch {
     throw new InputError(
-      "Root .degreaserrc.json must exist and contain readable JSON. Configure an explicit agent and model.",
+      "Root .degreaserrc.json must exist and contain readable JSON. Configure an explicit agent and model. In a new Git worktree, commit .degreaserrc.json and .gitignore where init ran, or run init here.",
     );
   }
   return validateConfig(data);

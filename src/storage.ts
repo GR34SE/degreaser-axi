@@ -308,7 +308,7 @@ export function createRun(input: ReviewInput): Run {
     }) === null
   )
     throw new InputError(
-      "Add /.degreaser/ to the root .gitignore before review. Local review artifacts may contain source code.",
+      "Add /.degreaser/ to the root .gitignore before review. Local review artifacts may contain source code. In a new Git worktree, commit the .gitignore rule where init ran.",
     );
   const latest = statePath(input.repository, "state.json");
   checkHistory(input.repository);
