@@ -127,6 +127,6 @@ export function continuationSection(missing: string[], examined: number) {
     "# Focused coverage continuation",
     `Earlier passes of this aspect examined ${examined} assessed paths and recorded their findings. These assessed paths are still unexamined:`,
     encode({ paths: missing }),
-    "Review ONLY these paths in this pass, using their `patchLines` or Git to read each change. List in `examinedPaths` exactly the paths you read and judged in THIS pass; the coordinator merges them with earlier passes. Report only new findings in these paths. Use `incomplete` only for paths you could not examine before your budget ran out.",
+    "Review ONLY these paths in this pass, using their `patchLines` or Git to read each change. List in `examinedPaths` exactly the paths you read and judged in THIS pass, including paths whose change contains nothing this aspect covers; the coordinator merges them with earlier passes. Report only new findings in these paths. Use `incomplete` only for paths you could not examine before your budget ran out.",
   ].join("\n\n");
 }

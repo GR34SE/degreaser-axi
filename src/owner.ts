@@ -327,7 +327,13 @@ export async function ownRun(
                 );
               }
               record.result = structuredClone(pass);
-              merged = mergePass(input, accumulated, pass);
+              const earlierApplicable = task.attempts.some(
+                (a) =>
+                  a !== record &&
+                  a.result &&
+                  a.result.status !== "not-applicable",
+              );
+              merged = mergePass(input, accumulated, pass, earlierApplicable);
               task.result = merged;
               task.status = merged.status;
             } catch (error) {

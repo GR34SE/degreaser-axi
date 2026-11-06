@@ -80,3 +80,36 @@ test("a pass without new coverage stops the loop and names the unexamined paths"
   );
   assert.equal(f.state().status, "partial");
 });
+
+test("A08 not-applicable follows the task's feature scope without path coverage", (t) => {
+  const f = queueFixture(t);
+  f.setPlan({
+    workers: {
+      A08: {
+        result: {
+          aspect: "A08",
+          status: "not-applicable",
+          findings: [],
+          limitations: [],
+          reason: "The task has no feature scope.",
+          examinedPaths: [],
+        },
+      },
+    },
+  });
+  f.start(["--aspects", "A08"]);
+  f.finish();
+  const task = f.state().tasks[0];
+  assert.equal(task?.status, "not-applicable");
+  assert.equal(task?.attempts.length, 1);
+});
+
+test("a final not-applicable pass cannot relabel an aspect earlier passes found applicable", (t) => {
+  const f = setup(t, [
+    pass("incomplete", ["a.ts"]),
+    pass("not-applicable", ["b.ts", "source.ts"], { reason: "Only a chart." }),
+  ]);
+  const task = run(f);
+  assert.equal(task.status, "no-findings");
+  assert.equal(task.result.reason, undefined);
+});
