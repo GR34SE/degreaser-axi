@@ -40,15 +40,14 @@ const runId = { min: 1, max: 1 };
 
 export const COMMANDS: Record<string, Command> = {
   home: {
-    description: "Show local review context without starting work",
+    description: "Show configuration and the latest review",
     usage: "home",
     flags: {},
     positionals: noPositionals,
     examples: ["degreaser-axi", "degreaser-axi home"],
   },
   init: {
-    description:
-      "Confirm a worker model and install selected native startup integrations and skills",
+    description: "Choose the review model and install agent integrations",
     usage: "init --agent <agent> --model <model> --harnesses <targets>",
     flags: {
       agent: {
@@ -68,15 +67,14 @@ export const COMMANDS: Record<string, Command> = {
     ],
   },
   config: {
-    description: "Maintain the project configuration",
+    description: "Project configuration commands",
     usage: "config sync",
     flags: {},
     positionals: runId,
     examples: ["degreaser-axi config sync", "degreaser-axi config sync --help"],
   },
   "config sync": {
-    description:
-      "Fill missing RC settings with installed defaults, preserving existing values",
+    description: "Save missing default settings without changing existing ones",
     usage: "config sync",
     flags: {},
     positionals: noPositionals,
@@ -84,15 +82,14 @@ export const COMMANDS: Record<string, Command> = {
   },
   doctor: {
     description:
-      "Inspect configuration and integration readiness without model calls",
+      "Check configuration, integrations and native versions without model calls",
     usage: "doctor",
     flags: {},
     positionals: noPositionals,
     examples: ["degreaser-axi doctor", "degreaser-axi doctor --help"],
   },
   review: {
-    description:
-      "Review an explicit scope and task with fresh source-only reviewers",
+    description: "Start a review of an explicit scope and task",
     usage:
       "review --scope <worktree|branch|repository> (--task <text> | --task-file <path>) [--base <ref>] [--path <pattern>]...",
     flags: {
@@ -131,8 +128,7 @@ export const COMMANDS: Record<string, Command> = {
     ],
   },
   wait: {
-    description:
-      "Wait for the same background run without restarting reviewers",
+    description: "Wait for a running review to finish",
     usage: "wait <run-id> [--wait <seconds>]",
     flags: { wait },
     positionals: runId,
@@ -142,8 +138,7 @@ export const COMMANDS: Record<string, Command> = {
     ],
   },
   report: {
-    description:
-      "Read a local run (default latest); at most 30 finding rows unless --full",
+    description: "Show a review's findings and coverage (default: latest run)",
     usage: "report [run-id] [--full]",
     flags: {
       full: {
@@ -155,8 +150,7 @@ export const COMMANDS: Record<string, Command> = {
     examples: ["degreaser-axi report", "degreaser-axi report <run-id> --full"],
   },
   export: {
-    description:
-      "Print a run's findings, coverage and limitations as JSON for other tools",
+    description: "Print a review as JSON for other tools",
     usage: "export [run-id]",
     flags: {},
     positionals: { min: 0, max: 1 },
@@ -166,7 +160,7 @@ export const COMMANDS: Record<string, Command> = {
     ],
   },
   finding: {
-    description: "Show a finding's full source evidence",
+    description: "Show one finding with its full evidence",
     usage: "finding <id> [--run <run-id>]",
     flags: {
       run: { type: "string", description: "Run ID (default latest run)" },
@@ -178,8 +172,7 @@ export const COMMANDS: Record<string, Command> = {
     ],
   },
   dismiss: {
-    description:
-      "Record that a finding should not be applied, so later reviews skip it",
+    description: "Record a finding the user decided not to apply",
     usage: "dismiss <finding-id> --reason <text> [--run <run-id>]",
     flags: {
       reason: {
@@ -194,8 +187,7 @@ export const COMMANDS: Record<string, Command> = {
     ],
   },
   resume: {
-    description:
-      "Continue unresolved aspects of unchanged input, retaining successful results",
+    description: "Continue unfinished aspects of an unchanged review",
     usage:
       "resume <run-id> [--concurrency <n>] [--wait <seconds>] [--deadline <seconds>]",
     flags: {
@@ -214,15 +206,14 @@ export const COMMANDS: Record<string, Command> = {
     ],
   },
   cancel: {
-    description:
-      "Stop an active run's owned workers and retain resolved results",
+    description: "Stop a running review, keeping finished results",
     usage: "cancel <run-id>",
     flags: {},
     positionals: runId,
     examples: ["degreaser-axi cancel <run-id>", "degreaser-axi cancel --help"],
   },
   setup: {
-    description: "Manage the selected harness startup integrations",
+    description: "Agent integration commands",
     usage: "setup hooks [options]",
     flags: {},
     positionals: runId,
@@ -232,8 +223,7 @@ export const COMMANDS: Record<string, Command> = {
     ],
   },
   "setup hooks": {
-    description:
-      "Install, repair or remove owned startup integrations and skill",
+    description: "Install, repair or remove agent integrations",
     usage:
       "setup hooks --harnesses <targets> [--installation-scope project|user] [--remove]",
     flags: {
@@ -250,15 +240,14 @@ export const COMMANDS: Record<string, Command> = {
     ],
   },
   help: {
-    description: "Show top-level or command-local help",
+    description: "Show help for a command",
     usage: "help [command]",
     flags: {},
     positionals: { min: 0, max: 2 },
     examples: ["degreaser-axi help review", "degreaser-axi help setup hooks"],
   },
   version: {
-    description:
-      "Print the package version without repository or authentication",
+    description: "Print the version",
     usage: "version",
     flags: {},
     positionals: noPositionals,
@@ -287,9 +276,13 @@ export function commandHelp(name: string, command: Command) {
 export const TOP_LEVEL_HELP = [
   "degreaser-axi: focused source-only code review",
   "Commands:",
-  ...Object.entries(COMMANDS).map(
-    ([name, command]) => `  ${name}: ${command.description}`,
-  ),
+  ...Object.entries(COMMANDS)
+    // Namespaces such as `config` only route to their subcommands.
+    .filter(
+      ([name]) =>
+        !Object.keys(COMMANDS).some((key) => key.startsWith(`${name} `)),
+    )
+    .map(([name, command]) => `  ${name}: ${command.description}`),
   "Version: --version, -v, -V",
   "Run degreaser-axi <command> --help for required arguments, flags and defaults.",
   "",
