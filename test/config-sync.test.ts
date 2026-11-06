@@ -18,22 +18,22 @@ const cli = fileURLToPath(
   new URL("../dist/bin/degreaser-axi.js", import.meta.url),
 );
 const allAspects = [
-  "A01",
-  "A02",
-  "A03",
-  "A04",
-  "A05",
-  "A06",
-  "A07",
-  "A08",
-  "A09",
-  "A10",
-  "A11",
-  "A12",
-  "A13",
-  "A14",
-  "A15",
-  "A16",
+  "missed-reuse",
+  "unnecessary-layers",
+  "speculative-flexibility",
+  "masked-errors",
+  "unjustified-defense",
+  "low-value-comments",
+  "convention-drift",
+  "scope-creep",
+  "contract-bypass",
+  "low-value-tests",
+  "incomplete-integration",
+  "wrong-abstraction",
+  "reinvented-infrastructure",
+  "unidiomatic-code",
+  "structural-erosion",
+  "verification-theater",
 ];
 const full = {
   schemaVersion: 1,
@@ -90,8 +90,8 @@ test("sync fills only absent nested settings, retaining explicit empty lists, ov
     maxRetries: 0,
     limits: { maxTurns: 12 },
     aspects: {
-      disable: ["A06"],
-      overrides: { A01: { model: "another-model" } },
+      disable: ["low-value-comments"],
+      overrides: { "missed-reuse": { model: "another-model" } },
     },
     exclude: ["vendor"],
   };
@@ -112,7 +112,7 @@ test("sync fills only absent nested settings, retaining explicit empty lists, ov
     },
     aspects: {
       ...previous.aspects,
-      enable: allAspects.filter((id) => id !== "A06"),
+      enable: allAspects.filter((id) => id !== "low-value-comments"),
     },
   });
   assert.deepEqual(resolveConfig(saved), before);
@@ -172,7 +172,10 @@ test("sync rejects invalid, future, missing and symlinked RC without replacing i
     JSON.stringify({ ...full, schemaVersion: 2 }),
     JSON.stringify({ ...full, extra: true }),
     JSON.stringify({ ...full, limits: { maxTruns: 40 } }),
-    JSON.stringify({ ...full, aspects: { enable: ["A01"], disable: ["A01"] } }),
+    JSON.stringify({
+      ...full,
+      aspects: { enable: ["missed-reuse"], disable: ["missed-reuse"] },
+    }),
   ]) {
     f.write(".degreaserrc.json", text);
     const result = run(f.root);

@@ -6,7 +6,7 @@
   "additionalProperties": false,
   "required": ["aspect", "status", "findings", "limitations"],
   "properties": {
-    "aspect": { "type": "string", "pattern": "^A(?:0[1-9]|1[0-6])$" },
+    "aspect": { "type": "string", "enum": ["missed-reuse", "unnecessary-layers", "speculative-flexibility", "masked-errors", "unjustified-defense", "low-value-comments", "convention-drift", "scope-creep", "contract-bypass", "low-value-tests", "incomplete-integration", "wrong-abstraction", "reinvented-infrastructure", "unidiomatic-code", "structural-erosion", "verification-theater"] },
     "status": { "enum": ["findings", "no-findings", "not-applicable", "incomplete"] },
     "findings": { "type": "array", "items": { "$ref": "#/definitions/finding" } },
     "limitations": { "type": "array", "items": { "$ref": "#/definitions/text" } },

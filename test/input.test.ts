@@ -10,22 +10,22 @@ import { validateReviewInput } from "../src/input-schema.ts";
 import { fixture } from "./git-fixture.ts";
 
 const all = [
-  "A01",
-  "A02",
-  "A03",
-  "A04",
-  "A05",
-  "A06",
-  "A07",
-  "A08",
-  "A09",
-  "A10",
-  "A11",
-  "A12",
-  "A13",
-  "A14",
-  "A15",
-  "A16",
+  "missed-reuse",
+  "unnecessary-layers",
+  "speculative-flexibility",
+  "masked-errors",
+  "unjustified-defense",
+  "low-value-comments",
+  "convention-drift",
+  "scope-creep",
+  "contract-bypass",
+  "low-value-tests",
+  "incomplete-integration",
+  "wrong-abstraction",
+  "reinvented-infrastructure",
+  "unidiomatic-code",
+  "structural-erosion",
+  "verification-theater",
 ];
 const identity = { agent: "codex", model: "gpt-6-luna" };
 const args = ["--scope", "worktree", "--task", "Add CSV import"];
@@ -49,7 +49,7 @@ test("invalid requests fail before creating run artifacts or changing the index"
     [...args, "--wait", "0"],
     [...args, "--concurrency", "1.5"],
     [...args, "--aspects", ""],
-    [...args, "--aspects", "A04,A04"],
+    [...args, "--aspects", "masked-errors,masked-errors"],
     ["--scope", "worktree", "--task-file", "missing"],
   ]) {
     assert.throws(
@@ -81,7 +81,7 @@ test("task files resolve from invocation cwd but configuration comes only from r
       "--task-file",
       "brief",
       "--aspects",
-      "A04",
+      "masked-errors",
       "--wait",
       "7",
     ],
@@ -90,7 +90,9 @@ test("task files resolve from invocation cwd but configuration comes only from r
   assert.equal(result.task, "First line\nSecond line\n");
   assert.equal(result.repository, f.root);
   assert.equal(result.waitSeconds, 7);
-  assert.deepEqual(result.config.assignments, [{ aspect: "A04", ...identity }]);
+  assert.deepEqual(result.config.assignments, [
+    { aspect: "masked-errors", ...identity },
+  ]);
   assert.equal(existsSync(join(f.root, ".degreaser")), false);
   f.write(".degreaserrc.json", "{");
   assert.throws(() => prepareReview(args, f.root), /\.degreaserrc.json.*JSON/);
@@ -137,8 +139,11 @@ test("strict public RC schema rejects unknown fields and bounded invalid values 
     { ...identity, aspects: { custom: [] } },
     { ...identity, aspects: { enable: ["reuse-existing"] } },
     { ...identity, aspects: { overrides: { A17: { model: "x" } } } },
-    { ...identity, aspects: { overrides: { A01: { agent: "claude" } } } },
-    { ...identity, aspects: { overrides: { A01: {} } } },
+    {
+      ...identity,
+      aspects: { overrides: { "missed-reuse": { agent: "claude" } } },
+    },
+    { ...identity, aspects: { overrides: { "missed-reuse": {} } } },
     { ...identity, model: " " },
     { agent: "pi", model: "unqualified" },
     ...[
@@ -175,23 +180,30 @@ test("selection narrows all sixteen defaults without re-enabling disabled aspect
     ...identity,
     concurrency: 2,
     aspects: {
-      disable: ["A02"],
+      disable: ["unnecessary-layers"],
       overrides: {
-        A04: { model: "exact-codex-id" },
-        A09: { agent: "claude", model: "claude-haiku-4-5-20251001" },
-        A16: { agent: "pi", model: "openai/gpt-6-luna" },
+        "masked-errors": { model: "exact-codex-id" },
+        "contract-bypass": {
+          agent: "claude",
+          model: "claude-haiku-4-5-20251001",
+        },
+        "verification-theater": { agent: "pi", model: "openai/gpt-6-luna" },
       },
     },
   };
   const original = JSON.stringify(rc);
   const config = resolveConfig(rc, {
-    aspects: ["A16", "A09", "A04"],
+    aspects: ["verification-theater", "contract-bypass", "masked-errors"],
     concurrency: 1,
   });
   assert.deepEqual(config.assignments, [
-    { aspect: "A04", agent: "codex", model: "exact-codex-id" },
-    { aspect: "A09", agent: "claude", model: "claude-haiku-4-5-20251001" },
-    { aspect: "A16", agent: "pi", model: "openai/gpt-6-luna" },
+    { aspect: "masked-errors", agent: "codex", model: "exact-codex-id" },
+    {
+      aspect: "contract-bypass",
+      agent: "claude",
+      model: "claude-haiku-4-5-20251001",
+    },
+    { aspect: "verification-theater", agent: "pi", model: "openai/gpt-6-luna" },
   ]);
   assert.equal(config.concurrency, 1);
   assert.equal(config.maxRetries, 1);
@@ -203,12 +215,15 @@ test("selection narrows all sixteen defaults without re-enabling disabled aspect
   });
   assert.equal(JSON.stringify(rc), original);
   assert.equal(resolveConfig(rc).assignments.length, 15);
-  assert.throws(() => resolveConfig(rc, { aspects: ["A02"] }), /disabled/);
+  assert.throws(
+    () => resolveConfig(rc, { aspects: ["unnecessary-layers"] }),
+    /disabled/,
+  );
   assert.throws(
     () =>
       resolveConfig({
         ...identity,
-        aspects: { enable: ["A01"], disable: ["A01"] },
+        aspects: { enable: ["missed-reuse"], disable: ["missed-reuse"] },
       }),
     /both/,
   );
@@ -222,7 +237,9 @@ test("selection narrows all sixteen defaults without re-enabling disabled aspect
     () =>
       resolveConfig({
         ...identity,
-        aspects: { overrides: { A01: { agent: "pi", model: "wrong" } } },
+        aspects: {
+          overrides: { "missed-reuse": { agent: "pi", model: "wrong" } },
+        },
       }),
     /\.degreaserrc\.json: .*model.*must match pattern/,
   );
@@ -231,7 +248,7 @@ test("selection narrows all sixteen defaults without re-enabling disabled aspect
       resolveConfig({
         agent: "pi",
         model: "openai/gpt-6-luna",
-        aspects: { overrides: { A01: { model: "wrong" } } },
+        aspects: { overrides: { "missed-reuse": { model: "wrong" } } },
       }),
     /provider/,
   );
@@ -245,7 +262,7 @@ test("selection narrows all sixteen defaults without re-enabling disabled aspect
       assertSupportedModels(config, [
         { agent: "codex", model: "exact-codex-id" },
       ]),
-    /A09.*not available/,
+    /contract-bypass.*not available/,
   );
   assert.throws(
     () =>

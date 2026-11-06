@@ -77,20 +77,20 @@ test("compiled reports group transitive same-side overlaps with stable evidence 
   f.write("z.ts", "new line 1\n");
   const tie = finding(20);
   const results = [
-    result("A01", [
+    result("missed-reuse", [
       finding(1, 4),
       finding(11),
       { ...tie, evidence: "beta" },
       { ...tie, evidence: "alpha" },
       finding(1, 1, "new", "z.ts"),
     ]),
-    result("A04", [finding(4, 7), finding(2, 3, "old")]),
-    result("A06", [finding(7, 9), finding(1, 4)]),
+    result("masked-errors", [finding(4, 7), finding(2, 3, "old")]),
+    result("low-value-comments", [finding(7, 9), finding(1, 4)]),
   ];
   let previous: unknown;
   for (const order of [
-    ["A01", "A04", "A06"],
-    ["A06", "A04", "A01"],
+    ["missed-reuse", "masked-errors", "low-value-comments"],
+    ["low-value-comments", "masked-errors", "missed-reuse"],
   ]) {
     const prefix = order[0];
     f.setPlan({
@@ -99,7 +99,10 @@ test("compiled reports group transitive same-side overlaps with stable evidence 
           r.aspect,
           {
             ...r,
-            findings: prefix === "A06" ? [...r.findings].reverse() : r.findings,
+            findings:
+              prefix === "low-value-comments"
+                ? [...r.findings].reverse()
+                : r.findings,
           },
         ]),
       ),
@@ -110,7 +113,10 @@ test("compiled reports group transitive same-side overlaps with stable evidence 
         ]),
       ),
     });
-    const started = f.start(["--aspects", "A01,A04,A06"]);
+    const started = f.start([
+      "--aspects",
+      "missed-reuse,masked-errors,low-value-comments",
+    ]);
     assert.equal(started.status, 3, started.stdout);
     await until(
       () => f.state().tasks.every((task) => task.attempts.length === 1),
@@ -152,7 +158,7 @@ test("compiled reports group transitive same-side overlaps with stable evidence 
         [
           "F1",
           "G1",
-          "A01",
+          "missed-reuse",
           "source.ts",
           "new",
           1,
@@ -161,7 +167,7 @@ test("compiled reports group transitive same-side overlaps with stable evidence 
         [
           "F2",
           "G1",
-          "A06",
+          "low-value-comments",
           "source.ts",
           "new",
           1,
@@ -170,7 +176,7 @@ test("compiled reports group transitive same-side overlaps with stable evidence 
         [
           "F3",
           "G1",
-          "A04",
+          "masked-errors",
           "source.ts",
           "new",
           4,
@@ -179,7 +185,7 @@ test("compiled reports group transitive same-side overlaps with stable evidence 
         [
           "F4",
           "G1",
-          "A06",
+          "low-value-comments",
           "source.ts",
           "new",
           7,
@@ -188,7 +194,7 @@ test("compiled reports group transitive same-side overlaps with stable evidence 
         [
           "F5",
           "G2",
-          "A04",
+          "masked-errors",
           "source.ts",
           "old",
           2,
@@ -197,15 +203,23 @@ test("compiled reports group transitive same-side overlaps with stable evidence 
         [
           "F6",
           "G3",
-          "A01",
+          "missed-reuse",
           "source.ts",
           "new",
           11,
           "Evidence at source.ts:new:11",
         ],
-        ["F7", "G4", "A01", "source.ts", "new", 20, "alpha"],
-        ["F8", "G4", "A01", "source.ts", "new", 20, "beta"],
-        ["F9", "G5", "A01", "z.ts", "new", 1, "Evidence at z.ts:new:1"],
+        ["F7", "G4", "missed-reuse", "source.ts", "new", 20, "alpha"],
+        ["F8", "G4", "missed-reuse", "source.ts", "new", 20, "beta"],
+        [
+          "F9",
+          "G5",
+          "missed-reuse",
+          "z.ts",
+          "new",
+          1,
+          "Evidence at z.ts:new:1",
+        ],
       ],
     );
     assert.equal(f.run(["report", "--full"]).stdout, full.stdout);
@@ -232,16 +246,19 @@ test("short coverage attributes incomplete limitations and full reports separate
   f.write("source.ts", "new line 1\n");
   f.setPlan({
     results: {
-      A01: result("A01", [finding(1), finding(1, 1, "new", "absent.ts")]),
-      A04: {
+      "missed-reuse": result("missed-reuse", [
+        finding(1),
+        finding(1, 1, "new", "absent.ts"),
+      ]),
+      "masked-errors": {
         ...result(
-          "A04",
+          "masked-errors",
           [],
           ["Could not inspect the error handler.", "Generated caller skipped."],
         ),
         reason: "Could not inspect the error handler.",
       },
-      A06: result("A06", []),
+      "low-value-comments": result("low-value-comments", []),
     },
   });
   const reviewed = f.run([
@@ -251,7 +268,7 @@ test("short coverage attributes incomplete limitations and full reports separate
     "--task",
     "Audit source",
     "--aspects",
-    "A01,A04,A06,A08",
+    "missed-reuse,masked-errors,low-value-comments,scope-creep",
   ]);
   assert.equal(reviewed.status, 1, reviewed.stdout);
   const short = decode(reviewed.stdout);
@@ -261,7 +278,7 @@ test("short coverage attributes incomplete limitations and full reports separate
   assert.equal(short.rejected, 1);
   assert.equal(short.usage, "unknown");
   const incomplete = short.coverage.find(
-    (row: { aspect: string }) => row.aspect === "A04",
+    (row: { aspect: string }) => row.aspect === "masked-errors",
   );
   // Reason is not repeated; harness/profile limitations appear once at run level.
   assert.equal(incomplete.reason, "Could not inspect the error handler.");
@@ -283,7 +300,7 @@ test("short coverage attributes incomplete limitations and full reports separate
     for (const limitation of harness)
       assert.ok(!row.limitations.includes(limitation), row.aspect);
   const clean = short.coverage.find(
-    (row: { aspect: string }) => row.aspect === "A06",
+    (row: { aspect: string }) => row.aspect === "low-value-comments",
   );
   assert.ok(!("reason" in clean));
   assert.equal(short.coverage[0].rejected, 1);
@@ -295,17 +312,19 @@ test("short coverage attributes incomplete limitations and full reports separate
   );
   assert.deepEqual(
     full.configuration,
-    ["A01", "A04", "A06", "A08"].map((aspect) => ({
-      aspect,
-      agent: "codex",
-      model: "gpt-6-luna",
-    })),
+    ["missed-reuse", "masked-errors", "low-value-comments", "scope-creep"].map(
+      (aspect) => ({
+        aspect,
+        agent: "codex",
+        model: "gpt-6-luna",
+      }),
+    ),
   );
   assert.deepEqual(
     full.execution.map((row: { aspect: string }) => row.aspect),
-    ["A01", "A04", "A06"],
+    ["missed-reuse", "masked-errors", "low-value-comments"],
   );
-  assert.equal(full.coordinator[0].aspect, "A08");
+  assert.equal(full.coordinator[0].aspect, "scope-creep");
   assert.equal(full.coordinator[0].status, "not-applicable");
   assert.match(full.coordinator[0].reason, /no feature-change scope/);
   assert.equal(f.events().length, 3);
@@ -323,7 +342,8 @@ test("short coverage attributes incomplete limitations and full reports separate
   for (const task of executed) {
     const attempt = task.attempts.at(-1);
     assert.ok(attempt);
-    attempt.usage = task.assignment.aspect === "A01" ? { inputTokens: 17 } : {};
+    attempt.usage =
+      task.assignment.aspect === "missed-reuse" ? { inputTokens: 17 } : {};
     // Earlier saved task summaries can be stale; only attempt metadata is attributed.
     task.usage = { inputTokens: 999 };
   }
@@ -339,9 +359,9 @@ test("short coverage attributes incomplete limitations and full reports separate
   }
   saveRun(run);
   assert.deepEqual(decode(f.run(["report"]).stdout).usage, [
-    { aspect: "A01", inputTokens: 17, outputTokens: 3 },
-    { aspect: "A04", inputTokens: 17, outputTokens: 3 },
-    { aspect: "A06", inputTokens: 17, outputTokens: 3 },
+    { aspect: "missed-reuse", inputTokens: 17, outputTokens: 3 },
+    { aspect: "masked-errors", inputTokens: 17, outputTokens: 3 },
+    { aspect: "low-value-comments", inputTokens: 17, outputTokens: 3 },
   ]);
   const audit = f.run([
     "review",
@@ -350,13 +370,13 @@ test("short coverage attributes incomplete limitations and full reports separate
     "--task",
     "Check applicability",
     "--aspects",
-    "A08",
+    "scope-creep",
   ]);
   assert.equal(audit.status, 0, audit.stdout);
   const coordinatorOnly = decode(f.run(["report", "--full"]).stdout);
   assert.deepEqual(coordinatorOnly.execution, []);
   assert.deepEqual(coordinatorOnly.configuration, [
-    { aspect: "A08", agent: "codex", model: "gpt-6-luna" },
+    { aspect: "scope-creep", agent: "codex", model: "gpt-6-luna" },
   ]);
   assert.equal(coordinatorOnly.aspects, "1/1");
   assert.equal(coordinatorOnly.count, 0);
@@ -380,7 +400,11 @@ test("row limits and historical detail preserve all evidence, uncertainty and as
     uncertainty: "Runtime behavior was not measured.",
   }));
   f.setPlan({
-    results: { A06: result("A06", entries, ["Unexamined generated caller."]) },
+    results: {
+      "low-value-comments": result("low-value-comments", entries, [
+        "Unexamined generated caller.",
+      ]),
+    },
   });
   const first = f.run([
     "review",
@@ -391,7 +415,7 @@ test("row limits and historical detail preserve all evidence, uncertainty and as
     "--task",
     "Update source",
     "--aspects",
-    "A06",
+    "low-value-comments",
   ]);
   assert.equal(first.status, 1, first.stdout);
   const short = decode(first.stdout);
@@ -423,7 +447,7 @@ test("row limits and historical detail preserve all evidence, uncertainty and as
   assert.equal(detail.uncertainty, entries[34]?.uncertainty);
   assert.ok(detail.limitations.includes("Unexamined generated caller."));
   f.setPlan();
-  f.start(["--aspects", "A06"]);
+  f.start(["--aspects", "low-value-comments"]);
   assert.equal(f.finish().status, 0);
   assert.notEqual(decode(f.run(["report"]).stdout).run, short.run);
   assert.equal(decode(f.run(["report", short.run]).stdout).run, short.run);
@@ -469,9 +493,13 @@ test("home observes configuration and history independently and all read command
   assert.ok(absent.bin);
   assert.ok(absent.description);
   f.setPlan({
-    results: { A06: result("A06", [{ ...finding(1), quote: "// redundant" }]) },
+    results: {
+      "low-value-comments": result("low-value-comments", [
+        { ...finding(1), quote: "// redundant" },
+      ]),
+    },
   });
-  f.start(["--aspects", "A06"]);
+  f.start(["--aspects", "low-value-comments"]);
   assert.equal(f.finish().status, 0);
   const run = f.state();
   const owner = run.owner;
@@ -541,14 +569,19 @@ test("running reports are immediate saved-result observations with same-run acti
   );
   f.setPlan({
     results: {
-      A01: result(
-        "A01",
+      "missed-reuse": result(
+        "missed-reuse",
         Array.from({ length: 35 }, (_, n) => finding(n + 1)),
       ),
     },
-    workers: { A04: { resultGate: f.gate("finish") } },
+    workers: { "masked-errors": { resultGate: f.gate("finish") } },
   });
-  const start = f.start(["--aspects", "A01,A04", "--concurrency", "2"]);
+  const start = f.start([
+    "--aspects",
+    "missed-reuse,masked-errors",
+    "--concurrency",
+    "2",
+  ]);
   assert.equal(start.status, 3, start.stdout);
   await until(
     () => !!f.state().tasks[0]?.result,
@@ -594,7 +627,7 @@ test("suggested reviews preserve explicit scope, base, task and selection as lit
     base,
     `--task=${task}`,
     "--aspects",
-    "A06",
+    "low-value-comments",
   ]);
   assert.equal(first.status, 0, first.stdout);
   const command = decode(first.stdout).help.find((text: string) =>
@@ -619,15 +652,19 @@ test("suggested reviews preserve explicit scope, base, task and selection as lit
   assert.equal(input.scope, "branch");
   assert.equal(input.task, task);
   assert.equal(input.configuration.length, 1);
-  assert.equal(input.configuration[0].aspect, "A06");
+  assert.equal(input.configuration[0].aspect, "low-value-comments");
   assert.equal(f.events().length, 2);
 });
 
 test("a dismissed finding is stored per repository and passed to later reviews of that file", (t) => {
   const f = queueFixture(t);
   f.write("source.ts", "new line 1\n");
-  f.setPlan({ results: { A06: result("A06", [finding(1)]) } });
-  f.start(["--aspects", "A06"]);
+  f.setPlan({
+    results: {
+      "low-value-comments": result("low-value-comments", [finding(1)]),
+    },
+  });
+  f.start(["--aspects", "low-value-comments"]);
   const first = decode(f.finish().stdout);
   assert.equal(first.count, 1);
   const missing = decode(f.run(["dismiss", "F1"]).stdout);
@@ -639,7 +676,7 @@ test("a dismissed finding is stored per repository and passed to later reviews o
   const stored = join(f.root, ".git/degreaser/dismissed.json");
   assert.equal(realpathSync(dismissed.stored), realpathSync(stored));
   assert.match(readFileSync(stored, "utf8"), /Kept for old clients/);
-  f.start(["--aspects", "A06"]);
+  f.start(["--aspects", "low-value-comments"]);
   assert.equal(f.finish().status, 0);
   const prompts = f.events().map((e) => e.prompt ?? "");
   assert.doesNotMatch(prompts[0] ?? "", /Kept for old clients/);
@@ -650,8 +687,10 @@ test("export prints the run as plain JSON with flattened, unclipped findings", (
   const f = queueFixture(t);
   f.write("source.ts", "new line 1\n");
   const entry = { ...finding(1), evidence: "x".repeat(5_000) };
-  f.setPlan({ results: { A06: result("A06", [entry]) } });
-  f.start(["--aspects", "A06"]);
+  f.setPlan({
+    results: { "low-value-comments": result("low-value-comments", [entry]) },
+  });
+  f.start(["--aspects", "low-value-comments"]);
   const done = decode(f.finish().stdout);
   const exported = f.run(["export"]);
   assert.equal(exported.status, 0, exported.stdout);
@@ -663,9 +702,9 @@ test("export prints the run as plain JSON with flattened, unclipped findings", (
   assert.deepEqual(data.findings[0], {
     id: "F1",
     group: "G1",
-    aspect: "A06",
+    aspect: "low-value-comments",
     ...fields,
     ...location,
   });
-  assert.equal(data.coverage[0].aspect, "A06");
+  assert.equal(data.coverage[0].aspect, "low-value-comments");
 });

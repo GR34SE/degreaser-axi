@@ -36,8 +36,9 @@ The worker receives its own six examples, not the entire catalog. Keep the core 
 
 ## Done checklist
 
-- Header: ID, slug, default state, question, `Applies when`, evidence, boundaries, `Not here`, sources.
-- Exactly six examples `ANN-B1`…`ANN-G3`, each with context, language, code, verdict and explanation; the verdict follows from the stated context alone.
+- ID: a kebab-case phrase naming the defect, readable without the catalog (`masked-errors`, not a number); it is also the file name `aspects/<id>.md`.
+- Header: title, ID, default state, question, `Applies when`, evidence, boundaries, `Not here`, sources.
+- Exactly six examples `<id>-B1`…`<id>-G3`, each with context, language, code, verdict and explanation; the verdict follows from the stated context alone.
 - At least one good example defeats the most tempting false finding for this aspect.
 - Each example belongs to this aspect and not to a neighbor named in `Not here`.
 - Version-dependent APIs carry a `Verified:` note with source, version and date, or avoid naming versions.

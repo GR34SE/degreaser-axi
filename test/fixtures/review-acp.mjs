@@ -118,7 +118,7 @@ const connection = new AgentSideConnection(
         .filter((c) => c.type === "text")
         .map((c) => c.text)
         .join("");
-      const aspect = /Assigned aspect: (A\d\d)/.exec(text)?.[1];
+      const aspect = /Assigned aspect: ([a-z-]+)/.exec(text)?.[1];
       const previous = existsSync(plan.log)
         ? readFileSync(plan.log, "utf8")
             .trim()

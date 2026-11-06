@@ -1,3 +1,4 @@
+import { ASPECT_IDS, type AspectId } from "./config.ts";
 import { type ReviewInput, reviewCommand } from "./input.ts";
 import { PROFILE_LIMITATIONS } from "./native-profile.ts";
 import {
@@ -22,14 +23,14 @@ export function observedStatus(run: Run) {
   return ownerAlive(run.owner) ? "running" : "interrupted";
 }
 const compareText = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
-type AspectFinding = Finding & { aspect: string };
+type AspectFinding = Finding & { aspect: AspectId };
 function compareFindings(a: AspectFinding, b: AspectFinding): number {
   return (
     compareText(a.location.path, b.location.path) ||
     a.location.startLine - b.location.startLine ||
     compareText(a.location.side, b.location.side) ||
     a.location.endLine - b.location.endLine ||
-    compareText(a.aspect, b.aspect) ||
+    ASPECT_IDS.indexOf(a.aspect) - ASPECT_IDS.indexOf(b.aspect) ||
     compareText(a.title, b.title) ||
     compareText(a.quote, b.quote) ||
     compareText(a.evidence, b.evidence) ||

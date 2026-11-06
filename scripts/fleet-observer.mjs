@@ -4,7 +4,7 @@ import { appendFileSync } from "node:fs";
 import { registerHooks } from "node:module";
 
 export async function observeWorker(request, profile, execute) {
-  const aspect = /Assigned aspect: (A\d\d)/.exec(request.prompt)?.[1];
+  const aspect = /Assigned aspect: ([a-z-]+)/.exec(request.prompt)?.[1];
   if (!aspect) throw new Error("Fleet observer could not identify assignment");
   const record = (type, fields = {}) =>
     appendFileSync(

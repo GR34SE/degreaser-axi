@@ -1,4 +1,4 @@
-# A15 · Structural erosion
+# Structural erosion
 
 `structural-erosion` · default ON
 
@@ -11,13 +11,13 @@
 **Boundaries:** A finding must arise from the change, not the file's general condition. Do not propose broad refactoring unrelated to the diff.
 
 **Not here (another reviewer):**
-- Copying existing code instead of reusing it: A01.
-- A shared mechanism combining cases with divergent rules: A12.
-- Departure from an established repository pattern without increased coupling: A07.
+- Copying existing code instead of reusing it: missed-reuse.
+- A shared mechanism combining cases with divergent rules: wrong-abstraction.
+- Departure from an established repository pattern without increased coupling: convention-drift.
 
 Sources / inspiration: S06. Teaching excerpts; context states omitted setup. These have not been executed as programs or model evaluations.
 
-## A15-B1 · REPORT
+## structural-erosion-B1 · REPORT
 
 **Context:** A large function already mixes billing, transport and formatting. A new user type adds interdependent exceptions in each area.
 
@@ -31,7 +31,7 @@ if (skipFee && response.mode !== "special") retryBilling();
 
 **Why:** The change scatters one policy across an existing complex path and couples distant states. Cite those dependencies, not just line count.
 
-## A15-B2 · REPORT
+## structural-erosion-B2 · REPORT
 
 **Context:** OrderRepository previously only stored and retrieved orders. The diff adds confirmation emails with attached PDF invoices. Repository tests now need mailer and renderer mocks.
 
@@ -44,7 +44,7 @@ async saveAndNotify(order: Order) {
 
 **Why:** The data layer acquires transport and template dependencies, so email changes affect the repository and its tests gain unrelated mocks. Evidence is the unit's new dependencies and testing cost, not line count.
 
-## A15-B3 · REPORT
+## structural-erosion-B3 · REPORT
 
 **Context:** The save function had one condition. The diff adds a mutable flag and two nested branches marked // new that overwrite its meaning.
 
@@ -57,7 +57,7 @@ if (shouldSave) await save(result);
 
 **Why:** For retry && partial && legacy && forced, the later branch silently wins, without the code establishing whether that precedence is intended. Cite this combination and the responsibility boundary, not merely the number of if statements.
 
-## A15-G1 · PRESERVE
+## structural-erosion-G1 · PRESERVE
 
 **Context:** A new permitted state is added to one exhaustive dispatch; each branch has a coherent responsibility.
 
@@ -73,7 +73,7 @@ switch (job.state) {
 
 **Why:** Additional cases follow the domain model. Branching remains local and understandable.
 
-## A15-G2 · PRESERVE
+## structural-erosion-G2 · PRESERVE
 
 **Context:** The long file is a generated data table, not mixed responsibilities or manually maintained control flow.
 
@@ -87,7 +87,7 @@ ERROR_NAMES = {
 
 **Why:** Line count alone does not measure structural erosion. Generated data may also be excluded from review.
 
-## A15-G3 · PRESERVE
+## structural-erosion-G3 · PRESERVE
 
 **Context:** The guard covers one new valid case and terminates it before the existing path.
 

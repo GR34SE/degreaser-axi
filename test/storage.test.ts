@@ -19,7 +19,14 @@ test("pre-write run validation rejects invalid structures, versions and embedded
   f.write("source.ts", "export const value = 1;\n");
   const original = createRun(
     prepareReview(
-      ["--scope", "worktree", "--task", "Update", "--aspects", "A04,A06"],
+      [
+        "--scope",
+        "worktree",
+        "--task",
+        "Update",
+        "--aspects",
+        "masked-errors,low-value-comments",
+      ],
       f.root,
     ),
   );
@@ -32,7 +39,7 @@ test("pre-write run validation rejects invalid structures, versions and embedded
     (_run, task) =>
       Object.assign(task, {
         result: {
-          aspect: "A04",
+          aspect: "masked-errors",
           status: "findings",
           findings: [],
           limitations: [],
@@ -42,7 +49,7 @@ test("pre-write run validation rejects invalid structures, versions and embedded
       Object.assign(task, {
         status: "no-findings",
         result: {
-          aspect: "A06",
+          aspect: "low-value-comments",
           status: "no-findings",
           findings: [],
           limitations: [],
@@ -114,7 +121,14 @@ test("a valid in-memory run cannot overwrite a damaged authoritative destination
   f.write("source.ts", "export const value = 1;\n");
   const run = createRun(
     prepareReview(
-      ["--scope", "worktree", "--task", "Update", "--aspects", "A06"],
+      [
+        "--scope",
+        "worktree",
+        "--task",
+        "Update",
+        "--aspects",
+        "low-value-comments",
+      ],
       f.root,
     ),
   );
@@ -133,7 +147,14 @@ test("invalid input writes fail by filename before allocating a run or replacing
   const f = fixture(t);
   f.write("source.ts", "export const value = 1;\n");
   const input = prepareReview(
-    ["--scope", "worktree", "--task", "Update", "--aspects", "A06"],
+    [
+      "--scope",
+      "worktree",
+      "--task",
+      "Update",
+      "--aspects",
+      "low-value-comments",
+    ],
     f.root,
   );
   const run = createRun(input);
@@ -144,7 +165,9 @@ test("invalid input writes fail by filename before allocating a run or replacing
     { ...input, config: { ...input.config, maxRetries: "1" } },
     {
       ...input,
-      coordinatorResults: [{ aspect: "A06", status: "no-findings" }],
+      coordinatorResults: [
+        { aspect: "low-value-comments", status: "no-findings" },
+      ],
     },
   ]) {
     assert.throws(
@@ -161,10 +184,10 @@ test("invalid input writes fail by filename before allocating a run or replacing
 
 test("compiled readers reject corruption at every authoritative JSON layer without changing history or starting workers", (t) => {
   const f = queueFixture(t);
-  f.start(["--aspects", "A06"]);
+  f.start(["--aspects", "low-value-comments"]);
   assert.equal(f.finish().status, 0);
   const sibling = f.state();
-  f.start(["--aspects", "A04"]);
+  f.start(["--aspects", "masked-errors"]);
   assert.equal(f.finish().status, 0);
   const run = f.state();
   const root = join(f.root, ".degreaser");
@@ -226,7 +249,7 @@ test("compiled readers reject corruption at every authoritative JSON layer witho
 
 test("new review rejects damaged latest history before model discovery or publishing another run", (t) => {
   const f = queueFixture(t);
-  f.start(["--aspects", "A06"]);
+  f.start(["--aspects", "low-value-comments"]);
   assert.equal(f.finish().status, 0);
   const run = f.state();
   const root = join(f.root, ".degreaser");
@@ -236,7 +259,7 @@ test("new review rejects damaged latest history before model discovery or publis
   const lifecycle = readFileSync(f.gate("lifecycle.jsonl"));
   try {
     writeFileSync(path, "{");
-    const result = f.start(["--aspects", "A06"]);
+    const result = f.start(["--aspects", "low-value-comments"]);
     assert.equal(result.status, 2, result.stdout);
     assert.ok(result.stdout.includes(path), result.stdout);
     assert.deepEqual(readFileSync(join(root, "state.json")), latest);

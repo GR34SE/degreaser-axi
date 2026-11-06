@@ -1,4 +1,4 @@
-# A11 · Incomplete integration
+# Incomplete integration
 
 `incomplete-integration` · default ON
 
@@ -11,11 +11,11 @@
 **Boundaries:** No rg match does not establish unreachability. If resolving the question requires execution, record the missing evidence rather than asserting a finding.
 
 **Not here (another reviewer):**
-- Code not requested by the task, even when disconnected: A08.
+- Code not requested by the task, even when disconnected: scope-creep.
 
 Sources / inspiration: S04 S05. Teaching excerpts; context states omitted setup. These have not been executed as programs or model evaluations.
 
-## A11-B1 · REPORT
+## incomplete-integration-B1 · REPORT
 
 **Context:** The task promises a working export command. Its new handler exists, but current dispatch still points to a stub.
 
@@ -26,7 +26,7 @@ const commands = { export: oldPlaceholder };
 
 **Why:** The user path never reaches the implementation. The command registry is evidence, not merely absent rg matches.
 
-## A11-B2 · REPORT
+## incomplete-integration-B2 · REPORT
 
 **Context:** The API must run new validation before saving; the function was added, but the entrypoint still saves raw data.
 
@@ -40,7 +40,7 @@ def endpoint(payload):
 
 **Why:** The required rule is absent from the actual path. Testing validate_payload alone cannot establish integration.
 
-## A11-B3 · REPORT
+## incomplete-integration-B3 · REPORT
 
 **Context:** The required SDK feature must be importable by package users. Its new file is not exported through the declared public entrypoint.
 
@@ -51,7 +51,7 @@ export { oldFeature } from "./old-feature";
 
 **Why:** Consumers using the promised public import cannot access it. Also inspect package exports and generated entrypoints.
 
-## A11-G1 · PRESERVE
+## incomplete-integration-G1 · PRESERVE
 
 **Context:** The consumer is external. The public entrypoint actually exports the new function.
 
@@ -61,7 +61,7 @@ export { parseInvoice } from "./invoice";
 
 **Why:** No internal call sites does not imply missing library integration. Inspect the public contract.
 
-## A11-G2 · PRESERVE
+## incomplete-integration-G2 · PRESERVE
 
 **Context:** The module resides in commands/, which the framework documentation says is automatically imported at startup. A decorator registers handlers; application code never calls the function directly.
 
@@ -73,7 +73,7 @@ def export_command():
 
 **Why:** Autodiscovery and the decorator create a real connection. Searching only direct callers would produce a false finding. Without discovery or a module import, the decorator alone would not connect it.
 
-## A11-G3 · PRESERVE
+## incomplete-integration-G3 · PRESERVE
 
 **Context:** The task deliberately ships a feature behind an existing flag with an owner and rollout plan.
 
