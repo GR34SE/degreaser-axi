@@ -172,7 +172,7 @@ test("strict public RC schema rejects unknown fields and bounded invalid values 
       agent: "cursor",
       model: "composer-2.5-fast",
     }).assignments[0],
-    { aspect: "A01", agent: "cursor", model: "composer-2.5-fast" },
+    { aspect: "missed-reuse", agent: "cursor", model: "composer-2.5-fast" },
   );
   assert.throws(
     () => resolveConfig({ ...identity, limits: { workerTimeoutSecons: 300 } }),
