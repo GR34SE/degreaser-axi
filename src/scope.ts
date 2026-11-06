@@ -225,6 +225,7 @@ export function resolveScope(
   scope: Scope,
   baseRef: string | undefined,
   extraExclusions: string[],
+  pathPatterns: string[] = [],
 ): ResolvedScope {
   const base = resolveBase(repository, scope, baseRef);
   if (
@@ -237,8 +238,18 @@ export function resolveScope(
     );
   }
   const tree = resolveTree(repository);
+  // Git glob magic prefix-matches only wildcard-free directories (`landing`),
+  // so `/**` extends wildcard matches (`packages/*/src`) beneath them; literal
+  // magic keeps bracketed names such as `app/[slug]` selectable as written.
+  const selection = pathPatterns.length
+    ? pathPatterns.flatMap((p) => [
+        `:(top,glob)${p}`,
+        `:(top,glob)${p}/**`,
+        `:(top,literal)${p}`,
+      ])
+    : ["."];
   const pathspecs = [
-    ".",
+    ...selection,
     ":(top,literal,exclude).degreaser",
     ...generated.flatMap((name) => [
       `:(top,glob,exclude)**/${name}`,
@@ -281,7 +292,7 @@ export function resolveScope(
           ...pathspecs,
         ]);
   const excludedPaths = nulList(
-    requireGit(repository, [...diff, "--name-only", "-z"]),
+    requireGit(repository, [...diff, "--name-only", "-z", "--", ...selection]),
   ).filter((path) => excluded(path, extraExclusions));
   paths.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
   const limitations: Limitation[] = [
@@ -301,6 +312,14 @@ export function resolveScope(
         "Only supplied paths are assessed. Excluded or other files may be read as context without becoming reviewed coverage. Built-ins exclude root .degreaser and node_modules/dist/build/coverage directories at any depth.",
       paths: excludedPaths,
     },
+    ...(pathPatterns.length
+      ? [
+          {
+            code: "path-selection",
+            message: `Assessed paths are limited to --path ${pathPatterns.join(", ")}; other files are context only.`,
+          },
+        ]
+      : []),
   ];
   const binaries = paths.filter((path) => path.binary).map((path) => path.path);
   if (binaries.length)

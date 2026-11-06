@@ -12,6 +12,7 @@ export function reviewIdentity(input: ReviewInput, prompts: (string | null)[]) {
       repository: input.repository,
       scope: input.scope,
       baseRef: input.baseRef,
+      pathPatterns: input.pathPatterns,
       base: input.base,
       tree: input.tree,
       paths: input.paths,

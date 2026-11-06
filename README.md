@@ -156,9 +156,21 @@ degreaser-axi review --scope branch --base develop --task "Add CSV import with q
 
 # Whole-repository review is explicit and can cost more.
 degreaser-axi review --scope repository --task "Review the repository for unnecessary complexity"
+
+# Only part of the repository (or of a worktree/branch change).
+degreaser-axi review --scope repository --path landing --path 'packages/*/src' --task "Audit the landing page"
 ```
 
 Use `--task-file <path>` instead of `--task` for a longer brief. An empty diff finishes without starting reviewers.
+
+Repeat `--path <pattern>` to assess only matching files in any scope. Patterns
+are relative to the Git root, wherever you run the command. A directory or file
+name such as `landing` or `landing/app/blog.ts` selects that file or everything
+beneath it; quoted globs (`*`, `**`, `?`, `[...]`) such as `'landing/**/*.tsx'`
+also work, and a matching directory includes its contents. `exclude` and the
+built-in exclusions still apply. A narrowed repository audit that matches no
+files fails without starting reviewers; a narrowed change with no matching
+files finishes as `no-changes`. Other files remain readable context.
 
 If a review returns `running`, use its supplied `degreaser-axi wait <run-id>` command. Keep the code unchanged until the run finishes. If some reviewers fail, their completed peers' results remain available.
 
@@ -260,6 +272,7 @@ run deadline and a 40-turn budget. Configure `maxRetries` and
 `limits.workerTimeoutSeconds`, `limits.runTimeoutSeconds`, `limits.maxTurns`.
 Only Claude enforces the turn budget natively; Codex and Pi treat it as advisory.
 `exclude` accepts literal repository-relative files or directory prefixes, not globs.
+For a one-run selection, use `review --path` instead.
 
 Missing/malformed output, discarded oversized output and attempt timeouts receive
 only the configured bounded retries in fresh sessions. Auth, model, account and

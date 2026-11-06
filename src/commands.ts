@@ -1,5 +1,6 @@
 export interface Flag {
   type: "string" | "boolean";
+  multiple?: boolean;
   description: string;
 }
 
@@ -73,7 +74,7 @@ export const COMMANDS: Record<string, Command> = {
     description:
       "Review an explicit scope and task with fresh source-only reviewers",
     usage:
-      "review --scope <worktree|branch|repository> (--task <text> | --task-file <path>) [--base <ref>]",
+      "review --scope <worktree|branch|repository> (--task <text> | --task-file <path>) [--base <ref>] [--path <pattern>]...",
     flags: {
       scope: {
         type: "string",
@@ -89,6 +90,12 @@ export const COMMANDS: Record<string, Command> = {
         type: "string",
         description: "Required explicit base for branch; never inferred",
       },
+      path: {
+        type: "string",
+        multiple: true,
+        description:
+          "Repeatable; assess only matching files. Git-root-relative directory, file or glob (*, **, ?, [...]); a matched directory includes everything beneath it",
+      },
       aspects: {
         type: "string",
         description: "Comma-separated A01-A16 subset (default all enabled)",
@@ -100,6 +107,7 @@ export const COMMANDS: Record<string, Command> = {
     examples: [
       'degreaser-axi review --scope worktree --task "Add CSV import"',
       "degreaser-axi review --scope branch --base <given-ref> --task-file <brief>",
+      "degreaser-axi review --scope repository --path landing --path 'packages/*/src' --task \"Audit the landing page\"",
     ],
   },
   wait: {
