@@ -302,6 +302,12 @@ export function dismissCommand(
     repository,
     typeof values.run === "string" ? values.run : undefined,
   );
+  // Finding IDs are renumbered as aspects finish, so only dismiss settled runs.
+  if (observedStatus(run) === "running")
+    throw new StateError(
+      "run-active",
+      `${run.id} is still running and its finding IDs can change. Run degreaser-axi wait ${run.id}, then dismiss from the final report.`,
+    );
   const id = positionals[0];
   const finding = findings(run).find((f) => f.id === id);
   if (!finding)
