@@ -264,13 +264,6 @@ export const COMMANDS: Record<string, Command> = {
     positionals: noPositionals,
     examples: ["degreaser-axi --version", "degreaser-axi version"],
   },
-  update: {
-    description: "Self-update; not available yet, reinstall with npm instead",
-    usage: "update",
-    flags: {},
-    positionals: noPositionals,
-    examples: ["degreaser-axi update --help", "degreaser-axi --version"],
-  },
 };
 
 export function commandHelp(name: string, command: Command) {
@@ -301,3 +294,7 @@ export const TOP_LEVEL_HELP = [
   "Run degreaser-axi <command> --help for required arguments, flags and defaults.",
   "",
 ].join("\n");
+
+/** SDK built-ins that runAxiCli lists itself only for a bare --help. */
+export const BUILT_IN_HELP =
+  "  update: Upgrade to the latest published version (update --check only reports)\n";

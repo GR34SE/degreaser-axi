@@ -120,7 +120,7 @@ for (const override of [false, true]) {
       });
     const result = f.run();
     assert.equal(result.status, 2, result.stdout);
-    assert.match(result.stdout, /error: invalid-input/);
+    assert.match(result.stdout, /code: invalid-input/);
     assert.match(result.stdout, /A06.*pi.*exact model list/);
     assert.ok(!existsSync(join(f.root, ".degreaser")));
     assert.ok(
@@ -160,7 +160,7 @@ test("Pi refusal preserves existing history and does not mistake native faults f
     f.plan(plan);
     const result = f.run();
     assert.equal(result.status, 2, result.stdout);
-    assert.match(result.stdout, new RegExp(`error: ${expected}`));
+    assert.match(result.stdout, new RegExp(`code: ${expected}`));
     assert.doesNotMatch(
       result.stdout + result.stderr,
       /Synthetic private diagnostic/,
