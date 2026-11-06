@@ -265,7 +265,7 @@ export const COMMANDS: Record<string, Command> = {
     examples: ["degreaser-axi --version", "degreaser-axi version"],
   },
   update: {
-    description: "SDK-reserved; disabled for this unpublished package",
+    description: "Self-update; not available yet, reinstall with npm instead",
     usage: "update",
     flags: {},
     positionals: noPositionals,
@@ -293,7 +293,6 @@ export function commandHelp(name: string, command: Command) {
 
 export const TOP_LEVEL_HELP = [
   "degreaser-axi: focused source-only code review",
-  "Development build: review/wait/report/finding/cancel/resume and selected native startup/skill installation are available.",
   "Commands:",
   ...Object.entries(COMMANDS).map(
     ([name, command]) => `  ${name}: ${command.description}`,
