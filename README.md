@@ -1,4 +1,8 @@
-# degreaser-axi
+<p align="center">
+  <img src="assets/branding/degreaser.png" alt="Degreaser — Removes slop!" width="760">
+</p>
+
+# Degreaser
 
 Focused slop review for coding agents.
 
