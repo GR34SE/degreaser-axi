@@ -28,6 +28,8 @@ Do not change global permissions, trust, Codex rules or unselected harnesses. Do
 
 Outside v1: custom rubrics, automatic apply, model judge, semantic finding merges, custom diff parser, per-review worktree/snapshot, daemon, hosted queue or benchmark platform. Use Git, public `acpx/runtime`, AXI routing/TOON, Ajv and Node built-ins before inventing infrastructure. Effect is not this package's required stack.
 
+**Always use `axi-sdk-js` for anything it provides:** CLI routing, help, version fast path, errors (`AxiError` rendered by `runAxiCli`), the built-in `update`, home header and session hooks (`computeSessionStartHookUpdate`/`Removal`, `resolvePortableHookCommand`). Use only its public exports (package `index` and `axi-sdk-js/fast-path`). Hand-write something only when the SDK lacks it, does not export it publicly, or would break a rule here (`installSessionStartHooks` touches unselected agents and global Codex config); say why in a short comment. Check the SDK before adding CLI, output, hook or update code.
+
 ## Where to work
 
 | Concern | Entry points |
@@ -41,7 +43,7 @@ Outside v1: custom rubrics, automatic apply, model judge, semantic finding merge
 | Init, integrations and generated skill | `src/init.ts`, `src/integrations.ts`, `src/integration-targets.ts`, `src/guidance.ts`; `assets/skills/degreaser/SKILL.md` |
 | Validation and packaging | `test/`, `scripts/qa/`, `scripts/test-live.ts`, `scripts/package-check.ts`, `.github/workflows/check.yml` |
 
-Read the relevant contract before editing. Build/runtime must work from public `assets/` without private files. Generate the product skill from `src/guidance.ts` with `pnpm skill:generate`; never hand-edit it. README is for users: purpose, verified setup, usage and results, without development handoff or private links.
+Read the relevant contract before editing. Build/runtime must work from public `assets/` without private files. Generate the product skill from `src/guidance.ts` with `pnpm skill:generate`; never hand-edit it. README is for users: purpose, verified setup, usage and results, without development handoff or private links. Write it for the released npm package (`npm install -g degreaser-axi`, `npx -y degreaser-axi`), not as a development build.
 
 ### Private intent and history
 
