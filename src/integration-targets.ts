@@ -1,7 +1,8 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
-import { isAbsolute, join } from "node:path";
+import { delimiter, isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { resolvePortableHookCommand } from "axi-sdk-js";
 import type { Agent } from "./config.ts";
 import { InputError } from "./input-error.ts";
 
@@ -38,11 +39,28 @@ export function skillInstallChoice(
 }
 
 const quote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
-const startup = fileURLToPath(
-  new URL("../bin/startup-context.js", import.meta.url),
+const bin = fileURLToPath(new URL("../bin/degreaser-axi.js", import.meta.url));
+const realPath = (path: string) => {
+  try {
+    return realpathSync(path);
+  } catch {
+    return undefined;
+  }
+};
+/** The bare command when PATH resolves to this install (AXI section 7), else absolute. */
+const portable = resolvePortableHookCommand(
+  bin,
+  ["degreaser-axi", "degreaser"],
+  "degreaser",
+  {
+    pathEntries: (process.env.PATH ?? "").split(delimiter),
+    pathExtensions: [""],
+    resolveRealPath: realPath,
+  },
 );
+const executable = portable === bin ? [process.execPath, bin] : [portable];
 export const HOOK_MARKER = "degreaser-startup-v1";
-const command = `if [ -z "\${DEGREASER_WORKER:-}" ]; then ${quote(process.execPath)} ${quote(startup)} 2>/dev/null || :; fi # ${HOOK_MARKER}`;
+const command = `if [ -z "\${DEGREASER_WORKER:-}" ]; then ${executable.map(quote).join(" ")} startup-context 2>/dev/null || :; fi # ${HOOK_MARKER}`;
 export const hookSpec = { marker: HOOK_MARKER, command, timeoutSeconds: 2 };
 
 function piExtension(): string {
@@ -52,7 +70,7 @@ export default function (pi) {
   pi.on("session_start", async (_event, ctx) => {
     if (process.env.DEGREASER_WORKER) return;
     const context = await new Promise(resolve => {
-      execFile(${JSON.stringify(process.execPath)}, [${JSON.stringify(startup)}, "--plain"],
+      execFile(${JSON.stringify(executable[0])}, ${JSON.stringify([...executable.slice(1), "startup-context", "--plain"])},
         { cwd: ctx.cwd, timeout: 2000, maxBuffer: 4096 },
         (error, stdout) => resolve(error ? "" : stdout.trim()));
     });
