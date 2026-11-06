@@ -97,7 +97,7 @@ for (const override of [false, true]) {
     const rc = readFileSync(join(f.root, ".degreaserrc.json"));
     const result = f.run();
     assert.equal(result.status, 2, result.stdout);
-    assert.match(result.stdout, /error: invalid-input/);
+    assert.match(result.stdout, /code: invalid-input/);
     assert.match(result.stdout, /A06.*claude.*exact model list/);
     assert.ok(!existsSync(join(f.root, ".degreaser")));
     assert.deepEqual(readFileSync(join(f.root, ".degreaserrc.json")), rc);

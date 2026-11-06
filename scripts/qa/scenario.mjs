@@ -121,7 +121,7 @@ export async function runScenario(node, packageRoot) {
       ["status", "--porcelain", "--untracked-files=all"],
       { cwd: repo, encoding: "utf8" },
     ).stdout;
-    assert.match(run(["init"], 2), /error: decision-required/);
+    assert.match(run(["init"], 2), /code: decision-required/);
     assert.equal(
       spawnSync("git", ["status", "--porcelain", "--untracked-files=all"], {
         cwd: repo,

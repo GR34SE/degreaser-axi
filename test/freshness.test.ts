@@ -243,7 +243,7 @@ test("public resume independently re-resolves tracked content, new files, task-f
     mutate();
     const result = f.run(["resume", run.id]);
     assert.equal(result.status, 2, result.stdout);
-    assert.match(result.stdout, /error: input-changed/);
+    assert.match(result.stdout, /code: input-changed/);
     assert.match(result.stdout, /review --scope worktree/);
     assert.deepEqual(
       files.map((path) => readFileSync(join(directory, path))),

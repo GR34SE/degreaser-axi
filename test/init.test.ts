@@ -168,7 +168,7 @@ for (const existing of [false, true]) {
     ]) {
       const result = f.run(args);
       assert.equal(result.status, 2, result.stdout);
-      assert.match(result.stdout, /error: decision-required/);
+      assert.match(result.stdout, /code: decision-required/);
       assert.match(result.stdout, /candidates/);
       assert.match(result.stdout, /recommendation/);
       assert.match(result.stdout, /codex,gpt-6-luna/);

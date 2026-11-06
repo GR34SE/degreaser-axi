@@ -129,7 +129,7 @@ test("a Git failure in the replacement owner's freshness check reaches the calle
     f.release("check");
     const result = await response;
     assert.equal(result.code, 2, result.stdout + result.stderr);
-    assert.match(result.stdout, /error: invalid-input/);
+    assert.match(result.stdout, /code: invalid-input/);
     assert.match(result.stdout, /Git ls-files failed/);
     assert.doesNotMatch(result.stdout, /input-changed|owner-failed/);
     assert.deepEqual(readFileSync(join(directory, "run.json")), before);

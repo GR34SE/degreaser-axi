@@ -432,19 +432,19 @@ test("row limits and historical detail preserve all evidence, uncertainty and as
     evidence,
   );
   assert.equal(
-    decode(f.run(["finding", "F35"]).stdout).error,
+    decode(f.run(["finding", "F35"]).stdout).code,
     "finding-not-found",
   );
   const other = queueFixture(t);
   const noHistory = other.run(["report"]);
   assert.equal(noHistory.status, 2);
-  assert.equal(decode(noHistory.stdout).error, "no-history");
+  assert.equal(decode(noHistory.stdout).code, "no-history");
   rmSync(join(other.root, ".degreaserrc.json"));
   const noConfig = decode(other.run(["home"]).stdout);
   assert.equal(noConfig.configuration, "unconfigured");
   assert.equal(noConfig.history, "no-history");
   assert.equal(
-    decode(other.run(["report", short.run]).stdout).error,
+    decode(other.run(["report", short.run]).stdout).code,
     "run-not-found",
   );
   const run = f.state();
@@ -523,8 +523,8 @@ test("home observes configuration and history independently and all read command
     const read = f.run(["report", run.id]);
     assert.equal(read.status, 2);
     const error = decode(read.stdout);
-    assert.equal(error.error, "state-corrupt");
-    assert.ok(error.reason.includes(file));
+    assert.equal(error.code, "state-corrupt");
+    assert.ok(error.error.includes(file));
     const damagedHome = f.run(["home"]);
     assert.equal(damagedHome.status, 2);
     assert.equal(decode(damagedHome.stdout).history, "state-corrupt");
@@ -631,7 +631,7 @@ test("a dismissed finding is stored per repository and passed to later reviews o
   const first = decode(f.finish().stdout);
   assert.equal(first.count, 1);
   const missing = decode(f.run(["dismiss", "F1"]).stdout);
-  assert.equal(missing.error, "invalid-input");
+  assert.equal(missing.code, "invalid-input");
   const dismissed = decode(
     f.run(["dismiss", "F1", "--reason", "Kept for old clients"]).stdout,
   );
