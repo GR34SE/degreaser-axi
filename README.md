@@ -191,15 +191,28 @@ A fresh init after selecting Codex and Luna writes:
     "runTimeoutSeconds": 900
   },
   "aspects": {
-    "enable": ["missed-reuse", "unnecessary-layers", "speculative-flexibility", "masked-errors", "unjustified-defense", "low-value-comments", "convention-drift", "scope-creep", "contract-bypass", "low-value-tests", "incomplete-integration", "wrong-abstraction", "reinvented-infrastructure", "unidiomatic-code", "structural-erosion", "verification-theater"],
-    "disable": [],
-    "overrides": {}
+    "missed-reuse": true,
+    "unnecessary-layers": true,
+    "speculative-flexibility": true,
+    "masked-errors": true,
+    "unjustified-defense": true,
+    "low-value-comments": true,
+    "convention-drift": true,
+    "scope-creep": true,
+    "contract-bypass": true,
+    "low-value-tests": true,
+    "incomplete-integration": true,
+    "wrong-abstraction": true,
+    "reinvented-infrastructure": true,
+    "unidiomatic-code": true,
+    "structural-erosion": true,
+    "verification-theater": true
   },
   "exclude": []
 }
 ```
 
-To disable an aspect, remove its ID from `enable` and add it to `disable`. `enable` affirms the default selection; it is not an allowlist. An ID cannot appear in both lists. Empty `overrides` means every aspect inherits the selected agent and model; `exclude` adds to the fixed built-in exclusions.
+Each aspect appears once. `true` runs it with the selected agent and model, `false` turns it off, and an object runs it with its own identity: `"low-value-comments": { "model": "<exact-model-id>" }` keeps the default agent, while an agent override must also name its compatible exact model. An aspect missing from the map is on. `exclude` adds to the fixed built-in exclusions.
 
 After upgrading the installed package:
 
@@ -207,13 +220,13 @@ After upgrading the installed package:
 degreaser-axi config sync
 ```
 
-That fills only missing settings with the installed defaults, including nested settings, and reports what it added. Existing values (empty lists, zero retries, model overrides) stay. A complete file is left untouched. Sync does not discover models, install integrations or check the registry. Use `init` to create a missing RC and confirm the model and harnesses.
+That fills only missing settings with the installed defaults, including nested settings, and reports what it added. Existing values (turned-off aspects, zero retries, model overrides) stay. A complete file is left untouched. Sync does not discover models, install integrations or check the registry. Use `init` to create a missing RC and confirm the model and harnesses.
 
 Older sparse files remain valid. Home/startup context, doctor and review responses list missing settings with their defaults and suggest `config sync`; those reads never rewrite the file or block review solely for missing defaults. Explicit values stay pinned when package defaults change. `schemaVersion` versions the format, not the package: adding a defaulted field does not bump it. Unsupported versions, unknown fields and invalid settings are rejected without rewriting the file. Sync currently completes format v1; it does not guess conversions for future incompatible formats.
 
 `concurrency: null` means no cap; omitting it in older files means the same. Older binaries that reject RC null need upgrading before using a newly generated file.
 
-Without a concurrency limit, all enabled aspects can run in parallel after the first model invocation. A lower limit reduces simultaneous calls; it does not reduce the number of aspects reviewed. Retries and continuation keep your selected harness and model. A model-only entry under `aspects.overrides.low-value-comments`, for example `{"model":"<exact-model-id>"}`, keeps the default agent. An agent override must also supply its compatible exact model.
+Without a concurrency limit, all enabled aspects can run in parallel after the first model invocation. A lower limit reduces simultaneous calls; it does not reduce the number of aspects reviewed. Retries and continuation keep your selected harness and model.
 
 Defaults: one extra retry, 300-second worker timeout, 120-second worker idle limit, 900-second run deadline, 40-turn budget. The idle limit stops an attempt that sends no events for that long, so a stuck worker retries early while an active one keeps its full timeout; running reports show each aspect's `lastActivity`. Configure `maxRetries` and `limits.workerTimeoutSeconds`, `limits.workerIdleSeconds`, `limits.runTimeoutSeconds`, `limits.maxTurns`. Only Claude enforces the turn budget natively; Codex and Pi treat it as advisory. `exclude` accepts literal repository-relative files or directory prefixes, not globs. For a one-run selection, use `review --path` instead.
 
@@ -221,7 +234,7 @@ Missing/malformed output, discarded oversized output and attempt timeouts get on
 
 Before creating a run, review checks selected pairs against native model catalogs without inference. Unsupported pairs return `invalid-input`; discovery/auth/host failures return `environment-blocked`. Both are exit 2 and no new run. Catalog membership is not a provider-access guarantee. Claude's review-time catalog includes the requested model, so its runtime identity check cannot independently detect later provider withdrawal. No model fallback is used.
 
-The root RC follows the strict versioned [configuration schema](https://github.com/GR34SE/degreaser-axi/blob/main/assets/schemas/config-v1.json). Unknown fields and explicitly selected disabled aspects are errors. See the [input contract](https://github.com/GR34SE/degreaser-axi/blob/main/assets/input-contract.md) for exact bounds, literal-path exclusions and Git representation limits. In a built checkout or installed package, these are `dist/assets/schemas/config-v1.json` and `dist/assets/input-contract.md`.
+The root RC follows the strict versioned [configuration schema](https://github.com/GR34SE/degreaser-axi/blob/main/assets/schemas/config-v1.json). Unknown fields and explicitly selected aspects that are turned off are errors. See the [input contract](https://github.com/GR34SE/degreaser-axi/blob/main/assets/input-contract.md) for exact bounds, literal-path exclusions and Git representation limits. In a built checkout or installed package, these are `dist/assets/schemas/config-v1.json` and `dist/assets/input-contract.md`.
 
 To review only specific aspects for one run, without changing configuration:
 
