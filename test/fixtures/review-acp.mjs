@@ -36,6 +36,15 @@ const fault = (error) => {
     throw new RequestError(error.code ?? -32000, error.message, error.data);
 };
 const models = (admitted && plan.runtimeModels) || catalog[agent];
+const assessedPaths = () => {
+  const { latestRunId } = JSON.parse(
+    readFileSync(".degreaser/state.json", "utf8"),
+  );
+  const input = JSON.parse(
+    readFileSync(`.degreaser/runs/${latestRunId}/input/review.json`, "utf8"),
+  );
+  return input.paths.map((p) => p.path);
+};
 const record = (event) => {
   if (plan.lifecycleLog)
     appendFileSync(
@@ -226,13 +235,23 @@ const connection = new AgentSideConnection(
           -32000,
           "Synthetic permission denied before result",
         );
-      const result = step.result ??
+      const planned = step.result ??
         plan.results?.[aspect] ?? {
           aspect,
           status: "no-findings",
           findings: [],
           limitations: [],
         };
+      // A planned object without coverage declares the whole persisted scope;
+      // coverage tests set examinedPaths explicitly (null omits the field).
+      const result =
+        typeof planned === "string"
+          ? planned
+          : planned.examinedPaths === null
+            ? Object.fromEntries(
+                Object.entries(planned).filter(([k]) => k !== "examinedPaths"),
+              )
+            : { examinedPaths: assessedPaths(), ...planned };
       if (plan.toolOnly)
         await connection.sessionUpdate({
           sessionId: p.sessionId,

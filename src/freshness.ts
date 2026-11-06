@@ -34,7 +34,7 @@ export function assertFresh(run: Run, input: ReviewInput) {
         : assemblePrompt(
             fresh,
             t.assignment.aspect,
-            join(run.repository, ".degreaser/runs", run.id, "input/patch.json"),
+            join(run.repository, ".degreaser/runs", run.id, "input/patch.diff"),
           ).promptHash,
     );
     if (reviewIdentity(fresh, prompts) === run.identity) return;

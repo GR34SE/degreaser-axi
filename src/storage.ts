@@ -332,7 +332,7 @@ export function createRun(input: ReviewInput): Run {
     }
   }
   mkdirSync(join(dir, "input"), { mode: 0o700 });
-  const patchFile = join(dir, "input", "patch.json");
+  const patchFile = join(dir, "input", "patch.diff");
   const tasks: RunTask[] = input.config.assignments.map((assignment) => {
     const result =
       input.coordinatorResults.find((r) => r.aspect === assignment.aspect) ??
@@ -365,11 +365,11 @@ export function createRun(input: ReviewInput): Run {
     tasks,
   };
   writeJson(join(dir, "input", "review.json"), input, inputSchema);
-  const first = input.config.assignments[0];
-  if (!first) throw new Error("Empty assignments");
-  const patchData = assemblePrompt(input, first.aspect, patchFile).patchData;
-  checked(JSON.parse(patchData), patchSchema, patchFile);
-  atomicWrite(patchFile, patchData);
+  const patchJson = join(dir, "input", "patch.json");
+  checked(input.patch, patchSchema, patchJson);
+  atomicWrite(patchJson, JSON.stringify(input.patch));
+  // Workers read this raw copy by line range; patch.json stays the integrity record.
+  if (input.patch !== null) atomicWrite(patchFile, input.patch);
   saveRun(run);
   writeJson(latest, { schemaVersion: 1, latestRunId: id }, stateSchema);
   return run;

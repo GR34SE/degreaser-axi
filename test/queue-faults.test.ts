@@ -10,6 +10,7 @@ const clean = {
   status: "no-findings",
   findings: [],
   limitations: [],
+  examinedPaths: ["source.ts"],
 };
 const cleanBlock = `<degreaser-result>${JSON.stringify(clean)}</degreaser-result>`;
 const atLimit = cleanBlock + "x".repeat(1_048_576 - cleanBlock.length);
