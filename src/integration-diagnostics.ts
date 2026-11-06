@@ -5,9 +5,9 @@ import type { Agent } from "./config.ts";
 import { readIntegrationFile } from "./integration-files.ts";
 import {
   HOOK_MARKER,
+  hookSpec,
   type InstallationScope,
   integrationTarget,
-  startupHook,
 } from "./integration-targets.ts";
 import { type Receipt, validateReceipt } from "./integrations.ts";
 import { hash } from "./prompt.ts";
@@ -104,7 +104,7 @@ function inspectHook(
     else if (
       matches.length === 1 &&
       marked.length === 1 &&
-      isDeepStrictEqual(owned.group, startupHook)
+      owned.group.hooks?.some((hook) => hook.command === hookSpec.command)
     )
       status = "installed";
     else if (marked.length || matches.length) status = "modified";

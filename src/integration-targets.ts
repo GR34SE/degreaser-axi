@@ -2,7 +2,6 @@ import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { computeSessionStartHookUpdate, type HookGroup } from "axi-sdk-js";
 import type { Agent } from "./config.ts";
 import { InputError } from "./input-error.ts";
 
@@ -44,11 +43,7 @@ const startup = fileURLToPath(
 );
 export const HOOK_MARKER = "degreaser-startup-v1";
 const command = `if [ -z "\${DEGREASER_WORKER:-}" ]; then ${quote(process.execPath)} ${quote(startup)} 2>/dev/null || :; fi # ${HOOK_MARKER}`;
-const [settings] = computeSessionStartHookUpdate(
-  {},
-  { marker: HOOK_MARKER, command, timeoutSeconds: 2 },
-);
-export const startupHook: HookGroup = settings.hooks?.SessionStart?.[0] ?? {};
+export const hookSpec = { marker: HOOK_MARKER, command, timeoutSeconds: 2 };
 
 function piExtension(): string {
   return `// Degreaser-owned startup integration. Repair with degreaser-axi setup hooks.

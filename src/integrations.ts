@@ -3,7 +3,11 @@ import { homedir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { Ajv } from "ajv";
-import type { HookGroup } from "axi-sdk-js";
+import {
+  computeSessionStartHookRemoval,
+  computeSessionStartHookUpdate,
+  type HookGroup,
+} from "axi-sdk-js";
 import type { Agent } from "./config.ts";
 import { repositoryRoot } from "./git.ts";
 import { ensureStateIgnored } from "./init-ignore.ts";
@@ -16,11 +20,11 @@ import {
 } from "./integration-files.ts";
 import {
   HOOK_MARKER,
+  hookSpec,
   type InstallationScope,
   installationChoices,
   integrationTarget,
   skillInstallChoice,
-  startupHook,
 } from "./integration-targets.ts";
 import { hash } from "./prompt.ts";
 import { StateError } from "./storage.ts";
@@ -130,29 +134,26 @@ function updateHook(
     if (!previous) return;
     delete receipt.hooks[agent];
     if (!matches.length) return;
-    if (remaining.length) events.SessionStart = remaining;
-    else delete events.SessionStart;
-    if (Object.keys(events).length) settings.hooks = events;
-    else delete settings.hooks;
+    const [cleaned] = computeSessionStartHookRemoval(settings, HOOK_MARKER);
     edits.set(
       path,
-      previous.created && Object.keys(settings).length === 0
+      previous.created && Object.keys(cleaned).length === 0
         ? null
-        : json(settings),
+        : json(cleaned),
     );
     return;
   }
+  const [updated, changed] = computeSessionStartHookUpdate(settings, hookSpec);
+  const group = updated.hooks?.SessionStart?.find((g) =>
+    g.hooks?.some((hook) => hook.command?.includes(HOOK_MARKER)),
+  );
   receipt.hooks[agent] = {
     path,
-    group: startupHook,
+    group: group ?? {},
     created: previous?.created ?? text === null,
     others,
   };
-  if (matches.length === 1 && isDeepStrictEqual(previous?.group, startupHook))
-    return;
-  events.SessionStart = [...remaining, startupHook];
-  settings.hooks = events;
-  edits.set(path, json(settings));
+  if (changed) edits.set(path, json(updated));
 }
 
 export type SkillInstall = "copy" | "link";
