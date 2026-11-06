@@ -9,7 +9,8 @@ import {
   commandHelp,
   TOP_LEVEL_HELP,
 } from "./commands.js";
-import { loadConfig } from "./config.ts";
+import { configNotice, loadConfig } from "./config.ts";
+import { syncConfig } from "./config-sync.ts";
 import { diagnoseFailure } from "./diagnostics.ts";
 import { doctor } from "./doctor.ts";
 import { repositoryRoot } from "./git.ts";
@@ -85,6 +86,7 @@ function home() {
   try {
     const config = loadConfig(repository);
     Object.assign(local, {
+      ...configNotice(config),
       configuration: "configured",
       status: "configured",
       agent: config.agent,
@@ -127,6 +129,11 @@ async function execute(
   command: Command,
   args: string[],
 ): Promise<string | Record<string, unknown>> {
+  if (name === "config" && args[0] === "sync") {
+    const sync = COMMANDS["config sync"];
+    if (!sync) throw new Error("Missing config sync command");
+    return execute("config sync", sync, args.slice(1));
+  }
   if (name === "setup" && args[0] === "hooks") {
     const hooks = COMMANDS["setup hooks"];
     if (!hooks) throw new Error("Missing hooks command");
@@ -145,6 +152,13 @@ async function execute(
       ...commandHelp(name, command),
       ...(name === "home" ? { commands: Object.keys(COMMANDS) } : {}),
     };
+  if (name === "config")
+    throw new AxiError(
+      `Unknown config command: ${parsed.positionals[0]}`,
+      "VALIDATION_ERROR",
+      ["degreaser-axi config sync --help"],
+    );
+  if (name === "config sync") return syncConfig(process.cwd());
   if (name === "help") {
     const target = parsed.positionals.join(" ");
     if (!target) return TOP_LEVEL_HELP.trimEnd();

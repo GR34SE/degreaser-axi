@@ -1,4 +1,4 @@
-import { loadConfig, resolveConfig } from "./config.ts";
+import { configNotice, loadConfig, resolveConfig } from "./config.ts";
 import { diagnoseFailure, PERMISSION_GUIDANCE } from "./diagnostics.ts";
 import { repositoryRoot } from "./git.ts";
 import { inspectIntegrations } from "./integration-diagnostics.ts";
@@ -53,6 +53,7 @@ export async function doctor(cwd: string) {
   const blocked = profiles.some((p) => p.compatibility === "blocked");
   if (blocked) process.exitCode = 2;
   return {
+    ...configNotice(config),
     status: blocked ? "environment-blocked" : "checked",
     agent: config.agent,
     model: config.model,

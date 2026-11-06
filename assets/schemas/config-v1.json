@@ -10,7 +10,7 @@
     "schemaVersion": { "const": 1 },
     "agent": { "$ref": "#/definitions/agent" },
     "model": { "$ref": "#/definitions/model" },
-    "concurrency": { "$ref": "#/definitions/positiveInteger" },
+    "concurrency": { "anyOf": [{ "type": "null" }, { "$ref": "#/definitions/positiveInteger" }] },
     "maxRetries": { "type": "integer", "minimum": 0, "maximum": 10 },
     "limits": {
       "type": "object",

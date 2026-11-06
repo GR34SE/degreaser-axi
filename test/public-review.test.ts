@@ -386,7 +386,7 @@ test("public configuration is strict, root-local and rejects finite invalid valu
   f.write("nested/.degreaserrc.json", '{"agent":"droid"}');
   f.write(
     ".degreaserrc.json",
-    '{"agent":"codex","model":"gpt-6-luna","maxRetries":0}',
+    '{"agent":"codex","model":"gpt-6-luna","maxRetries":0,"concurrency":null}',
   );
   assert.equal(
     f.run(
@@ -404,6 +404,7 @@ test("public configuration is strict, root-local and rejects finite invalid valu
     0,
   );
   assert.equal(f.input().task, "First line\nSecond line\n");
+  assert.equal(f.input().config.concurrency, null);
   const runs = readdirSync(join(f.root, ".degreaser/runs")),
     count = f.events().length;
   const valid = { agent: "codex", model: "gpt-6-luna" };
@@ -414,7 +415,7 @@ test("public configuration is strict, root-local and rejects finite invalid valu
     { ...valid, caller: "codex" },
     { ...valid, schemaVersion: 2 },
     ...["droid", "grok"].map((agent) => ({ ...valid, agent })),
-    ...[0, -1, 1.5, null, "2"].map((concurrency) => ({
+    ...[0, -1, 1.5, "2"].map((concurrency) => ({
       ...valid,
       concurrency,
     })),

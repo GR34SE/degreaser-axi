@@ -8,7 +8,8 @@ description: Review a code change with focused source-only reviewers, inspect ev
 Review code changes with focused, read-only reviewers and source evidence.
 
 - Development build: all sixteen review aspects, bounded retries and deadlines, and same-run waiting are available. Cancel stops the run's owned workers and retains useful results; resume continues unresolved unchanged input.
-- Init discovers models, writes the project RC, adds the root ignore entry, and installs selected harness startup integrations and skills. Setup hooks can install, repair or remove selected targets.
+- Init discovers models, writes the complete project RC including defaults, adds the root ignore entry, and installs selected harness startup integrations and skills. Setup hooks can install, repair or remove selected targets.
+- If configurationNotice lists missing settings, review still uses the shown defaults. Run `degreaser-axi config sync` to persist them without changing existing values or selecting models again. This updates only the RC, not the installed package.
 - Use an explicitly installed local package; this package is unpublished. If the binary is unavailable, ask for the local package path; do not install from a registry. Run `degreaser-axi --help` or `degreaser-axi review --help` for the current interface.
 - Provide explicit worktree, branch or repository scope. Branch requires the base supplied by the user; never guess it.
 - Write the task as what the user set out to accomplish, in their terms, not a summary of the diff: their goal, decisions and tradeoffs they made, approaches they ruled in or out, and anything they asked for that would look surprising in the diff. Reviewers use it to tell a deliberate choice from slop, so a one-line task makes them flag what the user already chose. A few sentences is normal; use `--task-file` for longer briefs. Never invent intent the user did not express.

@@ -62,6 +62,21 @@ export const COMMANDS: Record<string, Command> = {
       "degreaser-axi init --agent codex --model <confirmed-model> --harnesses codex",
     ],
   },
+  config: {
+    description: "Maintain the project configuration",
+    usage: "config sync",
+    flags: {},
+    positionals: runId,
+    examples: ["degreaser-axi config sync", "degreaser-axi config sync --help"],
+  },
+  "config sync": {
+    description:
+      "Fill missing RC settings with installed defaults, preserving existing values",
+    usage: "config sync",
+    flags: {},
+    positionals: noPositionals,
+    examples: ["degreaser-axi config sync", "degreaser-axi config sync --help"],
+  },
   doctor: {
     description:
       "Inspect configuration and integration readiness without model calls",

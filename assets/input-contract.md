@@ -17,9 +17,11 @@ The repository root comes from Git, including nested invocations and linked work
 - All A01–A16 start enabled. `aspects.disable` removes IDs; `aspects.enable` explicitly affirms IDs from that default, not an allowlist. An ID in both lists, duplicate/unknown IDs or an empty effective selection is invalid.
 - `--aspects` is a comma-separated one-run subset of enabled IDs, sorted into catalog order. Explicit disabled IDs are errors, not silently re-enabled. No slugs or custom rubrics.
 - `aspects.overrides` maps built-in IDs to `{ "model": "<exact-id>" }` or `{ "agent": "...", "model": "..." }`. Model-only overrides retain the configured agent; an agent override always requires an explicit model.
-- `concurrency` and `limits.maxTurns` accept integers 1–9,007,199,254,740,991. An absent concurrency limit means all selected workers, not a machine-dependent cap. Internal resolved input represents this absence as `null`; RC `null` is invalid.
+- `concurrency` and `limits.maxTurns` accept integers 1–9,007,199,254,740,991. An absent concurrency limit means all selected workers, not a machine-dependent cap. RC `null` explicitly represents no limit, as it does in resolved input.
 - `maxRetries`: 0–10, default 1 additional attempt. `limits.workerTimeoutSeconds`: 1–2,147,483, default 300. `limits.runTimeoutSeconds`: the same range, default 900. `limits.maxTurns` defaults to 40. `--wait` uses the seconds range, default 480. The seconds bound prevents signed 32-bit millisecond timer overflow.
 - Only `--aspects`, `--concurrency` and `--wait` control this review invocation. They never rewrite the RC.
+
+Init writes every configurable field, including defaults, empty collections and explicit null concurrency. `config sync` fills only missing fields (including nested limits and aspect settings) in an existing valid RC, retaining explicit values and effective behavior. It writes atomically and leaves complete files untouched. Model-only overrides continue inheriting the configured agent; sync does not copy inherited identities into overrides. Home, doctor and review disclose missing settings and the installed default values without editing the RC. No registry lookup or model discovery is needed to sync. The format version is independent of package releases; unsupported versions and unknown fields are errors, never reset or silently discarded.
 
 These numeric defaults, retry ceiling, version-omission rule and exclusion spelling are implementation choices, not additional product requirements.
 
