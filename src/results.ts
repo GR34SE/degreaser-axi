@@ -25,6 +25,7 @@ export interface WorkerResult {
   findings: Finding[];
   limitations: string[];
   reason?: string;
+  examinedPaths?: string[];
 }
 export interface Rejection {
   index: number;
@@ -119,6 +120,18 @@ export function ingestResult(
     if (reason) rejections.push({ index: index + 1, reason });
     return !reason;
   });
+  if (result.examinedPaths) {
+    const assessed = new Set(
+      input.paths.flatMap((p) => [p.path, p.oldPath].filter(Boolean)),
+    );
+    result.examinedPaths = result.examinedPaths.filter((p) => assessed.has(p));
+    if (result.status === "no-findings" && !result.examinedPaths.length) {
+      result.status = "incomplete";
+      result.limitations.push(
+        "Reported no findings without examining any assessed path; this aspect remains unresolved.",
+      );
+    }
+  }
   if (rejections.length && !result.findings.length) {
     result.status = "incomplete";
     result.limitations.push(

@@ -11,6 +11,10 @@ Do not include Markdown fences inside the block.
 - `limitations`: an array of explicit limitations. Required and nonempty for
   `incomplete`; include applicable constructs you could not examine and why.
 - `reason`: required nonempty explanation for `not-applicable`.
+- `examinedPaths`: every assessed path you actually read and judged for this
+  aspect, using the paths from the supplied change. Always include it; use an
+  empty array only for `not-applicable`. A path you only listed or skimmed by
+  name is not examined. The coordinator reports this coverage to the caller.
 
 Each finding contains:
 

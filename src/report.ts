@@ -117,6 +117,9 @@ function coverage(task: RunTask, input: ReviewInput, interrupted: boolean) {
       (l) => l !== reason && !harness.has(l),
     ),
     rejected: task.rejections.length,
+    examined: task.result?.examinedPaths
+      ? `${task.result.examinedPaths.length}/${input.paths.length}`
+      : "unknown",
   };
 }
 
