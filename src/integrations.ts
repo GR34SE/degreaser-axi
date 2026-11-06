@@ -26,8 +26,8 @@ import {
   integrationTarget,
   skillInstallChoice,
 } from "./integration-targets.ts";
+import { assertNotWorker } from "./native-environment.ts";
 import { hash } from "./prompt.ts";
-import { StateError } from "./storage.ts";
 
 export interface Receipt {
   schemaVersion: 1;
@@ -331,11 +331,7 @@ export function setupIntegrations(
   values: Record<string, unknown>,
   cwd: string,
 ) {
-  if (process.env.DEGREASER_WORKER)
-    throw new StateError(
-      "nested-review",
-      "Workers cannot install Degreaser integrations.",
-    );
+  assertNotWorker("install Degreaser integrations");
   const { harnesses, scope } = installationChoices(values);
   const repository = repositoryRoot(cwd);
   const plan = prepareIntegrations(repository, harnesses, scope, {
