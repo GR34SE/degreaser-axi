@@ -1,16 +1,16 @@
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
-import type { Agent } from "./config.ts";
+import { AGENTS, type Agent } from "./config.ts";
 import {
   readIntegrationFile,
   readIntegrationLink,
 } from "./integration-files.ts";
 import {
-  HOOK_MARKER,
-  hookSpec,
+  hookFormat,
   type InstallationScope,
   integrationTarget,
+  isMarked,
 } from "./integration-targets.ts";
 import { type Receipt, validateReceipt } from "./integrations.ts";
 import { hash } from "./prompt.ts";
@@ -98,24 +98,16 @@ function inspectHook(
       (!hooks || typeof hooks !== "object" || Array.isArray(hooks))
     )
       throw new Error("Invalid hooks");
+    const format = hookFormat(agent);
     const groups =
-      (hooks as Record<string, unknown> | undefined)?.SessionStart ?? [];
+      (hooks as Record<string, unknown> | undefined)?.[format.event] ?? [];
     if (
       !Array.isArray(groups) ||
-      groups.some(
-        (group) =>
-          !group || typeof group !== "object" || !Array.isArray(group.hooks),
-      )
+      groups.some((group) => format.commands(group) === null)
     )
       throw new Error("Invalid hook groups");
     const owned = receipt?.hooks[agent];
-    const marked = groups.filter((group) =>
-      group.hooks.some(
-        (hook: { command?: unknown }) =>
-          typeof hook?.command === "string" &&
-          hook.command.includes(HOOK_MARKER),
-      ),
-    );
+    const marked = groups.filter((group) => isMarked(format, group));
     const matches =
       owned?.path === path
         ? groups.filter((group) => isDeepStrictEqual(group, owned.group))
@@ -126,7 +118,7 @@ function inspectHook(
     else if (
       matches.length === 1 &&
       marked.length === 1 &&
-      owned.group.hooks?.some((hook) => hook.command === hookSpec.command)
+      format.commands(owned.group)?.includes(format.command)
     )
       status = "installed";
     else if (marked.length || matches.length) status = "modified";
@@ -152,7 +144,7 @@ export function inspectIntegrations(repository: string) {
       ),
     );
     const reliable = receipt.state === "valid" || receipt.state === "missing";
-    for (const harness of ["codex", "claude", "pi"] as const) {
+    for (const harness of AGENTS) {
       const target = integrationTarget(harness, repository, scope);
       const files = [...target.files].map(([path, expected]) =>
         inspectFile(path, expected, harness, receipt.receipt, reliable),

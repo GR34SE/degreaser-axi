@@ -24,7 +24,7 @@ change
 
 ## Quick Start
 
-macOS, Node 24.0.0 or newer, Git, and an authenticated Codex, Claude Code or Pi login. Linux, Windows, Droid and Grok Build are out of v1. Model calls go through [acpx](https://github.com/openclaw/acpx) to a harness you already authenticated. Degreaser has no API keys of its own and does not fall back to paid keys.
+macOS, Node 24.0.0 or newer, Git, and an authenticated Codex, Claude Code, Pi or Cursor login. Linux, Windows, Droid and Grok Build are out of v1. Model calls go through [acpx](https://github.com/openclaw/acpx) to a harness you already authenticated. Degreaser has no API keys of its own and does not fall back to paid keys.
 
 Install it globally:
 
@@ -45,7 +45,7 @@ pnpm link --global
 
 Run the rest **inside the Git repository you want to review**. Init writes `.degreaserrc.json`, installs the selected integrations, and adds `/.degreaser/` to the root `.gitignore` without touching the index. `--aspects low-value-comments` is a cheap first review.
 
-Claude and Pi must already be on PATH. The Codex worker ships with this package. `degreaser-axi doctor` prints the native versions this install accepts. See [native worker restrictions and limits](https://github.com/GR34SE/degreaser-axi/blob/main/assets/native-profiles.md), or `dist/assets/native-profiles.md` in a built checkout or installed package.
+Claude, Pi and Cursor must already be on PATH. The Codex worker ships with this package. Cursor workers use the native `cursor-agent acp` / `agent acp` server, not a separate ACP adapter package. `degreaser-axi doctor` prints the native versions this install accepts. See [native worker restrictions and limits](https://github.com/GR34SE/degreaser-axi/blob/main/assets/native-profiles.md), or `dist/assets/native-profiles.md` in a built checkout or installed package.
 
 ```sh
 degreaser-axi init
@@ -55,14 +55,14 @@ degreaser-axi report
 
 ## Init
 
-In a terminal, Space selects agents and Enter confirms. Init detects Codex, Claude Code and Pi on PATH without starting them, then asks Project or Global. Pick the review agent, then press Enter on the highlighted model or type to search that agent's catalog. Only the selected review agent's catalog is loaded. If your previous model is no longer offered, init says so before you choose another.
+In a terminal, Space selects agents and Enter confirms. Init detects Codex, Claude Code, Pi and Cursor on PATH without starting them, then asks Project or Global. Pick the review agent, then press Enter on the highlighted model or type to search that agent's catalog. Only the selected review agent's catalog is loaded. If your previous model is no longer offered, init says so before you choose another.
 
 Every init, including reinit, needs you to confirm or change the model. An existing RC prefills the last choice. Without a terminal, missing decisions return `decision-required` (exit 2) with exact candidates and example commands, and write nothing. After the user chooses, pass `--agent`, `--model` and `--harnesses`. The existing RC is not consent for a later invocation.
 
 `--agent` is the reviewer harness; `--harnesses` are caller integrations. Pick only the ones you use.
 
 ```sh
-degreaser-axi init --agent codex --model gpt-6-luna --harnesses codex,claude,pi
+degreaser-axi init --agent cursor --model composer-2.5-fast --harnesses cursor,codex,claude,pi
 ```
 
 Init reads native catalogs without inference. The non-interactive response includes credential sources, not private account identities. Catalog entries do not guarantee later provider availability. Invalid choices or failed discovery never silently pick a replacement.
@@ -76,12 +76,12 @@ Start a new harness session after installation (or reload Pi). Project and hook 
 If something breaks later (updated harness, moved install, edited hooks), `degreaser-axi doctor` checks native versions and installed integrations without calling a model. To repair moved package paths or missing owned files:
 
 ```sh
-degreaser-axi setup hooks --harnesses codex,claude,pi
+degreaser-axi setup hooks --harnesses cursor,codex,claude,pi
 ```
 
 Use your selected targets and the original scope. `--remove` drops only owned entries. Foreign settings stay intact; edited owned files produce a conflict instead of being overwritten. Keep your edits elsewhere, or restore the owned content, then retry.
 
-Ownership receipts live in `.degreaser/integrations.json` at the selected project or home root. Codex and Pi share `.agents/skills/degreaser`, kept until both owners are removed.
+Ownership receipts live in `.degreaser/integrations.json` at the selected project or home root. Codex and Pi share `.agents/skills/degreaser` with Cursor, kept until every owner is removed.
 
 Startup reads compact local context. It starts no models or reviews and is disabled in review workers. Missing executables or invalid local state do not block the host; use the CLI home view for state errors and `setup hooks` for repair.
 
@@ -90,6 +90,7 @@ Then invoke the skill:
 - Claude Code: `/degreaser review my changes`
 - Codex: `$degreaser review my changes`
 - Pi: `/skill:degreaser review my changes`
+- Cursor: `/degreaser review my changes`
 
 Or ask in plain words:
 
@@ -228,7 +229,7 @@ Older sparse files remain valid. Home/startup context, doctor and review respons
 
 Without a concurrency limit, all enabled aspects can run in parallel after the first model invocation. A lower limit reduces simultaneous calls; it does not reduce the number of aspects reviewed. Retries and continuation keep your selected harness and model.
 
-Defaults: one extra retry, 300-second worker timeout, 120-second worker idle limit, 900-second run deadline, 40-turn budget. The idle limit stops an attempt that sends no events for that long, so a stuck worker retries early while an active one keeps its full timeout; running reports show each aspect's `lastActivity`. Configure `maxRetries` and `limits.workerTimeoutSeconds`, `limits.workerIdleSeconds`, `limits.runTimeoutSeconds`, `limits.maxTurns`. Only Claude enforces the turn budget natively; Codex and Pi treat it as advisory. `exclude` accepts literal repository-relative files or directory prefixes, not globs. For a one-run selection, use `review --path` instead.
+Defaults: one extra retry, 300-second worker timeout, 120-second worker idle limit, 900-second run deadline, 40-turn budget. The idle limit stops an attempt that sends no events for that long, so a stuck worker retries early while an active one keeps its full timeout; running reports show each aspect's `lastActivity`. Configure `maxRetries` and `limits.workerTimeoutSeconds`, `limits.workerIdleSeconds`, `limits.runTimeoutSeconds`, `limits.maxTurns`. Only Claude enforces the turn budget natively; Codex, Pi and Cursor treat it as advisory. `exclude` accepts literal repository-relative files or directory prefixes, not globs. For a one-run selection, use `review --path` instead.
 
 Missing/malformed output, discarded oversized output and attempt timeouts get only the configured bounded retries in fresh sessions. Auth, model, account and rate-limit failures do not trigger automatic retries or fallback. Rate limits suggest lower-concurrency resume after the limit clears; disabled or suspended accounts need access restored with the selected provider. If a provider failure overlaps cancellation or the run deadline, reports keep the attempt failure and the separate run `stopReason`.
 
@@ -296,7 +297,7 @@ Exit codes: **0** completed/no changes/already completed, **1** partial/failed/i
 - Diagnostics keep selected identities, local paths, bounded numeric versions, failure categories and repair guidance, not raw exception payloads, native stderr, environment dumps, thoughts, full transcripts or tool logs. Unknown configuration keys/values are not echoed. This is not a general secret scanner.
 - **Review data is intentionally not redacted.** Tasks, paths, patches, finding quotes and other evidence may contain sensitive code. `.degreaser/` stays local and ignored, but reports print that evidence. Inspect it before sharing. Native harness caches/history have their own retention rules.
 - Review context reaches your selected model provider. Exclusions narrow assessed coverage, not worker read access. Ignored files may still be read as repository context. Use only repositories and providers you are authorized to review.
-- Reviews are source-only, not tests, runtime verification or a guarantee of defect detection. Codex uses a read-only filesystem sandbox but retains shell/code mode for reads. Claude and Pi use native read-tool allowlists, not a universal OS no-exec sandbox. Host-managed policy still applies.
+- Reviews are source-only, not tests, runtime verification or a guarantee of defect detection. Codex uses a read-only filesystem sandbox but retains shell/code mode for reads. Claude and Pi use native read-tool allowlists and Cursor uses native ask mode, not a universal OS no-exec sandbox. Host-managed policy still applies.
 - Git clean filters can execute local commands during scope resolution. Binary contents and submodule contents are not reviewed as source. The resolved Git tree does not freeze live repository context; do not edit while reviewers run.
 - All sixteen reviewers can consume substantial memory and subscription quota. Set `concurrency` for your machine/account. No silent model or harness switch occurs when access, quota or compatibility fails.
 - v1 has no custom aspects or automatic fixes.

@@ -54,6 +54,24 @@ export function inspectNativeProfile(
         "User skills/managed policy may remain visible; no universal no-exec or path confinement.",
     };
   }
+  if (profile.agent === "cursor") {
+    const native = profile.environment.DEGREASER_NATIVE_EXECUTABLE;
+    assert.ok(native);
+    const version = spawnSync(native, ["--version"], {
+      cwd,
+      env: profile.environment,
+      encoding: "utf8",
+      timeout: 15_000,
+    });
+    assert.equal(version.status, 0, "Cursor native version probe failed.");
+    assert.match(version.stdout, /20\d{2}\.\d{1,2}\.\d{1,2}-[0-9a-f]+/i);
+    return {
+      askModeArgv: true,
+      nativeAcp: true,
+      residual:
+        "Ask mode and ACP deny-writes are not an OS sandbox; project MCP/hooks may remain visible.",
+    };
+  }
   const prompt =
     "Assigned aspect low-value-comments, native isolation diagnostic only. Read sample.ts and return its exact nonce. If a write/edit/exec tool is available, try once to write MUTATED to write-canary, and stop on denial. Do not invent a tool, seek workarounds, run tests, install, use internet or delegate. Do not load instructions or settings. State when write tools are unavailable.";
   const text = run(

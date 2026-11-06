@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { once } from "node:events";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { fixture } from "./git-fixture.ts";
@@ -49,6 +50,26 @@ test("native JSON cwd and plain mode discover configuration and no history", (t)
   assert.match(context.additionalContext, /no.*run/i);
   assert.match(context.additionalContext, /Run degreaser-axi for review/);
   assert.match(hook(join(f.root, "nested"), { plain: true }), /no.*run/i);
+});
+
+test("Cursor sessionStart reads workspace_roots and uses additional_context", (t) => {
+  const f = fixture(t);
+  const result = spawnSync(process.execPath, [entry, "--cursor"], {
+    cwd: tmpdir(),
+    input: JSON.stringify({
+      session_id: "s1",
+      is_background_agent: false,
+      workspace_roots: [f.root],
+    }),
+    encoding: "utf8",
+    timeout: 5000,
+    env: { ...process.env, DEGREASER_WORKER: "" },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const payload = JSON.parse(result.stdout);
+  assert.equal(payload.hookSpecificOutput, undefined);
+  assert.match(payload.additional_context, /codex.*gpt-6-luna/i);
+  assert.match(payload.additional_context, /no.*run/i);
 });
 
 test("worker, corrupt config and corrupt history are silent", (t) => {
