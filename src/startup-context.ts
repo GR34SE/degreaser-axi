@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { loadConfig, resolveConfig } from "./config.ts";
+import { loadConfig, missingConfigFields, resolveConfig } from "./config.ts";
 import { loadRun, StateError } from "./storage.ts";
 
 export function startupContext(cwd: string): string {
@@ -37,6 +37,13 @@ export function startupContext(cwd: string): string {
     return code < 32 || code === 127 ? " " : character;
   }).join("");
   const lines = [intro, `Review model: ${config.agent}/${model}.`];
+  const missing = missingConfigFields(config);
+  if (missing.length) {
+    const fields = missing.map(({ field, value }) => `${field}=${value}`);
+    lines.push(
+      `Missing settings use installed defaults (RC unchanged): ${fields.join(", ")}. Run degreaser-axi config sync to persist them.`,
+    );
+  }
   try {
     const run = loadRun(root);
     lines.push(`Last run: ${run.id} (${run.status}).`);
