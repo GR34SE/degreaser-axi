@@ -1,8 +1,10 @@
 import { join, relative } from "node:path";
 import {
+  AGENTS,
   type Agent,
   completeConfig,
   type Identity,
+  isAgent,
   type ProjectConfig,
   readConfigText,
   resolveConfig,
@@ -22,7 +24,7 @@ import { discoverModels } from "./model-discovery.ts";
 import { assertNotWorker } from "./native-environment.ts";
 import { atomicWrite, StateError } from "./storage.ts";
 
-const agents: Agent[] = ["codex", "claude", "pi"];
+const agents: Agent[] = [...AGENTS];
 const metadataNotice =
   "Native catalogs are metadata, not a guarantee of later provider availability. Account identity is not exposed by discovery; credentials remain in the harness.";
 interface Candidate extends Identity {
@@ -30,8 +32,10 @@ interface Candidate extends Identity {
 }
 
 function agentChoice(value: string): Agent {
-  if (value !== "codex" && value !== "claude" && value !== "pi")
-    throw new InputError("Choose codex, claude or pi.");
+  if (!isAgent(value))
+    throw new InputError(
+      `Choose ${AGENTS.join(", ").replace(/, ([^,]*)$/, " or $1")}.`,
+    );
   return value;
 }
 
@@ -70,7 +74,7 @@ async function catalog(
           account:
             agent === "pi"
               ? `Pi native credentials (${model.split("/")[0]}); account identity unavailable`
-              : `${agent === "codex" ? "OpenAI" : "Claude"} native subscription; account identity unavailable`,
+              : `${{ codex: "OpenAI", claude: "Claude", cursor: "Cursor" }[agent]} native subscription; account identity unavailable`,
         });
       discovery.push({
         agent,
@@ -91,13 +95,17 @@ async function catalog(
       });
     }
   }
-  const recommendation =
-    candidates.find(
-      (c) =>
-        c.model.includes("-") &&
-        /(?:^|[-/])(luna|haiku|mini)(?:-|$)/i.test(c.model),
-    ) ?? null;
+  const recommendation = candidates.find((c) => cheapModel(c.model)) ?? null;
   return { candidates, discovery, recommendation };
+}
+
+function cheapModel(model: string) {
+  if (!model.includes("-")) return false;
+  if (/(?:^|[-/])(haiku|mini|composer)(?:-|$)/i.test(model)) return true;
+  if (/(?:^|[-/])luna(?:-|$)/i.test(model) && !/high/i.test(model)) return true;
+  return /(?:^|[-/])(?:cursor-)?grok-[\d.]+-low(?:-fast)?(?:$|[^\w])/i.test(
+    model,
+  );
 }
 
 function sameIdentity(left: Identity, right: Identity) {
@@ -320,6 +328,7 @@ export async function init(
     const invoke = {
       codex: ["Codex", "$degreaser review my changes"],
       claude: ["Claude Code", "/degreaser review my changes"],
+      cursor: ["Cursor", "/degreaser review my changes"],
       pi: ["Pi", "/skill:degreaser review my changes"],
     } as const;
     const width = Math.max(...harnesses.map((h) => invoke[h][0].length));

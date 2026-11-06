@@ -47,7 +47,8 @@ export async function liveReview(
         assert.equal(result.status, 2, result.stdout);
         assert.match(result.stdout, /decision-required/);
         assert.ok(
-          result.stdout.includes(`${agent},${model},`),
+          result.stdout.includes(`${agent},${model},`) ||
+            result.stdout.includes(`${agent},"${model}",`),
           `Missing selected native candidate ${agent}/${model}`,
         );
         await assert.rejects(readFile(join(cwd, ".degreaserrc.json")), {
@@ -59,11 +60,11 @@ export async function liveReview(
       assert.equal(init.status, 0, init.stdout);
       console.log(init.stdout);
       const confirmed = await readFile(join(cwd, ".degreaserrc.json"), "utf8");
-      assert.deepEqual(JSON.parse(confirmed), {
-        schemaVersion: 1,
-        agent,
-        model,
-      });
+      const rc = JSON.parse(confirmed);
+      assert.deepEqual(
+        { schemaVersion: rc.schemaVersion, agent: rc.agent, model: rc.model },
+        { schemaVersion: 1, agent, model },
+      );
       const reinit = runCommand(process.execPath, [cli, "init"]);
       assert.equal(reinit.status, 2, reinit.stdout);
       assert.match(reinit.stdout, /decision-required/);

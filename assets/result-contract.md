@@ -184,7 +184,7 @@ message fallback; a bare number 429 in unrelated prose is not a rate limit.
 The original run deadline includes queued work and all attempts; errors never
 reset it. Attempt limits include profile/adapter startup and inference. Cleanup
 can outlast the deadline while owned processes are stopped and joined; no new
-attempt starts during that join. Codex and Pi receive an advisory turn budget
+attempt starts during that join. Codex, Pi and Cursor receive an advisory turn budget
 and report that native max-turn enforcement is unavailable. Claude receives the
 supported native limit.
 

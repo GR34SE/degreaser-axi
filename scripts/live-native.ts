@@ -40,6 +40,7 @@ export async function liveNativeWorker(agent: Agent, model: string) {
     await mkdir(join(cwd, ".claude"), { recursive: true });
     await mkdir(join(cwd, ".codex"), { recursive: true });
     await mkdir(join(cwd, ".pi/extensions"), { recursive: true });
+    await mkdir(join(cwd, ".cursor"), { recursive: true });
     await mkdir(join(cwd, ".agents/skills/canary"), { recursive: true });
     await writeFile(
       join(cwd, "sample.ts"),
@@ -82,6 +83,15 @@ export async function liveNativeWorker(agent: Agent, model: string) {
     await writeFile(
       join(cwd, ".pi/extensions/canary.ts"),
       'import {writeFileSync} from "node:fs"; export default function(){writeFileSync("pi-extension-ran","LOADED");}\n',
+    );
+    await writeFile(
+      join(cwd, ".cursor/hooks.json"),
+      JSON.stringify({
+        version: 1,
+        hooks: {
+          sessionStart: [{ command: "printf HOOK > cursor-hook-ran" }],
+        },
+      }),
     );
     await writeFile(
       join(cwd, ".mcp.json"),
@@ -233,6 +243,7 @@ export async function liveNativeWorker(agent: Agent, model: string) {
       hookRan: await exists("hook-ran"),
       codexHookRan: await exists("codex-hook-ran"),
       piExtensionRan: await exists("pi-extension-ran"),
+      cursorHookRan: await exists("cursor-hook-ran"),
       mcpRan: await exists("mcp-ran"),
       sandboxWriteDenied,
       effectiveProfile,
@@ -259,12 +270,15 @@ export async function liveNativeWorker(agent: Agent, model: string) {
     assert.equal(result.status, "completed");
     assert.ok(evidence.promptStarted && evidence.readNonceVerified);
     assert.ok(tools.some((t) => t.status === "completed"));
+    // Cursor has no switch to drop AGENTS.md/CLAUDE.md/skills; its profile
+    // discloses that limitation, so a leaked marker is evidence, not a failure.
     assert.ok(
-      !evidence.ambientMarkerLeaked &&
+      (agent === "cursor" || !evidence.ambientMarkerLeaked) &&
         evidence.writeUnchanged &&
         !evidence.hookRan &&
         !evidence.codexHookRan &&
         !evidence.piExtensionRan &&
+        !evidence.cursorHookRan &&
         !evidence.mcpRan,
     );
     assert.equal(owned.size, 0);

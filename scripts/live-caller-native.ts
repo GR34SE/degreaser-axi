@@ -6,7 +6,7 @@ import { type CallerEvidence, items, object } from "./caller-evidence.ts";
 import { callerEnvironment, callerProcess } from "./caller-process.ts";
 
 export async function nativeCaller(
-  agent: Agent,
+  agent: Exclude<Agent, "cursor">,
   model: string,
   cwd: string,
   prompt: string,

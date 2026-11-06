@@ -11,6 +11,8 @@ const guarantees = {
   claude:
     "Native Read/Grep/Glob tool allowlist; settings sources, skills, hooks and MCP disabled by the worker launcher. Managed policy is retained.",
   pi: "Native read/grep/find/ls tool allowlist; skills, extensions, MCP, context files and prompt templates disabled by the worker launcher.",
+  cursor:
+    "Native ask/read-only mode with sandbox enabled; writes denied by the ACP client. Project MCP/hooks are not a native allowlist.",
 };
 
 export async function doctor(cwd: string) {

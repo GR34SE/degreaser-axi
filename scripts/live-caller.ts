@@ -59,7 +59,10 @@ function latest(cwd: string): Run | undefined {
   );
 }
 
-export async function liveCaller(agent: Agent, model: string) {
+export async function liveCaller(
+  agent: Exclude<Agent, "cursor">,
+  model: string,
+) {
   assert.equal(
     model,
     {

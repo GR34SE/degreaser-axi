@@ -11,27 +11,39 @@ import {
   multiselect,
   select,
 } from "@clack/prompts";
-import type { Agent, Identity } from "./config.ts";
+import { AGENTS, type Agent, type Identity } from "./config.ts";
 import type { Catalog } from "./init.ts";
 import type { InstallationScope } from "./integration-targets.ts";
 import type { SkillInstall } from "./integrations.ts";
 import { StateError } from "./storage.ts";
 
-const names = { codex: "Codex", claude: "Claude Code", pi: "Pi" };
-const agents: Agent[] = ["codex", "claude", "pi"];
+const names = {
+  codex: "Codex",
+  claude: "Claude Code",
+  pi: "Pi",
+  cursor: "Cursor",
+};
+const executables: Record<Agent, readonly string[]> = {
+  codex: ["codex"],
+  claude: ["claude"],
+  pi: ["pi"],
+  cursor: ["cursor-agent", "agent"],
+};
 
 function detectedHarnesses(): Agent[] {
   const directories = (process.env.PATH ?? "").split(":").filter(isAbsolute);
-  return agents.filter((agent) =>
-    directories.some((directory) => {
-      const file = join(directory, agent);
-      try {
-        accessSync(file, constants.X_OK);
-        return statSync(file).isFile();
-      } catch {
-        return false;
-      }
-    }),
+  return AGENTS.filter((agent) =>
+    directories.some((directory) =>
+      executables[agent].some((name) => {
+        const file = join(directory, name);
+        try {
+          accessSync(file, constants.X_OK);
+          return statSync(file).isFile();
+        } catch {
+          return false;
+        }
+      }),
+    ),
   );
 }
 
@@ -63,7 +75,7 @@ export async function configureTerminal(
     if (!targets.length)
       throw new StateError(
         "environment-blocked",
-        "No supported agent CLI (codex, claude or pi) found in PATH. Install and log in to one, then rerun degreaser-axi init.",
+        "No supported agent CLI (codex, claude, pi or cursor) found in PATH. Install and log in to one, then rerun degreaser-axi init.",
       );
     intro("Degreaser", terminal);
     const harnesses = answered(
@@ -96,7 +108,7 @@ export async function configureTerminal(
                 {
                   value: "link",
                   label: "Symlink",
-                  hint: "to the .agents/skills copy Codex and Pi read",
+                  hint: "to the .agents/skills copy Codex, Pi and Cursor read",
                 },
                 { value: "copy", label: "Copy", hint: "separate file" },
               ],

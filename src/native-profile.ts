@@ -58,6 +58,11 @@ export const PROFILE_LIMITATIONS: Record<Agent, string[]> = {
     "Offline suppresses startup discovery, not subscription model traffic.",
     "Native harness session/cache writes are outside the reviewed source.",
   ],
+  cursor: [
+    "Ask mode is native read-only behavior, not an OS sandbox around the ACP process.",
+    "Repository rules (AGENTS.md, CLAUDE.md), project MCP, hooks, plugins and skills may remain visible; repository instructions are untrusted evidence.",
+    "Native harness session/cache writes are outside the reviewed source.",
+  ],
 };
 
 async function nativeVersion(
@@ -132,7 +137,8 @@ async function nativeVersion(
 }
 
 async function nativeExecutable(
-  agent: "claude" | "pi",
+  agent: Agent,
+  names: readonly string[],
   env: Record<string, string>,
   signal?: AbortSignal,
   spawned?: () => void,
@@ -140,15 +146,18 @@ async function nativeExecutable(
   let executable: string | undefined;
   let denied: unknown;
   for (const directory of (env.PATH ?? "").split(":").filter(isAbsolute)) {
-    const path = join(directory, agent);
-    try {
-      await access(path, constants.X_OK);
-      executable = await realpath(path);
-      break;
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException).code;
-      if (code === "EACCES" || code === "EPERM") denied ??= error;
-      else if (code !== "ENOENT" && code !== "ENOTDIR") throw error;
+    if (executable) break;
+    for (const name of names) {
+      const path = join(directory, name);
+      try {
+        await access(path, constants.X_OK);
+        executable = await realpath(path);
+        break;
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        if (code === "EACCES" || code === "EPERM") denied ??= error;
+        else if (code !== "ENOENT" && code !== "ENOTDIR") throw error;
+      }
     }
   }
   if (!executable && denied) throw denied;
@@ -188,7 +197,33 @@ export async function nativeProfile(
     !/^[^/]+\/[^/]+$/.test(identity.model)
   )
     throw new Error("Pi requires a provider-qualified model ID.");
-  const [pkg, version] = adapters[identity.agent];
+  const environment = workerEnvironment(process.env);
+  environment.DEGREASER_MODEL = identity.model;
+  if (purpose === "model-discovery")
+    environment.DEGREASER_MODEL_DISCOVERY = "1";
+  const launcher = fileURLToPath(
+    new URL(`../bin/${identity.agent}-worker.js`, import.meta.url),
+  );
+  const agent = identity.agent;
+  if (agent === "cursor") {
+    const native = await nativeExecutable(
+      agent,
+      ["cursor-agent", "agent"],
+      environment,
+      signal,
+      spawned,
+    );
+    environment.DEGREASER_NATIVE_EXECUTABLE = native.path;
+    return {
+      ...identity,
+      command: [process.execPath, launcher],
+      environment,
+      adapterVersion: "native-acp",
+      nativeVersion: native.version,
+      limitations: [...PROFILE_LIMITATIONS.cursor],
+    };
+  }
+  const [pkg, version] = adapters[agent];
   let manifestPath: string;
   try {
     manifestPath = require.resolve(`${pkg}/package.json`);
@@ -223,15 +258,8 @@ export async function nativeProfile(
     );
   const entry = Object.values(manifest.bin)[0];
   if (!entry) throw new Error("Installed adapter executable is unavailable.");
-  const environment = workerEnvironment(process.env);
-  environment.DEGREASER_MODEL = identity.model;
-  if (purpose === "model-discovery")
-    environment.DEGREASER_MODEL_DISCOVERY = "1";
-  const launcher = fileURLToPath(
-    new URL(`../bin/${identity.agent}-worker.js`, import.meta.url),
-  );
   let nativeVersion = SUPPORTED_NATIVE_VERSIONS.codex;
-  if (identity.agent === "codex") {
+  if (agent === "codex") {
     const adapterRequire = createRequire(manifestPath);
     const nativeManifest = JSON.parse(
       await readFile(
@@ -245,14 +273,15 @@ export async function nativeProfile(
     environment.CODEX_CONFIG = JSON.stringify(codexConfig);
   } else {
     const native = await nativeExecutable(
-      identity.agent,
+      agent,
+      [agent],
       environment,
       signal,
       spawned,
     );
     environment.DEGREASER_NATIVE_EXECUTABLE = native.path;
     nativeVersion = native.version;
-    if (identity.agent === "claude") {
+    if (agent === "claude") {
       environment.CLAUDE_CODE_EXECUTABLE = launcher;
       environment.CLAUDE_CODE_DISABLE_AUTO_MEMORY = "1";
       environment.CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION = "false";
@@ -265,6 +294,6 @@ export async function nativeProfile(
     environment,
     adapterVersion: version,
     nativeVersion,
-    limitations: [...PROFILE_LIMITATIONS[identity.agent]],
+    limitations: [...PROFILE_LIMITATIONS[agent]],
   };
 }
