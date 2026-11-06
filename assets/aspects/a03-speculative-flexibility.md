@@ -6,7 +6,7 @@
 
 **Applies when:** The change adds an option, parameter, flag, variant, strategy, extension point or configuration field. Otherwise return not-applicable.
 
-**Evidence:** Inspect the task, configurations, public contract and actual consumers of every new variant. Identify a variant without a consumer and the cost it introduces.
+**Evidence:** Inspect the task, configurations, public contract and actual consumers of every new variant. Identify a variant without a consumer and the cost it introduces. List every option, parameter, flag or variant the change introduces and judge each one; when a required one is broader than the task needs, such as accepting several spellings where one is used, name the narrower form.
 
 **Boundaries:** No local caller does not mean no public API consumer. Record uncertainty when requirements are missing rather than asserting a defect.
 

@@ -6,7 +6,7 @@
 
 **Applies when:** The caller supplies a concrete task with a feature scope. For a repository audit or a task without feature scope, such as 'review my changes', return not-applicable with that reason.
 
-**Evidence:** Compare the diff with the supplied task, acceptance criteria and necessary implementation dependencies. Cite the task passage and the change it does not require.
+**Evidence:** Compare the diff with the supplied task, acceptance criteria and necessary implementation dependencies. Cite the task passage and the change it does not require. List each capability, permission or refactoring the change adds and judge each against the task, so one unrequested addition does not hide another.
 
 **Boundaries:** Do not reconstruct the assignment from the diff or branch name. Shared-code changes needed by the task are not scope creep.
 
