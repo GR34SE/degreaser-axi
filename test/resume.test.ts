@@ -308,7 +308,10 @@ test("a killed owner exposes interrupted and racing resumes admit only one nonov
     assert.match(output.coverage[1].reason, /last persisted.*running/i);
     if (args.length) {
       assert.equal(output.execution[1].attemptStatusBasis, "last-persisted");
-      assert.deepEqual(output.execution[1].attempts, old.tasks[1]?.attempts);
+      assert.deepEqual(
+        output.execution[1].attempts,
+        f.state().tasks[1]?.attempts,
+      );
     }
   }
   assert.deepEqual(

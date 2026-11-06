@@ -169,8 +169,13 @@ export function prepareIntegrations(
           return value;
         })();
   const results = [];
+  const files: string[] = [];
   for (const agent of harnesses) {
     const target = integrationTarget(agent, repository, scope);
+    files.push(
+      ...target.files.keys(),
+      ...(target.hookPath ? [target.hookPath] : []),
+    );
     for (const [file, content] of target.files) {
       const owned = receipt.files[file];
       if (remove && !owned?.owners.includes(agent)) continue;
@@ -205,7 +210,7 @@ export function prepareIntegrations(
   if (Object.keys(receipt.files).length || Object.keys(receipt.hooks).length)
     edits.set(path, json(receipt));
   else if (original !== null) edits.set(path, null);
-  return { results, apply: () => edits.apply() };
+  return { results, files, apply: () => edits.apply() };
 }
 
 export function setupIntegrations(

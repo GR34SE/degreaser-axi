@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import {
   type Agent,
   completeConfig,
@@ -9,7 +9,7 @@ import {
   validateConfig,
 } from "./config.ts";
 import { DiagnosticError } from "./diagnostics.ts";
-import { repositoryRoot } from "./git.ts";
+import { git, repositoryRoot } from "./git.ts";
 import { ensureStateIgnored } from "./init-ignore.ts";
 import { InputError } from "./input-error.ts";
 import type { InstallationScope } from "./integration-targets.ts";
@@ -252,8 +252,28 @@ export async function init(
       ],
     };
   }
+  const uncommitted = (
+    git(
+      repository,
+      [
+        "status",
+        "--porcelain",
+        "--untracked-files=all",
+        "--",
+        ...[path, join(repository, ".gitignore"), ...integrations.files]
+          .filter((file) => file.startsWith(`${repository}/`))
+          .map((file) => relative(repository, file)),
+      ],
+      { allowFailure: true },
+    ) ?? ""
+  )
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => line.slice(3));
+  const commitHint = `Commit ${uncommitted.join(", ")} so new Git worktrees and teammates get this configuration. Init never stages or commits.`;
   if (tty) {
     const { log, outro } = await import("@clack/prompts");
+    if (uncommitted.length) log.info(commitHint, { output: process.stderr });
     if (ignore.tracked)
       log.warn(
         "Files in .degreaser/ are already tracked by Git. Review them before sharing.",
@@ -290,8 +310,13 @@ export async function init(
             "State under .degreaser/ is already tracked. The index is unchanged; review tracked files before sharing.",
         }
       : {}),
+    ...(uncommitted.length ? { uncommitted } : {}),
     discovery: choices.discovery,
     notice: metadataNotice,
-    help: ["degreaser-axi doctor", "degreaser-axi review --help"],
+    help: [
+      ...(uncommitted.length ? [commitHint] : []),
+      "degreaser-axi doctor",
+      "degreaser-axi review --help",
+    ],
   };
 }

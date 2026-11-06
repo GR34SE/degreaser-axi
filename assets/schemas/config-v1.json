@@ -17,6 +17,7 @@
       "additionalProperties": false,
       "properties": {
         "workerTimeoutSeconds": { "$ref": "#/definitions/seconds" },
+        "workerIdleSeconds": { "$ref": "#/definitions/seconds" },
         "maxTurns": { "$ref": "#/definitions/positiveInteger" },
         "runTimeoutSeconds": { "$ref": "#/definitions/seconds" }
       }

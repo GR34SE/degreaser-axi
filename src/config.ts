@@ -34,6 +34,8 @@ export interface Assignment extends Identity {
 }
 export interface Limits {
   workerTimeoutSeconds: number;
+  /** Absent in inputs saved before idle detection; then only the hard limit applies. */
+  workerIdleSeconds?: number;
   maxTurns: number;
   runTimeoutSeconds: number;
 }
@@ -95,7 +97,7 @@ export function loadConfig(repository: string): ProjectConfig {
     );
   } catch {
     throw new InputError(
-      "Root .degreaserrc.json must exist and contain readable JSON. Configure an explicit agent and model.",
+      "Root .degreaserrc.json must exist and contain readable JSON. Configure an explicit agent and model. In a new Git worktree, commit .degreaserrc.json and .gitignore where init ran, or run init here.",
     );
   }
   return validateConfig(data);
@@ -121,6 +123,7 @@ export function completeConfig(data: unknown) {
     maxRetries: rc.maxRetries ?? 1,
     limits: {
       workerTimeoutSeconds: 300,
+      workerIdleSeconds: 120,
       maxTurns: 40,
       runTimeoutSeconds: 900,
       ...rc.limits,

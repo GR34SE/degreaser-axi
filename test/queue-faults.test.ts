@@ -599,3 +599,25 @@ test("a valid result followed by an attempt timeout remains useful but unresolve
   );
   assert.equal(task.attempts[0]?.failure, "timeout");
 });
+
+test("a silent worker stops at the idle limit, long before its hard timeout", (t) => {
+  const f = queueFixture(t, {
+    maxRetries: 0,
+    concurrency: 1,
+    limits: {
+      workerTimeoutSeconds: 60,
+      workerIdleSeconds: 1,
+      runTimeoutSeconds: 90,
+    },
+  });
+  f.setPlan({ worker: { hang: true } });
+  const started = Date.now();
+  f.start(["--aspects", "A06"]);
+  const done = f.finish();
+  assert.equal(done.status, 1, done.stdout);
+  assert.ok(Date.now() - started < 30_000);
+  const [attempt] = f.state().tasks[0]?.attempts ?? [];
+  assert.equal(attempt?.failure, "timeout");
+  assert.ok(attempt?.lastActivityAt);
+  assert.match(done.stdout, /stopped as idle/);
+});

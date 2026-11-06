@@ -8,6 +8,7 @@ import {
   type ReviewControls,
   resolveConfig,
 } from "./config.ts";
+import { relevantDismissals } from "./dismissals.ts";
 import { repositoryRoot } from "./git.ts";
 import { InputError } from "./input-error.ts";
 import { resolveScope, type Scope } from "./scope.ts";
@@ -175,6 +176,7 @@ export function prepareReview(args: string[], cwd: string) {
       `No assessable repository files match --path ${request.pathPatterns.join(", ")} after exclusions; no review was started.`,
     );
   const noChanges = request.scope !== "repository" && scope.paths.length === 0;
+  const dismissed = relevantDismissals(repository, scope.paths);
   const coordinatorResults =
     request.scope === "repository" &&
     config.assignments.some((a) => a.aspect === "A08")
@@ -208,6 +210,8 @@ export function prepareReview(args: string[], cwd: string) {
       : {}),
     waitSeconds: request.waitSeconds,
     config,
+    // Absent rather than empty keeps identities of reviews without dismissals.
+    ...(dismissed.length ? { dismissed } : {}),
     ...scope,
     workers,
     coordinatorResults,

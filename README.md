@@ -258,6 +258,7 @@ For example, a fresh init after selecting Codex and Luna writes:
   "maxRetries": 1,
   "limits": {
     "workerTimeoutSeconds": 300,
+    "workerIdleSeconds": 120,
     "maxTurns": 40,
     "runTimeoutSeconds": 900
   },
@@ -308,9 +309,13 @@ harness and model. A model-only entry under `aspects.overrides.A06`, for example
 `{"model":"<exact-model-id>"}`, keeps the default agent. An agent override must
 also supply its compatible exact model.
 
-Defaults are one additional retry, a 300-second worker timeout, a 900-second
-run deadline and a 40-turn budget. Configure `maxRetries` and
-`limits.workerTimeoutSeconds`, `limits.runTimeoutSeconds`, `limits.maxTurns`.
+Defaults are one additional retry, a 300-second worker timeout, a 120-second
+worker idle limit, a 900-second run deadline and a 40-turn budget. The idle
+limit stops an attempt that sends no events for that long, so a stuck worker
+retries early while an active one keeps its full timeout; running reports show
+each aspect's `lastActivity`. Configure `maxRetries` and
+`limits.workerTimeoutSeconds`, `limits.workerIdleSeconds`,
+`limits.runTimeoutSeconds`, `limits.maxTurns`.
 Only Claude enforces the turn budget natively; Codex and Pi treat it as advisory.
 `exclude` accepts literal repository-relative files or directory prefixes, not globs.
 For a one-run selection, use `review --path` instead.
@@ -348,6 +353,7 @@ The CLI follows [AXI](https://axi.md/): a short summary, details on demand, and 
 degreaser-axi report          # Latest run and findings.
 degreaser-axi report --full   # Full evidence.
 degreaser-axi finding F1     # One finding from the latest run.
+degreaser-axi export > r.json # Findings, coverage and limitations as JSON for other tools.
 degreaser-axi doctor         # Local configuration/native-version diagnostics, no inference.
 ```
 
@@ -365,6 +371,18 @@ Pass `report <run-id>` or `finding F1 --run <run-id>` to read historical evidenc
 otherwise reads select this repository's latest run. Reports of running reviews
 return the current snapshot without waiting. Home reads history even without a
 current RC. These read commands do not start reviews or modify local state.
+
+When you decide not to apply a finding, record that decision:
+
+```sh
+degreaser-axi dismiss F3 --reason "Kept for clients on the old API"
+```
+
+Later reviews that assess the same file pass dismissed findings and reasons to
+their reviewers, which should not raise the same issue again. Dismissals live in
+`degreaser/dismissed.json` inside the Git common directory (usually
+`.git/degreaser/`), so every worktree of the repository shares them and they
+are never committed. Edit or delete that file to undo a dismissal.
 Full reports separate configured identities from actual attempts and
 coordinator-only applicability results, including A08 in repository audits.
 When storage remains writable, a detached owner's fatal cause is saved with its

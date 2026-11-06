@@ -17,6 +17,11 @@ reason available in `report --full`. Valid neighbors survive. If every finding
 is rejected, the aspect becomes incomplete, not no-findings. This checks literal
 support, not whether the recommendation is correct. The caller makes that decision.
 
+Workers also list the assessed paths they examined. Paths outside the review are
+dropped, and a no-findings result that examined none of them becomes incomplete.
+Report coverage shows `examined` as examined/assessed paths, or `unknown` when
+the worker did not say. It is the worker's declaration, not proof of reading.
+
 Small patches are JSON-escaped inline. Patches over 60,000 encoded bytes are
 stored as an escaped JSON string in `input/patch.json`; decoding produces the
 identical Git patch. Scope and prompt hashes bind the assignment. Angle brackets

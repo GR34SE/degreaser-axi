@@ -41,7 +41,12 @@ const full = {
   model: "gpt-6-luna",
   concurrency: null,
   maxRetries: 1,
-  limits: { workerTimeoutSeconds: 300, maxTurns: 40, runTimeoutSeconds: 900 },
+  limits: {
+    workerTimeoutSeconds: 300,
+    workerIdleSeconds: 120,
+    maxTurns: 40,
+    runTimeoutSeconds: 900,
+  },
   aspects: { enable: allAspects, disable: [], overrides: {} },
   exclude: [],
 };
@@ -99,7 +104,12 @@ test("sync fills only absent nested settings, retaining explicit empty lists, ov
   assert.deepEqual(saved, {
     ...full,
     ...previous,
-    limits: { workerTimeoutSeconds: 300, runTimeoutSeconds: 900, maxTurns: 12 },
+    limits: {
+      workerTimeoutSeconds: 300,
+      workerIdleSeconds: 120,
+      runTimeoutSeconds: 900,
+      maxTurns: 12,
+    },
     aspects: {
       ...previous.aspects,
       enable: allAspects.filter((id) => id !== "A06"),

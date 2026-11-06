@@ -149,6 +149,17 @@ export const COMMANDS: Record<string, Command> = {
     positionals: { min: 0, max: 1 },
     examples: ["degreaser-axi report", "degreaser-axi report <run-id> --full"],
   },
+  export: {
+    description:
+      "Print a run's findings, coverage and limitations as JSON for other tools",
+    usage: "export [run-id]",
+    flags: {},
+    positionals: { min: 0, max: 1 },
+    examples: [
+      "degreaser-axi export > degreaser.json",
+      "degreaser-axi export <run-id>",
+    ],
+  },
   finding: {
     description: "Show a finding's full source evidence",
     usage: "finding <id> [--run <run-id>]",
@@ -159,6 +170,22 @@ export const COMMANDS: Record<string, Command> = {
     examples: [
       "degreaser-axi finding F1",
       "degreaser-axi finding F1 --run <run-id>",
+    ],
+  },
+  dismiss: {
+    description:
+      "Record that a finding should not be applied, so later reviews skip it",
+    usage: "dismiss <finding-id> --reason <text> [--run <run-id>]",
+    flags: {
+      reason: {
+        type: "string",
+        description: "Required: why the user decided not to apply it",
+      },
+      run: { type: "string", description: "Run ID (default latest run)" },
+    },
+    positionals: runId,
+    examples: [
+      'degreaser-axi dismiss F3 --reason "The user keeps this fallback for old clients"',
     ],
   },
   resume: {

@@ -197,6 +197,7 @@ test("selection narrows all sixteen defaults without re-enabling disabled aspect
   assert.equal(config.maxRetries, 1);
   assert.deepEqual(config.limits, {
     workerTimeoutSeconds: 300,
+    workerIdleSeconds: 120,
     maxTurns: 40,
     runTimeoutSeconds: 900,
   });

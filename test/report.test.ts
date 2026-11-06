@@ -4,6 +4,7 @@ import {
   existsSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -620,4 +621,51 @@ test("suggested reviews preserve explicit scope, base, task and selection as lit
   assert.equal(input.configuration.length, 1);
   assert.equal(input.configuration[0].aspect, "A06");
   assert.equal(f.events().length, 2);
+});
+
+test("a dismissed finding is stored per repository and passed to later reviews of that file", (t) => {
+  const f = queueFixture(t);
+  f.write("source.ts", "new line 1\n");
+  f.setPlan({ results: { A06: result("A06", [finding(1)]) } });
+  f.start(["--aspects", "A06"]);
+  const first = decode(f.finish().stdout);
+  assert.equal(first.count, 1);
+  const missing = decode(f.run(["dismiss", "F1"]).stdout);
+  assert.equal(missing.error, "invalid-input");
+  const dismissed = decode(
+    f.run(["dismiss", "F1", "--reason", "Kept for old clients"]).stdout,
+  );
+  assert.equal(dismissed.status, "dismissed");
+  const stored = join(f.root, ".git/degreaser/dismissed.json");
+  assert.equal(realpathSync(dismissed.stored), realpathSync(stored));
+  assert.match(readFileSync(stored, "utf8"), /Kept for old clients/);
+  f.start(["--aspects", "A06"]);
+  assert.equal(f.finish().status, 0);
+  const prompts = f.events().map((e) => e.prompt ?? "");
+  assert.doesNotMatch(prompts[0] ?? "", /Kept for old clients/);
+  assert.match(prompts.at(-1) ?? "", /Kept for old clients/);
+});
+
+test("export prints the run as plain JSON with flattened, unclipped findings", (t) => {
+  const f = queueFixture(t);
+  f.write("source.ts", "new line 1\n");
+  const entry = { ...finding(1), evidence: "x".repeat(5_000) };
+  f.setPlan({ results: { A06: result("A06", [entry]) } });
+  f.start(["--aspects", "A06"]);
+  const done = decode(f.finish().stdout);
+  const exported = f.run(["export"]);
+  assert.equal(exported.status, 0, exported.stdout);
+  const data = JSON.parse(exported.stdout);
+  assert.equal(data.schemaVersion, 1);
+  assert.equal(data.run, done.run);
+  assert.equal(data.task, "Update source");
+  const { location, ...fields } = entry;
+  assert.deepEqual(data.findings[0], {
+    id: "F1",
+    group: "G1",
+    aspect: "A06",
+    ...fields,
+    ...location,
+  });
+  assert.equal(data.coverage[0].aspect, "A06");
 });

@@ -167,3 +167,26 @@ test("repository-audit prompt makes assessed paths the scope instead of a missin
   );
   assert.match(response, /in an audit, the assessed code/);
 });
+
+test("examined paths keep only assessed files, and a clean result needs at least one", (t) => {
+  const f = fixture(t);
+  f.write("current.ts", "export const value = 2;\n");
+  const input = prepareReview(
+    ["--scope", "worktree", "--task", "Update value", "--aspects", "A06"],
+    f.root,
+  );
+  const covered = ingestResult(
+    block({ ...clean, examinedPaths: ["current.ts", "outside.ts"] }),
+    "A06",
+    input,
+  );
+  assert.equal(covered.result.status, "no-findings");
+  assert.deepEqual(covered.result.examinedPaths, ["current.ts"]);
+  const unexamined = ingestResult(
+    block({ ...clean, examinedPaths: ["outside.ts"] }),
+    "A06",
+    input,
+  );
+  assert.equal(unexamined.result.status, "incomplete");
+  assert.match(unexamined.result.limitations.join(" "), /without examining/);
+});

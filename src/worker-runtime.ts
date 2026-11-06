@@ -19,6 +19,9 @@ export interface WorkerRequest {
   prompt: string;
   maxTurns: number;
   timeoutMs: number;
+  /** Stop the attempt after this long without any adapter event. */
+  idleMs?: number;
+  onActivity?: () => void;
   signal?: AbortSignal;
   onPromptStarted?: () => void;
   onSessionReady?: (id: string) => void;
@@ -127,6 +130,19 @@ export async function executeWorker(
   const abort = () => stop("cancelled");
   request.signal?.addEventListener("abort", abort, { once: true });
   const timer = setTimeout(() => stop("timeout"), request.timeoutMs);
+  let idle: NodeJS.Timeout | undefined;
+  const active = () => {
+    request.onActivity?.();
+    const { idleMs } = request;
+    if (!idleMs) return;
+    clearTimeout(idle);
+    idle = setTimeout(() => {
+      outcome.limitations.push(
+        `No worker activity for ${idleMs / 1000} seconds; the attempt was stopped as idle.`,
+      );
+      stop("timeout");
+    }, request.idleMs);
+  };
   let handle: AcpRuntimeHandle | undefined;
   try {
     if (request.signal?.aborted) stop("cancelled");
@@ -175,7 +191,9 @@ export async function executeWorker(
     });
     await turn.promptStarted;
     request.onPromptStarted?.();
+    active();
     for await (const event of turn.events) {
+      active();
       if (event.type === "text_delta" && event.stream !== "thought") {
         if (outcome.output.length + event.text.length > 1_048_576) {
           outcome.output = "";
@@ -213,6 +231,7 @@ export async function executeWorker(
     outcome.failure ??= failure === "runtime" ? (stopped ?? failure) : failure;
   } finally {
     clearTimeout(timer);
+    clearTimeout(idle);
     let unsupportedClose = false;
     if (handle && !shutdown) {
       try {

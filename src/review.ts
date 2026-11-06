@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { setTimeout } from "node:timers/promises";
 import { assertSupportedModels, configNotice, loadConfig } from "./config.ts";
+import { recordDismissal } from "./dismissals.ts";
 import { assertFresh } from "./freshness.ts";
 import { repositoryRoot } from "./git.ts";
 import { positiveInteger, prepareReview } from "./input.ts";
@@ -14,7 +15,13 @@ import {
   ownerRecoveryGuidance,
   verifyOwner,
 } from "./ownership.ts";
-import { observedStatus, renderFinding, renderReport } from "./report.ts";
+import {
+  exportRun,
+  findings,
+  observedStatus,
+  renderFinding,
+  renderReport,
+} from "./report.ts";
 import {
   checkHistory,
   createRun,
@@ -271,5 +278,52 @@ export async function readCommand(
     return waitFor(run, seconds);
   }
   if (name === "report") return renderReport(run, values.full === true);
+  if (name === "export") return exportRun(run);
   return renderFinding(run, positionals[0]);
+}
+
+export function dismissCommand(
+  positionals: string[],
+  values: Record<string, unknown>,
+  cwd: string,
+) {
+  if (process.env.DEGREASER_WORKER)
+    throw new StateError(
+      "nested-review",
+      "Workers cannot dismiss findings; the caller decides.",
+    );
+  const reason = typeof values.reason === "string" ? values.reason.trim() : "";
+  if (!reason)
+    throw new InputError(
+      "--reason is required: say why the finding should not be applied.",
+    );
+  const repository = repositoryRoot(cwd);
+  const run = loadRun(
+    repository,
+    typeof values.run === "string" ? values.run : undefined,
+  );
+  const id = positionals[0];
+  const finding = findings(run).find((f) => f.id === id);
+  if (!finding)
+    throw new StateError(
+      "finding-not-found",
+      `Finding not found in ${run.id}: ${id}. Use degreaser-axi report ${run.id} --full.`,
+    );
+  const stored = recordDismissal(repository, {
+    aspect: finding.aspect,
+    path: finding.location.path,
+    title: finding.title,
+    quote: finding.quote,
+    reason,
+    dismissedAt: Date.now(),
+  });
+  return {
+    status: "dismissed",
+    finding: id,
+    run: run.id,
+    stored,
+    help: [
+      "Later reviews of this file pass the dismissal to its reviewers. Edit or delete the stored file to undo it.",
+    ],
+  };
 }
