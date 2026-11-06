@@ -134,6 +134,13 @@ function latestUsage(task: RunTask) {
   return usage && Object.keys(usage).length > 0 ? usage : null;
 }
 
+/** Input limitations that are the same for every review; shown only in full detail. */
+const STANDING = new Set(["git-object-writes", "live-context", "coverage"]);
+const shownLimitations = (input: ReviewInput, full: boolean) =>
+  input.limitations
+    .filter((l) => full || !STANDING.has(l.code))
+    .map((l) => l.message);
+
 export function renderFinding(run: Run, id: string | undefined) {
   const input = loadInput(run);
   const finding = findings(run).find((f) => f.id === id);
@@ -149,10 +156,7 @@ export function renderFinding(run: Run, id: string | undefined) {
     evidenceLevel: "source-only",
     ...finding,
     aspectStatus: task.status,
-    limitations: [
-      ...input.limitations.map((l) => l.message),
-      ...taskLimitations(task),
-    ],
+    limitations: [...shownLimitations(input, false), ...taskLimitations(task)],
     rejections: task.rejections,
   };
 }
@@ -195,7 +199,7 @@ export function renderReport(run: Run, full = false) {
       coverage(t, input, status === "interrupted"),
     ),
     limitations: [
-      ...input.limitations.map((l) => l.message),
+      ...shownLimitations(input, full),
       ...new Set(run.tasks.flatMap(taskLimitations)),
     ],
     ...(full
@@ -237,7 +241,9 @@ export function renderReport(run: Run, full = false) {
             ...(all.length ? [`degreaser-axi finding F1 --run ${run.id}`] : []),
           ]
         : [
-            `degreaser-axi report ${run.id} --full`,
+            ...(!full && all.length
+              ? [`degreaser-axi report ${run.id} --full`]
+              : []),
             ...(unverifiedOwner ? [ownerRecoveryGuidance(run)] : []),
             ...(canResume
               ? [

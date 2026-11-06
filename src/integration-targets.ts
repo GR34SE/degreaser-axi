@@ -53,7 +53,8 @@ const portable = resolvePortableHookCommand(
   ["degreaser-axi", "degreaser"],
   "degreaser",
   {
-    pathEntries: (process.env.PATH ?? "").split(delimiter),
+    // Relative entries would resolve inside whatever repository runs the hook.
+    pathEntries: (process.env.PATH ?? "").split(delimiter).filter(isAbsolute),
     pathExtensions: [""],
     resolveRealPath: realPath,
   },

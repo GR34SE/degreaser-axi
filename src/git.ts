@@ -69,6 +69,13 @@ export function requireGit(
 }
 
 export function repositoryRoot(cwd: string): string {
-  const root = requireGit(cwd, ["rev-parse", "--show-toplevel"]);
+  const root = git(cwd, ["rev-parse", "--show-toplevel"], {
+    allowFailure: true,
+  });
+  if (root === null)
+    throw new InputError(
+      "Not inside a Git repository. Run Degreaser inside the repository you want to review.",
+      ["cd <repository> && degreaser-axi"],
+    );
   return root.replace(/\n$/, "");
 }
