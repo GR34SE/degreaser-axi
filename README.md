@@ -35,7 +35,7 @@ degreaser-axi --version
 
 Startup integrations call the installed executable, so run `init` from a stable install, not through `npx`. To try commands without installing, use `npx -y degreaser-axi --help`; the installed skill falls back to `npx -y degreaser-axi` when the command is not on PATH. `degreaser` is an alias of `degreaser-axi`. The examples use `degreaser-axi`.
 
-From source (pnpm 12.14.0):
+From source:
 
 ```sh
 pnpm install --frozen-lockfile --ignore-scripts
@@ -45,7 +45,7 @@ pnpm link --global
 
 Run the rest **inside the Git repository you want to review**. Init writes `.degreaserrc.json`, installs the selected integrations, and adds `/.degreaser/` to the root `.gitignore` without touching the index. `--aspects low-value-comments` is a cheap first review.
 
-Workers currently need Codex ACP 2.5.0 with bundled Codex 0.165.0, Claude Code 2.1.317, or Pi 1.4.0. Claude and Pi must already be on PATH; Codex's worker executable ships with its pinned adapter. See [native worker restrictions and limits](https://github.com/GR34SE/degreaser-axi/blob/main/assets/native-profiles.md), or `dist/assets/native-profiles.md` in a built checkout or installed package.
+Claude and Pi must already be on PATH. The Codex worker ships with this package. `degreaser-axi doctor` prints the native versions this install accepts. See [native worker restrictions and limits](https://github.com/GR34SE/degreaser-axi/blob/main/assets/native-profiles.md), or `dist/assets/native-profiles.md` in a built checkout or installed package.
 
 ```sh
 degreaser-axi init
@@ -71,7 +71,7 @@ Init keeps other RC settings and installs both the startup integration and the s
 
 ## Integrations
 
-Start a new harness session after installation (or reload Pi). Host trust and hook policy still apply. Codex 0.165.0 enables hooks by default but still requires project and hook trust. Approve through the host only if you trust the command; Degreaser never grants trust itself.
+Start a new harness session after installation (or reload Pi). Project and hook trust still go through the host. Degreaser never grants trust itself.
 
 If something breaks later (updated harness, moved install, edited hooks), `degreaser-axi doctor` checks native versions and installed integrations without calling a model. To repair moved package paths or missing owned files:
 
