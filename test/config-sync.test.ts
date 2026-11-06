@@ -47,7 +47,7 @@ const full = {
     maxTurns: 40,
     runTimeoutSeconds: 900,
   },
-  aspects: { enable: allAspects, disable: [], overrides: {} },
+  aspects: Object.fromEntries(allAspects.map((id) => [id, true])),
   exclude: [],
 };
 function run(root: string, args = ["config", "sync"], worker = false) {
@@ -81,7 +81,7 @@ test("config sync expands a legacy RC, preserves effective behavior and is a byt
   assert.equal(statSync(path).mtimeMs, mtime);
 });
 
-test("sync fills only absent nested settings, retaining explicit empty lists, overrides and zero retries", (t) => {
+test("sync fills only absent nested settings, retaining explicit aspect settings, overrides and zero retries", (t) => {
   const f = fixture(t);
   const previous = {
     agent: "claude",
@@ -90,8 +90,8 @@ test("sync fills only absent nested settings, retaining explicit empty lists, ov
     maxRetries: 0,
     limits: { maxTurns: 12 },
     aspects: {
-      disable: ["low-value-comments"],
-      overrides: { "missed-reuse": { model: "another-model" } },
+      "low-value-comments": false,
+      "missed-reuse": { model: "another-model" },
     },
     exclude: ["vendor"],
   };
@@ -110,10 +110,7 @@ test("sync fills only absent nested settings, retaining explicit empty lists, ov
       runTimeoutSeconds: 900,
       maxTurns: 12,
     },
-    aspects: {
-      ...previous.aspects,
-      enable: allAspects.filter((id) => id !== "low-value-comments"),
-    },
+    aspects: { ...full.aspects, ...previous.aspects },
   });
   assert.deepEqual(resolveConfig(saved), before);
   const { maxTurns: _removed, ...remainingLimits } = saved.limits;
@@ -122,7 +119,7 @@ test("sync fills only absent nested settings, retaining explicit empty lists, ov
     JSON.stringify({
       ...saved,
       limits: remainingLimits,
-      aspects: { ...saved.aspects, enable: [] },
+      aspects: { "low-value-comments": false },
     }),
   );
   const updated = run(f.root);
@@ -132,7 +129,10 @@ test("sync fills only absent nested settings, retaining explicit empty lists, ov
     readFileSync(join(f.root, ".degreaserrc.json"), "utf8"),
   );
   assert.equal(updatedConfig.limits.maxTurns, 40);
-  assert.deepEqual(updatedConfig.aspects.enable, []);
+  assert.deepEqual(updatedConfig.aspects, {
+    ...full.aspects,
+    "low-value-comments": false,
+  });
 });
 
 test("home, doctor and empty review disclose missing fields without modifying RC; sync clears the notice", (t) => {

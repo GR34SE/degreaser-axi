@@ -117,9 +117,7 @@ for (const override of [false, true]) {
         agent: "codex",
         model: "gpt-6-luna",
         aspects: {
-          overrides: {
-            "low-value-comments": { agent: "pi", model: unsupported },
-          },
+          "low-value-comments": { agent: "pi", model: unsupported },
         },
       });
     const result = f.run();

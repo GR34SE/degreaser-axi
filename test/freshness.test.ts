@@ -244,7 +244,7 @@ test("public resume independently re-resolves tracked content, new files, task-f
         JSON.stringify({
           ...JSON.parse(config),
           aspects: {
-            overrides: { "low-value-comments": { model: "exact-codex" } },
+            "low-value-comments": { model: "exact-codex" },
           },
         }),
       ),

@@ -89,9 +89,7 @@ for (const override of [false, true]) {
             agent: "codex",
             model: "gpt-6-luna",
             aspects: {
-              overrides: {
-                "low-value-comments": { agent: "claude", model: "gpt-6-luna" },
-              },
+              "low-value-comments": { agent: "claude", model: "gpt-6-luna" },
             },
           }
         : { agent: "claude", model: "gpt-6-luna" },
@@ -123,15 +121,13 @@ test("public admission discovers only selected exact identities, deduplicates an
     agent: "codex",
     model: "gpt-6-luna",
     aspects: {
-      overrides: {
-        "missed-reuse": { model: "unselected-model" },
-        "masked-errors": { model: "exact-codex" },
-        "contract-bypass": {
-          agent: "claude",
-          model: "claude-haiku-4-5-20251001",
-        },
-        "verification-theater": { agent: "pi", model: "openai/gpt-6-luna" },
+      "missed-reuse": { model: "unselected-model" },
+      "masked-errors": { model: "exact-codex" },
+      "contract-bypass": {
+        agent: "claude",
+        model: "claude-haiku-4-5-20251001",
       },
+      "verification-theater": { agent: "pi", model: "openai/gpt-6-luna" },
     },
   });
   const result = f.run([

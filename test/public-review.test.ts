@@ -432,23 +432,21 @@ test("public configuration is strict, root-local and rejects finite invalid valu
     { ...valid, plugins: [] },
     {
       ...valid,
-      aspects: { overrides: { "missed-reuse": { agent: "claude" } } },
+      aspects: { "missed-reuse": { agent: "claude" } },
     },
     {
       ...valid,
       aspects: {
-        overrides: { "missed-reuse": { agent: "pi", model: "unqualified" } },
+        "missed-reuse": { agent: "pi", model: "unqualified" },
       },
     },
     {
       ...valid,
-      aspects: { enable: ["missed-reuse"], disable: ["missed-reuse"] },
+      aspects: { "missed-reuse": "off" },
     },
     {
       ...valid,
-      aspects: {
-        disable: [...ASPECT_IDS],
-      },
+      aspects: Object.fromEntries(ASPECT_IDS.map((id) => [id, false])),
     },
   ]) {
     f.write(".degreaserrc.json", JSON.stringify(rc));
@@ -487,15 +485,13 @@ test("public default/narrowed/restored selections retain exact overrides and exc
     maxRetries: 0,
     exclude: ["package.json"],
     aspects: {
-      disable: ["unnecessary-layers"],
-      overrides: {
-        "masked-errors": { model: "exact-codex" },
-        "contract-bypass": {
-          agent: "claude",
-          model: "claude-haiku-4-5-20251001",
-        },
-        "verification-theater": { agent: "pi", model: "openai/gpt-6-luna" },
+      "unnecessary-layers": false,
+      "masked-errors": { model: "exact-codex" },
+      "contract-bypass": {
+        agent: "claude",
+        model: "claude-haiku-4-5-20251001",
       },
+      "verification-theater": { agent: "pi", model: "openai/gpt-6-luna" },
     },
   });
   f.write(".degreaserrc.json", rc);
