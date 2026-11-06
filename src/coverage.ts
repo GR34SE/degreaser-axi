@@ -27,11 +27,20 @@ export function mergePass(
   pass: WorkerResult,
   earlierApplicable = false,
 ): WorkerResult {
+  const current = new Set(input.paths.map((p) => p.path));
+  const renamed = new Map(
+    input.paths.flatMap((p) =>
+      p.oldPath && !current.has(p.oldPath)
+        ? [[p.oldPath, p.path] as const]
+        : [],
+    ),
+  );
   const examined = [
-    ...new Set([
-      ...(prior?.examinedPaths ?? []),
-      ...(pass.examinedPaths ?? []),
-    ]),
+    ...new Set(
+      [...(prior?.examinedPaths ?? []), ...(pass.examinedPaths ?? [])].map(
+        (path) => renamed.get(path) ?? path,
+      ),
+    ),
   ];
   // A focused pass may restate an earlier finding verbatim; keep one copy.
   const seen = new Set<string>();
