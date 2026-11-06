@@ -18,7 +18,9 @@ is rejected, the aspect becomes incomplete, not no-findings. This checks literal
 support, not whether the recommendation is correct. The caller makes that decision.
 
 Workers also list the assessed paths they examined. Paths outside the review are
-dropped. The coordinator certifies findings, no-findings or not-applicable only
+dropped, and so is a path with a rejected finding, so a later pass judges it
+again. A pass whose worker lifecycle failed contributes no coverage and ends the
+aspect's passes. Rejection counts accumulate across passes. The coordinator certifies findings, no-findings or not-applicable only
 when the accumulated `examinedPaths` cover every readable assessed path (binaries
 and gitlinks are not required). A08 not-applicable is the exception: its rubric
 decides applicability from the task's feature scope, not from files. Otherwise it starts a focused pass, in a fresh
