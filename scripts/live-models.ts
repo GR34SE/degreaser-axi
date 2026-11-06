@@ -106,7 +106,7 @@ export async function liveModels(agent: Agent, model: string) {
           2,
           "Real incompatible pair must refuse before admission.",
         );
-        assert.match(result.stdout, /error: invalid-input/);
+        assert.match(result.stdout, /code: invalid-input/);
         assert.match(result.stdout, /exact model list/);
         await assert.rejects(stat(join(cwd, ".degreaser")), {
           code: "ENOENT",

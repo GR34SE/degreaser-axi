@@ -178,7 +178,7 @@ test("typed input errors are not reclassified from user-controlled field names",
       env: { HOME: f.root, PATH: process.env.PATH },
     });
     assert.equal(result.status, 2, result.stdout);
-    assert.match(result.stdout, /error: invalid-input/);
+    assert.match(result.stdout, /code: (invalid-input|VALIDATION_ERROR)/);
     assert.doesNotMatch(result.stdout, /diagnosis: permission/);
   }
 });

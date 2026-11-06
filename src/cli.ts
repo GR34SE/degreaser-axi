@@ -2,8 +2,9 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
-import { AxiError, runAxiCli } from "axi-sdk-js";
+import { AxiError, RESERVED_COMMANDS, runAxiCli } from "axi-sdk-js";
 import {
+  BUILT_IN_HELP,
   COMMANDS,
   type Command,
   commandHelp,
@@ -79,7 +80,7 @@ function home() {
     configuration: "unconfigured",
     history: "unavailable",
     status: "unconfigured",
-    commands: Object.keys(COMMANDS),
+    commands: [...Object.keys(COMMANDS), ...RESERVED_COMMANDS],
     guidance: CALLER_GUIDANCE,
     help: ["degreaser-axi review --help", "degreaser-axi init --help"],
   };
@@ -156,7 +157,9 @@ async function execute(
   if (parsed.values.help)
     return {
       ...commandHelp(name, command),
-      ...(name === "home" ? { commands: Object.keys(COMMANDS) } : {}),
+      ...(name === "home"
+        ? { commands: [...Object.keys(COMMANDS), ...RESERVED_COMMANDS] }
+        : {}),
     };
   if (name === "config")
     throw new AxiError(
@@ -167,7 +170,7 @@ async function execute(
   if (name === "config sync") return syncConfig(process.cwd());
   if (name === "help") {
     const target = parsed.positionals.join(" ");
-    if (!target) return TOP_LEVEL_HELP.trimEnd();
+    if (!target) return `${TOP_LEVEL_HELP}${BUILT_IN_HELP}`.trimEnd();
     const targetCommand = Object.hasOwn(COMMANDS, target)
       ? COMMANDS[target]
       : undefined;
@@ -190,16 +193,14 @@ async function execute(
     return dismissCommand(parsed.positionals, parsed.values, process.cwd());
   if (["wait", "report", "export", "finding"].includes(name))
     return readCommand(name, parsed.positionals, parsed.values, process.cwd());
-  process.exitCode = 2;
-  return {
-    error: "environment-blocked",
-    reason:
-      name === "update"
-        ? "Self-update is not available yet. Run npm install -g degreaser-axi@latest instead."
-        : `${name} is not available in this version. No work started.`,
-    help: [`degreaser-axi ${name} --help`],
-  };
+  throw new StateError(
+    "environment-blocked",
+    `${name} is not available in this version. No work started.`,
+  );
 }
+
+// Degreaser documents exit code 2 for its own errors; the SDK renders them.
+let exitCode: number | undefined;
 
 async function withDiagnostics(
   name: string,
@@ -211,28 +212,17 @@ async function withDiagnostics(
   try {
     return await action();
   } catch (error) {
-    if (error instanceof InputError || error instanceof StateError) {
-      process.exitCode = 2;
-      return {
-        error: error.code,
-        reason: error.message,
-        help: [`degreaser-axi ${name} --help`],
-      };
-    }
-    if (error instanceof AxiError) {
-      process.exitCode = 2;
-      return {
-        error: "invalid-input",
-        reason: error.message,
-        help: error.suggestions,
-      };
-    }
+    exitCode = 2;
+    if (error instanceof InputError || error instanceof StateError)
+      throw new AxiError(error.message, error.code, [
+        `degreaser-axi ${name} --help`,
+      ]);
+    if (error instanceof AxiError) throw error;
     const failure = diagnoseFailure(error, `${name} local operation`);
-    process.exitCode = 2;
     return {
-      error: failure.code,
+      error: failure.message,
+      code: failure.code,
       diagnosis: failure.diagnosis,
-      reason: failure.message,
       ...failure.details,
       help: failure.help,
     };
@@ -256,6 +246,7 @@ export async function main(argv: string[]): Promise<void> {
     home: () => withDiagnostics("home", home),
     commands,
     renderUnknownCommand: (command) =>
-      `error: invalid-input\nreason: ${JSON.stringify(`Unknown command: ${command}`)}\nhelp: ${JSON.stringify(`Valid commands: ${Object.keys(COMMANDS).join(", ")}. Run degreaser-axi --help.`)}\n`,
+      `error: ${JSON.stringify(`Unknown command: ${command}`)}\ncode: VALIDATION_ERROR\nhelp: ${JSON.stringify(`Valid commands: ${[...Object.keys(COMMANDS), ...RESERVED_COMMANDS].join(", ")}. Run degreaser-axi --help.`)}\n`,
   });
+  if (exitCode !== undefined) process.exitCode = exitCode;
 }

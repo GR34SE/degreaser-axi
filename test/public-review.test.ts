@@ -88,7 +88,7 @@ test("compiled public input errors and empty scopes create no runs or workers", 
   ]) {
     const result = f.run(invalid);
     assert.equal(result.status, 2, result.stdout);
-    assert.match(result.stdout, /error: invalid-input/);
+    assert.match(result.stdout, /code: invalid-input/);
     assert.ok(!existsSync(join(f.root, ".degreaser")));
   }
   const empty = f.run(args);
@@ -846,7 +846,7 @@ test("public --path rejects unsafe or unmatched patterns before creating a run",
   ]) {
     const result = audit(...patterns);
     assert.equal(result.status, 2, `${patterns}: ${result.stdout}`);
-    assert.match(result.stdout, /error: invalid-input/);
+    assert.match(result.stdout, /code: invalid-input/);
     assert.ok(!existsSync(join(f.root, ".degreaser")), String(patterns));
   }
   assert.match(audit("missing/**", "docs").stdout, /missing\/\*\*, docs/);
