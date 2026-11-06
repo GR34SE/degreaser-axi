@@ -118,9 +118,10 @@ test("strict public RC schema rejects unknown fields and bounded invalid values 
     { agent: "codex" },
     { model: "gpt-6-luna" },
     ...["droid", "grok", "unknown"].map((agent) => ({ ...identity, agent })),
-    ...[null, 0, -1, 1.5, "2", Infinity, 9007199254740992].map(
-      (concurrency) => ({ ...identity, concurrency }),
-    ),
+    ...[0, -1, 1.5, "2", Infinity, 9007199254740992].map((concurrency) => ({
+      ...identity,
+      concurrency,
+    })),
     ...[-1, 1.5, null, 11].map((maxRetries) => ({ ...identity, maxRetries })),
     ...[0, -1, null, "40", 1.5].map((maxTurns) => ({
       ...identity,

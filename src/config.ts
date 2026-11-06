@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { lstatSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Ajv } from "ajv";
 import { InputError } from "./input-error.ts";
@@ -39,7 +39,7 @@ export interface Limits {
 }
 export interface ProjectConfig extends Identity {
   schemaVersion?: 1;
-  concurrency?: number;
+  concurrency?: number | null;
   maxRetries?: number;
   limits?: Partial<Limits>;
   aspects?: {
@@ -70,6 +70,23 @@ const schema = JSON.parse(
 const ajv = new Ajv({ strict: true, allErrors: true });
 const validate = ajv.compile<ProjectConfig>(schema);
 
+export function readConfigText(path: string): string | null {
+  try {
+    if (!lstatSync(path).isFile())
+      throw new InputError(
+        "Root .degreaserrc.json must be a regular file, not a symlink.",
+      );
+    return readFileSync(path, "utf8");
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT")
+      return null;
+    if (error instanceof InputError) throw error;
+    throw new InputError(
+      "Root .degreaserrc.json could not be read. No configuration was changed.",
+    );
+  }
+}
+
 export function loadConfig(repository: string): ProjectConfig {
   let data: unknown;
   try {
@@ -94,13 +111,72 @@ export function validateConfig(data: unknown): ProjectConfig {
   return data;
 }
 
+export function completeConfig(data: unknown) {
+  const rc = validateConfig(data);
+  return {
+    schemaVersion: 1 as const,
+    agent: rc.agent,
+    model: rc.model,
+    concurrency: rc.concurrency ?? null,
+    maxRetries: rc.maxRetries ?? 1,
+    limits: {
+      workerTimeoutSeconds: 300,
+      maxTurns: 40,
+      runTimeoutSeconds: 900,
+      ...rc.limits,
+    },
+    aspects: {
+      enable:
+        rc.aspects?.enable ??
+        ASPECT_IDS.filter((id) => !rc.aspects?.disable?.includes(id)),
+      disable: rc.aspects?.disable ?? [],
+      overrides: rc.aspects?.overrides ?? {},
+    },
+    exclude: rc.exclude ?? [],
+  };
+}
+
+export function missingConfigFields(rc: ProjectConfig) {
+  const complete = completeConfig(rc);
+  const missing: { field: string; value: string }[] = [];
+  for (const [field, value] of Object.entries(complete)) {
+    if (field === "limits" || field === "aspects") {
+      const previous = rc[field] ?? {};
+      for (const [key, setting] of Object.entries(complete[field])) {
+        if (!Object.hasOwn(previous, key))
+          missing.push({
+            field: `${field}.${key}`,
+            value: JSON.stringify(setting),
+          });
+      }
+    } else if (!Object.hasOwn(rc, field)) {
+      missing.push({ field, value: JSON.stringify(value) });
+    }
+  }
+  return missing;
+}
+
+export function configNotice(rc: ProjectConfig) {
+  const missing = missingConfigFields(rc);
+  return missing.length
+    ? {
+        configurationNotice: {
+          reason:
+            "Missing settings use the installed defaults shown below. The RC was not changed.",
+          missing,
+          help: "degreaser-axi config sync",
+        },
+      }
+    : {};
+}
+
 export function resolveConfig(
   data: unknown,
   controls: ReviewControls = {},
 ): EffectiveConfig {
-  const rc = validateConfig(data);
-  const disabled = new Set(rc.aspects?.disable ?? []);
-  if (rc.aspects?.enable?.some((id) => disabled.has(id))) {
+  const rc = completeConfig(data);
+  const disabled = new Set(rc.aspects.disable);
+  if (rc.aspects.enable.some((id) => disabled.has(id))) {
     throw new InputError("An aspect cannot appear in both enable and disable.");
   }
   const enabled = ASPECT_IDS.filter((id) => !disabled.has(id));
@@ -126,7 +202,7 @@ export function resolveConfig(
   }
   // Validate even unused overrides: a narrow invocation must not hide a broken RC.
   for (const id of ASPECT_IDS) {
-    const override = rc.aspects?.overrides?.[id];
+    const override = rc.aspects.overrides[id];
     if (
       (override?.agent ?? rc.agent) === "pi" &&
       !/^[^/\s]+\/\S+$/.test(override?.model ?? rc.model)
@@ -139,18 +215,13 @@ export function resolveConfig(
       .filter((id) => !controls.aspects || controls.aspects.includes(id))
       .map((aspect) => ({
         aspect,
-        agent: rc.aspects?.overrides?.[aspect]?.agent ?? rc.agent,
-        model: rc.aspects?.overrides?.[aspect]?.model ?? rc.model,
+        agent: rc.aspects.overrides[aspect]?.agent ?? rc.agent,
+        model: rc.aspects.overrides[aspect]?.model ?? rc.model,
       })),
-    concurrency: controls.concurrency ?? rc.concurrency ?? null,
-    maxRetries: rc.maxRetries ?? 1,
-    limits: {
-      workerTimeoutSeconds: 300,
-      maxTurns: 40,
-      runTimeoutSeconds: 900,
-      ...rc.limits,
-    },
-    exclude: [...(rc.exclude ?? [])],
+    concurrency: controls.concurrency ?? rc.concurrency,
+    maxRetries: rc.maxRetries,
+    limits: rc.limits,
+    exclude: [...rc.exclude],
   };
 }
 

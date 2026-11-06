@@ -6,7 +6,8 @@ export const SKILL_DESCRIPTION =
 
 export const CALLER_GUIDANCE = [
   "Development build: all sixteen review aspects, bounded retries and deadlines, and same-run waiting are available. Cancel stops the run's owned workers and retains useful results; resume continues unresolved unchanged input.",
-  "Init discovers models, writes the project RC, adds the root ignore entry, and installs selected harness startup integrations and skills. Setup hooks can install, repair or remove selected targets.",
+  "Init discovers models, writes the complete project RC including defaults, adds the root ignore entry, and installs selected harness startup integrations and skills. Setup hooks can install, repair or remove selected targets.",
+  "If configurationNotice lists missing settings, review still uses the shown defaults. Run `degreaser-axi config sync` to persist them without changing existing values or selecting models again. This updates only the RC, not the installed package.",
   "Use an explicitly installed local package; this package is unpublished. If the binary is unavailable, ask for the local package path; do not install from a registry. Run `degreaser-axi --help` or `degreaser-axi review --help` for the current interface.",
   "Provide the actual task and explicit worktree, branch or repository scope. Branch requires the base supplied by the user; never guess it.",
   'For example, `degreaser-axi review --scope worktree --task "Add CSV import"` reviews the worktree. For a branch, set USER_PROVIDED_BASE to the base explicitly supplied by the user and replace the example task: `degreaser-axi review --scope branch --base "$USER_PROVIDED_BASE" --task "Add CSV import"`.',

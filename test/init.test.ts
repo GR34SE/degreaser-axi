@@ -23,6 +23,34 @@ const loader = fileURLToPath(
   new URL("./fixtures/public-runtime.mjs", import.meta.url),
 );
 const pty = fileURLToPath(new URL("./fixtures/init-pty.py", import.meta.url));
+const defaultSettings = {
+  concurrency: null,
+  maxRetries: 1,
+  limits: { workerTimeoutSeconds: 300, maxTurns: 40, runTimeoutSeconds: 900 },
+  aspects: {
+    enable: [
+      "A01",
+      "A02",
+      "A03",
+      "A04",
+      "A05",
+      "A06",
+      "A07",
+      "A08",
+      "A09",
+      "A10",
+      "A11",
+      "A12",
+      "A13",
+      "A14",
+      "A15",
+      "A16",
+    ],
+    disable: [],
+    overrides: {},
+  },
+  exclude: [],
+};
 const explicit = [
   "--agent",
   "codex",
@@ -162,7 +190,13 @@ test("explicit selection persists exact identity and preserves RC controls, then
       schemaVersion: 1,
       agent: "claude",
       model: "claude-haiku-4-5-20251001",
+      ...defaultSettings,
       ...controls,
+      aspects: {
+        ...defaultSettings.aspects,
+        ...controls.aspects,
+        enable: defaultSettings.aspects.enable.filter((id) => id !== "A08"),
+      },
     });
   }
   assert.deepEqual(readFileSync(join(f.root, ".git/index")), index);
@@ -364,6 +398,7 @@ test("a displayed next command is runnable only after explicit user selection", 
     schemaVersion: 1,
     agent: "codex",
     model: "gpt-6-luna",
+    ...defaultSettings,
   });
 });
 
@@ -375,6 +410,10 @@ test("TTY partial flags constrain prefill instead of being silently ignored", (t
   ] as const) {
     const result = f.run([...args], ["\n", "codex\n"]);
     assert.equal(result.status, 0, result.stdout);
-    assert.deepEqual(f.config(), { schemaVersion: 1, ...expected });
+    assert.deepEqual(f.config(), {
+      schemaVersion: 1,
+      ...expected,
+      ...defaultSettings,
+    });
   }
 });

@@ -1,10 +1,11 @@
-import { lstatSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline/promises";
 import {
   type Agent,
+  completeConfig,
   type Identity,
   type ProjectConfig,
+  readConfigText,
   resolveConfig,
   validateConfig,
 } from "./config.ts";
@@ -36,23 +37,6 @@ function harnessChoices(value: string): Agent[] {
       "--harnesses must be a nonempty selection without duplicates.",
     );
   return selected;
-}
-
-function readConfigText(path: string): string | null {
-  try {
-    if (!lstatSync(path).isFile())
-      throw new InputError(
-        "Root .degreaserrc.json must be a regular file, not a symlink.",
-      );
-    return readFileSync(path, "utf8");
-  } catch (error) {
-    if (error instanceof Error && "code" in error && error.code === "ENOENT")
-      return null;
-    if (error instanceof InputError) throw error;
-    throw new InputError(
-      "Root .degreaserrc.json could not be read. No configuration was changed.",
-    );
-  }
 }
 
 async function catalog(cwd: string) {
@@ -270,7 +254,7 @@ export async function init(
       "Selected agent/model is not available in the adapter's exact model list. No substitute was selected.",
     );
   }
-  const config = validateConfig({
+  const config = completeConfig({
     ...previous,
     schemaVersion: 1,
     agent: identity.agent,

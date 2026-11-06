@@ -217,20 +217,61 @@ A loop, wrapper, validation check or smoke test is not automatically slop. Revie
 
 ## Configure the review
 
-The root `.degreaserrc.json` stores your chosen harness and model. You can disable built-in aspects, set a concurrency limit, or override the model for individual aspects. Init writes this file after every explicit confirmation.
+The root `.degreaserrc.json` stores all configurable review settings, including defaults. Init writes the complete file after every explicit confirmation, preserving existing controls. You can disable built-in aspects, set a concurrency limit, or override the model for individual aspects.
 
-For example, after selecting Codex and Luna:
+For example, a fresh init after selecting Codex and Luna writes:
 
 ```json
 {
+  "schemaVersion": 1,
   "agent": "codex",
   "model": "gpt-6-luna",
-  "concurrency": 4,
+  "concurrency": null,
+  "maxRetries": 1,
+  "limits": {
+    "workerTimeoutSeconds": 300,
+    "maxTurns": 40,
+    "runTimeoutSeconds": 900
+  },
   "aspects": {
-    "disable": ["A06"]
-  }
+    "enable": ["A01", "A02", "A03", "A04", "A05", "A06", "A07", "A08", "A09", "A10", "A11", "A12", "A13", "A14", "A15", "A16"],
+    "disable": [],
+    "overrides": {}
+  },
+  "exclude": []
 }
 ```
+
+To disable an aspect, remove its ID from `enable` and add it to `disable`.
+`enable` affirms the default selection; it is not an allowlist. An ID cannot
+appear in both lists. Empty `overrides` means every aspect inherits the selected
+agent and model; `exclude` adds to the fixed built-in exclusions.
+
+After upgrading the installed package, run:
+
+```sh
+degreaser-axi config sync
+```
+
+This local command fills only missing settings with the installed defaults,
+including nested settings, and reports the fields and values added. Existing
+values (including empty lists, zero retries and model overrides) remain intact.
+A complete file is left untouched. It does not discover models, install
+integrations or check the registry. Use `init` to create a missing RC and
+confirm the model and harness choices.
+
+Older sparse files remain valid. Home/startup context, doctor and review
+responses list missing settings with their defaults and suggest `config sync`;
+those reads never rewrite the file or block review solely for missing defaults.
+Explicit values stay pinned when package defaults change. `schemaVersion`
+versions the format, not the package: adding a defaulted field does not bump it.
+Unsupported versions, unknown fields and invalid settings are rejected without
+rewriting the file. Sync currently completes format v1; it does not guess
+conversions for future incompatible formats.
+
+`concurrency: null` explicitly means no cap; omitting it in older files has the
+same meaning. Older binaries that reject RC null need upgrading before using
+a newly generated file.
 
 Without a concurrency limit, all enabled aspects can run in parallel after the
 first model invocation. A lower limit reduces simultaneous calls; it does not
