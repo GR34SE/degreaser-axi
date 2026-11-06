@@ -113,15 +113,17 @@ try {
     for (const [, asset] of documentation.matchAll(/`(dist\/assets\/[^`]+)`/g))
       await readFile(resolve(installed, asset ?? ""));
     const bin = join(installed, "dist/bin/degreaser-axi.js");
-    const installedBin = join(installDir, "node_modules/.bin/degreaser-axi");
-    assert.equal(
-      run(installedBin, ["--version"], installDir, runtime),
-      "0.1.0\n",
-    );
-    assert.match(
-      run(installedBin, ["review", "--help"], installDir, runtime),
-      /--task-file/,
-    );
+    for (const name of ["degreaser", "degreaser-axi"]) {
+      const installedBin = join(installDir, "node_modules/.bin", name);
+      assert.equal(
+        run(installedBin, ["--version"], installDir, runtime),
+        "0.1.0\n",
+      );
+      assert.match(
+        run(installedBin, ["review", "--help"], installDir, runtime),
+        /--task-file/,
+      );
+    }
     assert.equal(run(runtime, [bin, "--version"], installDir), "0.1.0\n");
     assert.match(
       run(runtime, [bin, "review", "--help"], installDir),
@@ -160,6 +162,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 const installed = process.argv[2];
+await import(pathToFileURL(join(installed, "dist/src/init-terminal.js")));
 const { prepareReview } = await import(pathToFileURL(join(installed, "dist/src/input.js")));
 const { validateReviewInput } = await import(pathToFileURL(join(installed, "dist/src/input-schema.js")));
 const cwd = mkdtempSync(join(process.argv[3], "input-repo-"));

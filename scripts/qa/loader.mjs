@@ -8,7 +8,8 @@ export async function load(url, context, nextLoad) {
     format: "module",
     shortCircuit: true,
     source: `
-export const PROFILE_LIMITATIONS = {codex: [], claude: [], pi: []};
+const synthetic = ["Synthetic external adapter; not a live provider result."];
+export const PROFILE_LIMITATIONS = {codex: synthetic, claude: synthetic, pi: synthetic};
 export async function nativeProfile(identity, purpose = "review") {
   return {
     ...identity,
@@ -20,7 +21,7 @@ export async function nativeProfile(identity, purpose = "review") {
       SYNTHETIC_PURPOSE: purpose
     },
     adapterVersion: "synthetic", nativeVersion: "synthetic",
-    limitations: ["Synthetic external adapter; not a live provider result."]
+    limitations: [...PROFILE_LIMITATIONS[identity.agent]]
   };
 }`,
   };

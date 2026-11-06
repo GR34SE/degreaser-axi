@@ -1,4 +1,5 @@
-import { reviewCommand } from "./input.ts";
+import { type ReviewInput, reviewCommand } from "./input.ts";
+import { PROFILE_LIMITATIONS } from "./native-profile.ts";
 import {
   ownerAlive,
   ownerRecoveryGuidance,
@@ -12,6 +13,7 @@ import {
   resolved,
   StateError,
 } from "./storage.ts";
+import { turnBudgetLimitations } from "./worker-runtime.ts";
 
 export function observedStatus(run: Run) {
   if (run.status !== "running") return run.status;
@@ -89,6 +91,35 @@ function taskLimitations(task: RunTask) {
   ];
 }
 
+function harnessLimitations(task: RunTask, input: ReviewInput) {
+  const { agent } = task.assignment;
+  return new Set([
+    ...PROFILE_LIMITATIONS[agent],
+    ...turnBudgetLimitations(agent, input.config.limits.maxTurns),
+  ]);
+}
+
+function taskReason(task: RunTask, interrupted: boolean) {
+  return interrupted && task.status === "running"
+    ? "Execution interrupted; last persisted aspect status: running."
+    : (task.result?.reason ?? task.attempts.at(-1)?.failure ?? undefined);
+}
+
+function coverage(task: RunTask, input: ReviewInput, interrupted: boolean) {
+  const reason = taskReason(task, interrupted);
+  const harness = harnessLimitations(task, input);
+  return {
+    aspect: task.assignment.aspect,
+    status:
+      interrupted && task.status === "running" ? "interrupted" : task.status,
+    ...(reason ? { reason } : {}),
+    limitations: taskLimitations(task).filter(
+      (l) => l !== reason && !harness.has(l),
+    ),
+    rejected: task.rejections.length,
+  };
+}
+
 function latestUsage(task: RunTask) {
   const usage = task.attempts.at(-1)?.usage;
   return usage && Object.keys(usage).length > 0 ? usage : null;
@@ -151,22 +182,9 @@ export function renderReport(run: Run, full = false) {
           location: `${f.location.path}:${f.location.side}:${f.location.startLine}-${f.location.endLine}`,
           title: f.title,
         })),
-    coverage: run.tasks.map((t) => ({
-      aspect: t.assignment.aspect,
-      status:
-        status === "interrupted" && t.status === "running"
-          ? "interrupted"
-          : t.status,
-      reason:
-        status === "interrupted" && t.status === "running"
-          ? "Execution interrupted; last persisted aspect status: running."
-          : (t.result?.reason ??
-            t.attempts.at(-1)?.failure ??
-            t.result?.limitations.join("; ") ??
-            ""),
-      limitations: taskLimitations(t),
-      rejected: t.rejections.length,
-    })),
+    coverage: run.tasks.map((t) =>
+      coverage(t, input, status === "interrupted"),
+    ),
     limitations: [
       ...input.limitations.map((l) => l.message),
       ...new Set(run.tasks.flatMap(taskLimitations)),
@@ -176,7 +194,8 @@ export function renderReport(run: Run, full = false) {
           task: input.task,
           base: input.base,
           tree: input.tree,
-          paths: input.paths.map((p) => p.path),
+          paths: input.paths.length,
+          pathList: `.degreaser/runs/${run.id}/input/review.json`,
           configuration: input.config.assignments,
           coordinator: input.coordinatorResults,
           execution: workers

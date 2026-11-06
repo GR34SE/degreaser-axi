@@ -25,6 +25,7 @@ export function assertFresh(run: Run, input: ReviewInput) {
         input.scope,
         input.baseRef ?? undefined,
         config.exclude,
+        input.pathPatterns,
       ),
     };
     const prompts = run.tasks.map((t) =>

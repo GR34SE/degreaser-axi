@@ -743,3 +743,133 @@ test("public multiline task files reject empty input and do not inherit an outsi
   assert.deepEqual(f.events(), []);
   assert.ok(!existsSync(join(child, ".degreaser")));
 });
+
+test("public --path narrows a repository audit from the Git root and composes with exclusions", (t) => {
+  const f = setup(t);
+  f.write(
+    ".degreaserrc.json",
+    JSON.stringify({
+      agent: "codex",
+      model: "gpt-6-luna",
+      exclude: ["landing/generated"],
+    }),
+  );
+  for (const p of [
+    "landing/app/blog.ts",
+    "landing/ui/Button.tsx",
+    "landing/ui/deep/Card.tsx",
+    "landing/generated/schema.ts",
+    "landing/dist/out.js",
+    "api/server.ts",
+    "packages/a/src/index.ts",
+    "packages/a/test/index.ts",
+  ])
+    f.write(p, `export const path = ${JSON.stringify(p)};\n`);
+  const audit = (...patterns: string[]) =>
+    f.run(
+      [
+        "review",
+        "--scope",
+        "repository",
+        "--task",
+        "Audit the landing page",
+        "--aspects",
+        "A06",
+        ...patterns.flatMap((p) => ["--path", p]),
+      ],
+      join(f.root, "api"),
+    );
+  const assessed = () => f.input().paths.map((p: { path: string }) => p.path);
+  const narrowed = audit("landing", "packages/*/src");
+  assert.equal(narrowed.status, 0, narrowed.stdout);
+  assert.deepEqual(assessed(), [
+    "landing/app/blog.ts",
+    "landing/ui/Button.tsx",
+    "landing/ui/deep/Card.tsx",
+    "packages/a/src/index.ts",
+  ]);
+  assert.deepEqual(f.input().pathPatterns, ["landing", "packages/*/src"]);
+  assert.deepEqual(f.input().excludedPaths, [
+    "landing/dist/out.js",
+    "landing/generated/schema.ts",
+  ]);
+  assert.match(narrowed.stdout, /packages\/\*\/src/);
+  assert.equal(audit("landing/**/*.tsx").status, 0);
+  assert.deepEqual(assessed(), [
+    "landing/ui/Button.tsx",
+    "landing/ui/deep/Card.tsx",
+  ]);
+  const identity = () => {
+    const { latestRunId } = JSON.parse(
+      readFileSync(join(f.root, ".degreaser/state.json"), "utf8"),
+    );
+    return JSON.parse(
+      readFileSync(
+        join(f.root, ".degreaser/runs", latestRunId, "run.json"),
+        "utf8",
+      ),
+    ).identity;
+  };
+  // Same assessed files, different selection: a different review input.
+  assert.equal(audit("landing").status, 0);
+  const plain = identity();
+  assert.equal(audit("land*").status, 0);
+  assert.equal(assessed().length, 3);
+  assert.notEqual(identity(), plain);
+});
+
+test("public --path rejects unsafe or unmatched patterns before creating a run", (t) => {
+  const f = setup(t);
+  f.write("landing/app.ts", "export const a = 1;\n");
+  const audit = (...patterns: string[]) =>
+    f.run([
+      "review",
+      "--scope",
+      "repository",
+      "--task",
+      "Audit",
+      "--aspects",
+      "A06",
+      ...patterns.flatMap((p) => ["--path", p]),
+    ]);
+  for (const patterns of [
+    [""],
+    ["/landing"],
+    [":(exclude)landing"],
+    ["./landing"],
+    ["landing/../api"],
+    ["landing\\app.ts"],
+    ["landing/"],
+    ["landing", "landing"],
+    ["missing/**", "docs"],
+  ]) {
+    const result = audit(...patterns);
+    assert.equal(result.status, 2, `${patterns}: ${result.stdout}`);
+    assert.match(result.stdout, /error: invalid-input/);
+    assert.ok(!existsSync(join(f.root, ".degreaser")), String(patterns));
+  }
+  assert.match(audit("missing/**", "docs").stdout, /missing\/\*\*, docs/);
+  assert.deepEqual(f.events(), []);
+});
+
+test("public --path narrows worktree changes and unmatched changes are no-changes", (t) => {
+  const f = setup(t);
+  f.write("landing/app.ts", "old\n");
+  f.write("api/server.ts", "old\n");
+  f.git("add", ".");
+  f.git("commit", "-m", "Base files");
+  f.write("landing/app.ts", "new landing\n");
+  f.write("api/server.ts", "new api\n");
+  const result = f.run([...args, "--path", "landing"]);
+  assert.equal(result.status, 0, result.stdout);
+  assert.deepEqual(
+    f.input().paths.map((p: { path: string }) => p.path),
+    ["landing/app.ts"],
+  );
+  assert.doesNotMatch(f.input().patch, /new api/);
+  rmSync(join(f.root, ".degreaser"), { recursive: true });
+  const empty = f.run([...args, "--path", "docs"]);
+  assert.equal(empty.status, 0, empty.stdout);
+  assert.match(empty.stdout, /status: no-changes/);
+  assert.ok(!existsSync(join(f.root, ".degreaser")));
+});

@@ -19,7 +19,8 @@ Each finding contains:
   space. End must not precede start.
 - `quote`: an exact excerpt of the cited source lines, not a paraphrase.
 - `title`: the specific defect, not a generic slop label.
-- `evidence`: its connection to the change and relevant source locations.
+- `evidence`: its connection to the change (in an audit, the assessed code) and
+  relevant source locations.
 - `consequence`: observable harm or a justified maintenance cost.
 - `countercheck`: the strongest reason to preserve the code, where you checked
   it and why it does not explain this change.
