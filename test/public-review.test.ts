@@ -14,6 +14,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
+import { ASPECT_IDS } from "../src/config.ts";
 import { fixture } from "./git-fixture.ts";
 
 const cli = fileURLToPath(
@@ -72,7 +73,7 @@ const args = [
   "--task",
   "Update the source",
   "--aspects",
-  "A06",
+  "low-value-comments",
 ];
 
 test("compiled public input errors and empty scopes create no runs or workers", (t) => {
@@ -108,8 +109,8 @@ test("detached public review persists immutable input and source evidence for re
   f.write("source.ts", "// repeated comment\nexport const value = 2;\n");
   f.setPlan({
     results: {
-      A06: {
-        aspect: "A06",
+      "low-value-comments": {
+        aspect: "low-value-comments",
         status: "findings",
         limitations: [],
         findings: [
@@ -194,7 +195,7 @@ test("detached public review persists immutable input and source evidence for re
   assert.equal(f.events().length, 1);
 });
 
-test("public A08-only repository audit resolves without a worker", (t) => {
+test("public scope-creep-only repository audit resolves without a worker", (t) => {
   const f = setup(t);
   f.write("source.ts", "export const value = 1;\n");
   const result = f.run([
@@ -204,7 +205,7 @@ test("public A08-only repository audit resolves without a worker", (t) => {
     "--task",
     "Audit source",
     "--aspects",
-    "A08",
+    "scope-creep",
   ]);
   assert.equal(result.status, 0, result.stdout);
   assert.match(result.stdout, /not-applicable/);
@@ -284,7 +285,7 @@ test("compiled branch uses merge-base, includes local work, and refuses unavaila
     "--task",
     "Feature",
     "--aspects",
-    "A06",
+    "low-value-comments",
   ];
   assert.equal(f.run(branch).status, 0);
   const input = f.input();
@@ -397,7 +398,7 @@ test("public configuration is strict, root-local and rejects finite invalid valu
         "--task-file",
         "brief",
         "--aspects",
-        "A06",
+        "low-value-comments",
       ],
       join(f.root, "nested"),
     ).status,
@@ -429,19 +430,24 @@ test("public configuration is strict, root-local and rejects finite invalid valu
     { ...valid, limits: { unknown: 2 } },
     { ...valid, aspects: { custom: [] } },
     { ...valid, plugins: [] },
-    { ...valid, aspects: { overrides: { A01: { agent: "claude" } } } },
     {
       ...valid,
-      aspects: { overrides: { A01: { agent: "pi", model: "unqualified" } } },
+      aspects: { overrides: { "missed-reuse": { agent: "claude" } } },
     },
-    { ...valid, aspects: { enable: ["A01"], disable: ["A01"] } },
     {
       ...valid,
       aspects: {
-        disable: Array.from(
-          { length: 16 },
-          (_, i) => `A${String(i + 1).padStart(2, "0")}`,
-        ),
+        overrides: { "missed-reuse": { agent: "pi", model: "unqualified" } },
+      },
+    },
+    {
+      ...valid,
+      aspects: { enable: ["missed-reuse"], disable: ["missed-reuse"] },
+    },
+    {
+      ...valid,
+      aspects: {
+        disable: [...ASPECT_IDS],
       },
     },
   ]) {
@@ -462,10 +468,7 @@ test("public default/narrowed/restored selections retain exact overrides and exc
   f.write("package.json", "{}\n");
   f.write("dist/generated", "generated\n");
   f.write("nested/node_modules/a", "dependency\n");
-  const all = Array.from(
-    { length: 16 },
-    (_, i) => `A${String(i + 1).padStart(2, "0")}`,
-  );
+  const all = [...ASPECT_IDS].sort();
   assert.equal(
     f.run(["review", "--scope", "worktree", "--task", "Default"]).status,
     0,
@@ -484,11 +487,14 @@ test("public default/narrowed/restored selections retain exact overrides and exc
     maxRetries: 0,
     exclude: ["package.json"],
     aspects: {
-      disable: ["A02"],
+      disable: ["unnecessary-layers"],
       overrides: {
-        A04: { model: "exact-codex" },
-        A09: { agent: "claude", model: "claude-haiku-4-5-20251001" },
-        A16: { agent: "pi", model: "openai/gpt-6-luna" },
+        "masked-errors": { model: "exact-codex" },
+        "contract-bypass": {
+          agent: "claude",
+          model: "claude-haiku-4-5-20251001",
+        },
+        "verification-theater": { agent: "pi", model: "openai/gpt-6-luna" },
       },
     },
   });
@@ -500,15 +506,19 @@ test("public default/narrowed/restored selections retain exact overrides and exc
     "--task",
     "Narrow",
     "--aspects",
-    "A16,A09,A04",
+    "verification-theater,contract-bypass,masked-errors",
     "--concurrency",
     "1",
   ]);
   assert.equal(narrowed.status, 0, narrowed.stdout);
   assert.deepEqual(f.input().workers, [
-    { aspect: "A04", agent: "codex", model: "exact-codex" },
-    { aspect: "A09", agent: "claude", model: "claude-haiku-4-5-20251001" },
-    { aspect: "A16", agent: "pi", model: "openai/gpt-6-luna" },
+    { aspect: "masked-errors", agent: "codex", model: "exact-codex" },
+    {
+      aspect: "contract-bypass",
+      agent: "claude",
+      model: "claude-haiku-4-5-20251001",
+    },
+    { aspect: "verification-theater", agent: "pi", model: "openai/gpt-6-luna" },
   ]);
   assert.equal(f.input().config.concurrency, 1);
   assert.deepEqual(
@@ -516,7 +526,7 @@ test("public default/narrowed/restored selections retain exact overrides and exc
     ["source.ts"],
   );
   assert.match(narrowed.stdout, /context without becoming reviewed coverage/);
-  for (const selection of ["A02", "A99", "reuse-existing", ""])
+  for (const selection of ["unnecessary-layers", "A99", "reuse-existing", ""])
     assert.equal(
       f.run([
         "review",
@@ -535,7 +545,7 @@ test("public default/narrowed/restored selections retain exact overrides and exc
   );
   assert.deepEqual(
     f.input().workers.map((w: { aspect: string }) => w.aspect),
-    all.filter((a) => a !== "A02"),
+    ASPECT_IDS.filter((a) => a !== "unnecessary-layers"),
   );
   assert.equal(readFileSync(join(f.root, ".degreaserrc.json"), "utf8"), rc);
 });
@@ -548,14 +558,18 @@ test("public malformed/tool-only/all-rejected output never becomes a clean resul
     JSON.stringify({ agent: "codex", model: "gpt-6-luna", maxRetries: 0 }),
   );
   const clean =
-    '<degreaser-result>{"aspect":"A06","status":"no-findings","findings":[],"limitations":[]}</degreaser-result>';
+    '<degreaser-result>{"aspect":"low-value-comments","status":"no-findings","findings":[],"limitations":[]}</degreaser-result>';
   for (const plan of [
-    { results: { A06: `${clean}<degreaser-result>{bad</degreaser-result>` } },
-    { results: { A06: clean }, toolOnly: true },
     {
       results: {
-        A06: {
-          aspect: "A04",
+        "low-value-comments": `${clean}<degreaser-result>{bad</degreaser-result>`,
+      },
+    },
+    { results: { "low-value-comments": clean }, toolOnly: true },
+    {
+      results: {
+        "low-value-comments": {
+          aspect: "masked-errors",
           status: "no-findings",
           findings: [],
           limitations: [],
@@ -571,8 +585,8 @@ test("public malformed/tool-only/all-rejected output never becomes a clean resul
   }
   f.setPlan({
     results: {
-      A06: {
-        aspect: "A06",
+      "low-value-comments": {
+        aspect: "low-value-comments",
         status: "findings",
         limitations: [],
         findings: [
@@ -673,7 +687,7 @@ test("file-backed assignment carries the exact persisted patch, not a truncated 
   assert.equal(JSON.parse(file), f.input().patch);
   assert.ok(!file.includes("</degreaser-input>"));
   assert.equal(evidence.tree, f.input().tree);
-  assert.equal((prompt.match(/^# A\d\d/gm) ?? []).length, 1);
+  assert.equal((prompt.match(/^`[a-z-]+` · default ON$/gm) ?? []).length, 1);
 });
 
 test("compiled audit disclosures include binary/gitlink/filter limits and unexamined constructs", (t) => {
@@ -693,8 +707,8 @@ test("compiled audit disclosures include binary/gitlink/filter limits and unexam
   );
   f.setPlan({
     results: {
-      A06: {
-        aspect: "A06",
+      "low-value-comments": {
+        aspect: "low-value-comments",
         status: "incomplete",
         findings: [],
         limitations: [
@@ -710,7 +724,7 @@ test("compiled audit disclosures include binary/gitlink/filter limits and unexam
     "--task",
     "Audit",
     "--aspects",
-    "A06,A08",
+    "low-value-comments,scope-creep",
   ]);
   assert.equal(result.status, 1, result.stdout);
   assert.match(result.stdout, /status: partial/);
@@ -719,7 +733,7 @@ test("compiled audit disclosures include binary/gitlink/filter limits and unexam
   assert.equal(f.git("show", `${f.input().tree}:file.ptr`), "pointer-only\n");
   assert.deepEqual(
     f.events().map((e) => e.aspect),
-    ["A06"],
+    ["low-value-comments"],
   );
   for (const code of ["binary", "gitlink", "clean-filter"])
     assert.ok(
@@ -775,7 +789,7 @@ test("public --path narrows a repository audit from the Git root and composes wi
         "--task",
         "Audit the landing page",
         "--aspects",
-        "A06",
+        "low-value-comments",
         ...patterns.flatMap((p) => ["--path", p]),
       ],
       join(f.root, "api"),
@@ -830,7 +844,7 @@ test("public --path rejects unsafe or unmatched patterns before creating a run",
       "--task",
       "Audit",
       "--aspects",
-      "A06",
+      "low-value-comments",
       ...patterns.flatMap((p) => ["--path", p]),
     ]);
   for (const patterns of [

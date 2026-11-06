@@ -80,7 +80,7 @@ export async function liveModels(agent: Agent, model: string) {
                   model: "gpt-6-luna",
                   aspects: {
                     overrides: {
-                      A06: { agent, model: unsupported },
+                      "low-value-comments": { agent, model: unsupported },
                     },
                   },
                 }
@@ -97,7 +97,7 @@ export async function liveModels(agent: Agent, model: string) {
             "--task",
             "Synthetic metadata refusal",
             "--aspects",
-            "A06",
+            "low-value-comments",
           ],
           { cwd, encoding: "utf8", timeout: 45000 },
         );

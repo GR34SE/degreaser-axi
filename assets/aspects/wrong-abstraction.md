@@ -1,4 +1,4 @@
-# A12 · Wrong abstraction
+# Wrong abstraction
 
 `wrong-abstraction` · default ON
 
@@ -11,13 +11,13 @@
 **Boundaries:** Textual similarity alone does not justify merging, and flag count alone does not justify splitting.
 
 **Not here (another reviewer):**
-- A layer without behavior: A02.
-- An option or variant without a current consumer: A03.
-- One rule scattered through an overloaded unit without a shared mechanism for different cases: A15.
+- A layer without behavior: unnecessary-layers.
+- An option or variant without a current consumer: speculative-flexibility.
+- One rule scattered through an overloaded unit without a shared mechanism for different cases: structural-erosion.
 
 Sources / inspiration: S04 S06. Teaching excerpts; context states omitted setup. These have not been executed as programs or model evaluations.
 
-## A12-B1 · REPORT
+## wrong-abstraction-B1 · REPORT
 
 **Context:** Payments and invitations have distinct lifecycles, but a shared function accumulates mutual exclusions.
 
@@ -31,7 +31,7 @@ function run(input, options) {
 
 **Why:** Textually similar steps have merged different responsibilities. Changing one process requires understanding the other's flags.
 
-## A12-B2 · REPORT
+## wrong-abstraction-B2 · REPORT
 
 **Context:** A shared validator combines two contracts that interpret the same fields differently.
 
@@ -45,7 +45,7 @@ def validate(data, mode):
 
 **Why:** In this project there is no shared domain rule; the mechanism merges opposing policies only because the data shapes look similar. Changing the invoice tax-ID rule now touches a function also used by guest checkout.
 
-## A12-B3 · REPORT
+## wrong-abstraction-B3 · REPORT
 
 **Context:** A base component claims to be a shared form, but each consumer disables different responsibilities, and validation changes break independent screens.
 
@@ -55,7 +55,7 @@ renderForm({ skipAddress: true, skipPayment: false, guestMode: true, ignoreRequi
 
 **Why:** Configuration exposes divergent contracts and coupling costs. Option count alone is insufficient; context establishes actual consumer conflicts.
 
-## A12-G1 · PRESERVE
+## wrong-abstraction-G1 · PRESERVE
 
 **Context:** Two processes genuinely follow the same rounding rule maintained under one contract.
 
@@ -66,7 +66,7 @@ const refundTax = roundTax(refund.tax);
 
 **Why:** The shared mechanism represents shared meaning. Different caller names do not justify splitting it.
 
-## A12-G2 · PRESERVE
+## wrong-abstraction-G2 · PRESERVE
 
 **Context:** Two similar fragments represent independent rules with different owners and rates of change.
 
@@ -80,7 +80,7 @@ def invitation_deadline(date):
 
 **Why:** Preserving structural duplication protects separate meanings. Extracting one function with flags would worsen the model.
 
-## A12-G3 · PRESERVE
+## wrong-abstraction-G3 · PRESERVE
 
 **Context:** Serializer options describe a coherent public contract; every combination is meaningful and has current users.
 

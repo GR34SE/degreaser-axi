@@ -4,7 +4,7 @@ Return one JSON object inside `<degreaser-result>` and `</degreaser-result>`.
 Use the assigned aspect ID. The coordinator consumes the last such assistant block.
 Do not include Markdown fences inside the block.
 
-- `aspect`: the assigned A01-A16 ID.
+- `aspect`: the assigned aspect ID.
 - `status`: `findings`, `no-findings`, `not-applicable` or `incomplete`.
 - `findings`: an array. Nonempty for `findings`; empty for `no-findings` and
   `not-applicable`. An incomplete review may retain established findings.

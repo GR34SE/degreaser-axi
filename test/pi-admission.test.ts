@@ -42,7 +42,7 @@ function setup(t: TestContext) {
   const config = (value: object) =>
     f.write(".degreaserrc.json", JSON.stringify(value));
   config({ agent: "pi", model: unsupported });
-  const run = (aspects = "A06") => {
+  const run = (aspects = "low-value-comments") => {
     const rc = readFileSync(join(f.root, ".degreaserrc.json"));
     const result = spawnSync(
       process.execPath,
@@ -116,12 +116,16 @@ for (const override of [false, true]) {
       f.config({
         agent: "codex",
         model: "gpt-6-luna",
-        aspects: { overrides: { A06: { agent: "pi", model: unsupported } } },
+        aspects: {
+          overrides: {
+            "low-value-comments": { agent: "pi", model: unsupported },
+          },
+        },
       });
     const result = f.run();
     assert.equal(result.status, 2, result.stdout);
     assert.match(result.stdout, /code: invalid-input/);
-    assert.match(result.stdout, /A06.*pi.*exact model list/);
+    assert.match(result.stdout, /low-value-comments.*pi.*exact model list/);
     assert.ok(!existsSync(join(f.root, ".degreaser")));
     assert.ok(
       f.events().some((event) => event.type === "get_available_models"),
@@ -140,7 +144,7 @@ for (const override of [false, true]) {
 
 test("Pi refusal preserves existing history and does not mistake native faults for invalid models", (t) => {
   const f = setup(t);
-  assert.equal(f.run("A08").status, 0);
+  assert.equal(f.run("scope-creep").status, 0);
   const statePath = join(f.root, ".degreaser/state.json");
   const state = readFileSync(statePath);
   const runsPath = join(f.root, ".degreaser/runs");

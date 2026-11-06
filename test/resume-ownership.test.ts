@@ -10,7 +10,7 @@ import { alive, queueFixture, until } from "./queue-fixture.ts";
 test("a live stopped owner cannot be evicted by stale heartbeat, and PID or lock ambiguity never signals an unrelated process", async (t) => {
   const f = queueFixture(t);
   f.setPlan({ worker: { resultGate: f.gate("finish") } });
-  f.start(["--aspects", "A06"]);
+  f.start(["--aspects", "low-value-comments"]);
   const run = f.state();
   assert.ok(run.owner);
   const owner = run.owner;
@@ -68,7 +68,7 @@ test("a live stopped owner cannot be evicted by stale heartbeat, and PID or lock
 test("ambiguous stale locks refuse takeover without replacing history", (t) => {
   const f = queueFixture(t);
   f.setPlan({ worker: { result: "" } });
-  f.start(["--aspects", "A06"]);
+  f.start(["--aspects", "low-value-comments"]);
   assert.equal(f.finish().status, 1);
   const run = f.state();
   const directory = join(f.root, ".degreaser/runs", run.id);
@@ -85,7 +85,7 @@ test("ambiguous stale locks refuse takeover without replacing history", (t) => {
 test("a reused child PID gets inspection guidance without signalling it or rewriting history", async (t) => {
   const f = queueFixture(t);
   f.setPlan({ worker: { result: "" } });
-  f.start(["--aspects", "A06"]);
+  f.start(["--aspects", "low-value-comments"]);
   assert.equal(f.finish().status, 1);
   const run = f.state(),
     owner = run.owner;
@@ -129,10 +129,10 @@ test("a reused child PID gets inspection guidance without signalling it or rewri
 test("cancelled work resumes, while findings and their attempt evidence remain byte-for-byte stable", async (t) => {
   const f = queueFixture(t, { concurrency: 1 });
   f.setPlan({
-    workers: { A06: { resultGate: f.gate("blocked") } },
+    workers: { "low-value-comments": { resultGate: f.gate("blocked") } },
     results: {
-      A04: {
-        aspect: "A04",
+      "masked-errors": {
+        aspect: "masked-errors",
         status: "findings",
         limitations: [],
         findings: [
@@ -154,7 +154,7 @@ test("cancelled work resumes, while findings and their attempt evidence remain b
       },
     },
   });
-  f.start(["--aspects", "A04,A06,A07"]);
+  f.start(["--aspects", "masked-errors,low-value-comments,convention-drift"]);
   await until(
     () => f.events().length === 2,
     "Committed finding and active peer",
@@ -199,7 +199,7 @@ test("retry and resume retain production source-only profile, fresh sessions, on
         { result: "" },
         {
           result: {
-            aspect: "A06",
+            aspect: "low-value-comments",
             status: "incomplete",
             findings: [],
             limitations: ["Needs another pass."],
@@ -209,7 +209,7 @@ test("retry and resume retain production source-only profile, fresh sessions, on
       ],
     },
   });
-  f.start(["--aspects", "A06"]);
+  f.start(["--aspects", "low-value-comments"]);
   assert.equal(f.finish().status, 1);
   const old = f.state();
   assert.equal(old.tasks[0]?.attempts.length, 2);
@@ -226,7 +226,10 @@ test("retry and resume retain production source-only profile, fresh sessions, on
         e.prompt === events[0]?.prompt,
     ),
   );
-  assert.equal(events[0]?.prompt?.match(/Assigned aspect: A\d\d/g)?.length, 1);
+  assert.equal(
+    events[0]?.prompt?.match(/Assigned aspect: [a-z-]+$/gm)?.length,
+    1,
+  );
   const profiles = f.lifecycle().filter((e) => e.type === "initialize");
   assert.equal(profiles.length, 3);
   for (const event of profiles) {

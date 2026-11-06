@@ -39,13 +39,13 @@ pnpm build
 pnpm link --global
 ```
 
-Run the rest **inside the Git repository you want to review**. Init writes `.degreaserrc.json`, installs the selected integrations, and adds `/.degreaser/` to the root `.gitignore` without touching the index. `--aspects A06` is a cheap first review.
+Run the rest **inside the Git repository you want to review**. Init writes `.degreaserrc.json`, installs the selected integrations, and adds `/.degreaser/` to the root `.gitignore` without touching the index. `--aspects low-value-comments` is a cheap first review.
 
 Workers currently need Codex ACP 2.5.0 with bundled Codex 0.165.0, Claude Code 2.1.317, or Pi 1.4.0. Claude and Pi must already be on PATH; Codex's worker executable ships with its pinned adapter. See [native worker restrictions and limits](https://github.com/GR34SE/degreaser-axi/blob/main/assets/native-profiles.md), or `dist/assets/native-profiles.md` in a built checkout or installed package.
 
 ```sh
 degreaser-axi init
-degreaser-axi review --scope worktree --task "Add CSV import with quoted-field support" --aspects A06
+degreaser-axi review --scope worktree --task "Add CSV import with quoted-field support" --aspects low-value-comments
 degreaser-axi report
 ```
 
@@ -146,24 +146,24 @@ Reports mark interrupted active aspects as `interrupted`; full-report attempts a
 
 All 16 aspects are enabled by default.
 
-| ID | Aspect | Review question |
-| --- | --- | --- |
-| A01 | Reuse existing solutions | Does the repo or an existing dependency already solve this? |
-| A02 | Unnecessary layers | Does this wrapper, service or factory add useful behavior or a boundary? |
-| A03 | Speculative flexibility | Do these options and extension points serve a current requirement? |
-| A04 | Masked errors | Does a fallback turn failure into apparent success? |
-| A05 | Unjustified defense | Does this check protect a real boundary or possible state? |
-| A06 | Low-value comments | Does the comment explain something the code cannot? |
-| A07 | Repository conventions | Does this introduce another way to do the same thing without a reason? |
-| A08 | Scope creep | Did the change add features or refactoring outside the task? |
-| A09 | Contract bypass | Does a cast, suppression or default hide a real mismatch? |
-| A10 | Test value | Would this test detect broken behavior, or just confirm its own mock? |
-| A11 | Incomplete integration | Is the new code connected to the real user path? |
-| A12 | Wrong abstraction | Does a shared mechanism combine cases with conflicting rules? |
-| A13 | Custom infrastructure | Does a handwritten cache, parser or similar mechanism miss required semantics? |
-| A14 | Language and platform idioms | Can a native construct remove unnecessary logic without changing behavior? |
-| A15 | Structural erosion | Does this change concentrate more responsibilities and branching in an overloaded unit? |
-| A16 | Verification theater | Does a runtime or tooling check prove the property it claims to verify? |
+| Aspect | Review question |
+| --- | --- |
+| `missed-reuse` | Does the repo or an existing dependency already solve this? |
+| `unnecessary-layers` | Does this wrapper, service or factory add useful behavior or a boundary? |
+| `speculative-flexibility` | Do these options and extension points serve a current requirement? |
+| `masked-errors` | Does a fallback turn failure into apparent success? |
+| `unjustified-defense` | Does this check protect a real boundary or possible state? |
+| `low-value-comments` | Does the comment explain something the code cannot? |
+| `convention-drift` | Does this introduce another way to do the same thing without a reason? |
+| `scope-creep` | Did the change add features or refactoring outside the task? |
+| `contract-bypass` | Does a cast, suppression or default hide a real mismatch? |
+| `low-value-tests` | Would this test detect broken behavior, or just confirm its own mock? |
+| `incomplete-integration` | Is the new code connected to the real user path? |
+| `wrong-abstraction` | Does a shared mechanism combine cases with conflicting rules? |
+| `reinvented-infrastructure` | Does a handwritten cache, parser or similar mechanism miss required semantics? |
+| `unidiomatic-code` | Can a native construct remove unnecessary logic without changing behavior? |
+| `structural-erosion` | Does this change concentrate more responsibilities and branching in an overloaded unit? |
+| `verification-theater` | Does a runtime or tooling check prove the property it claims to verify? |
 
 A loop, wrapper, validation check or smoke test is not automatically slop. Reviewers have to establish a concrete problem in context, check reasons to keep the code, and treat zero findings as a valid result.
 
@@ -187,7 +187,7 @@ A fresh init after selecting Codex and Luna writes:
     "runTimeoutSeconds": 900
   },
   "aspects": {
-    "enable": ["A01", "A02", "A03", "A04", "A05", "A06", "A07", "A08", "A09", "A10", "A11", "A12", "A13", "A14", "A15", "A16"],
+    "enable": ["missed-reuse", "unnecessary-layers", "speculative-flexibility", "masked-errors", "unjustified-defense", "low-value-comments", "convention-drift", "scope-creep", "contract-bypass", "low-value-tests", "incomplete-integration", "wrong-abstraction", "reinvented-infrastructure", "unidiomatic-code", "structural-erosion", "verification-theater"],
     "disable": [],
     "overrides": {}
   },
@@ -209,7 +209,7 @@ Older sparse files remain valid. Home/startup context, doctor and review respons
 
 `concurrency: null` means no cap; omitting it in older files means the same. Older binaries that reject RC null need upgrading before using a newly generated file.
 
-Without a concurrency limit, all enabled aspects can run in parallel after the first model invocation. A lower limit reduces simultaneous calls; it does not reduce the number of aspects reviewed. Retries and continuation keep your selected harness and model. A model-only entry under `aspects.overrides.A06`, for example `{"model":"<exact-model-id>"}`, keeps the default agent. An agent override must also supply its compatible exact model.
+Without a concurrency limit, all enabled aspects can run in parallel after the first model invocation. A lower limit reduces simultaneous calls; it does not reduce the number of aspects reviewed. Retries and continuation keep your selected harness and model. A model-only entry under `aspects.overrides.low-value-comments`, for example `{"model":"<exact-model-id>"}`, keeps the default agent. An agent override must also supply its compatible exact model.
 
 Defaults: one extra retry, 300-second worker timeout, 120-second worker idle limit, 900-second run deadline, 40-turn budget. The idle limit stops an attempt that sends no events for that long, so a stuck worker retries early while an active one keeps its full timeout; running reports show each aspect's `lastActivity`. Configure `maxRetries` and `limits.workerTimeoutSeconds`, `limits.workerIdleSeconds`, `limits.runTimeoutSeconds`, `limits.maxTurns`. Only Claude enforces the turn budget natively; Codex and Pi treat it as advisory. `exclude` accepts literal repository-relative files or directory prefixes, not globs. For a one-run selection, use `review --path` instead.
 
@@ -222,7 +222,7 @@ The root RC follows the strict versioned [configuration schema](https://github.c
 To review only specific aspects for one run, without changing configuration:
 
 ```sh
-degreaser-axi review --scope worktree --task "Fix CSV parsing" --aspects A01,A13
+degreaser-axi review --scope worktree --task "Fix CSV parsing" --aspects missed-reuse,reinvented-infrastructure
 ```
 
 ## Read the results
@@ -253,7 +253,7 @@ degreaser-axi dismiss F3 --reason "Kept for clients on the old API"
 
 Later reviews that assess the same file pass dismissed findings and reasons to their reviewers, which should not raise the same issue again. Dismissals live in `degreaser/dismissed.json` inside the Git common directory (usually `.git/degreaser/`), so every worktree of the repository shares them and they are never committed. Edit or delete that file to undo a dismissal.
 
-Full reports separate configured identities from actual attempts and coordinator-only applicability results, including A08 in repository audits. When storage remains writable, a detached owner's fatal cause is saved with its execution controls: prompt identity changes (`input-changed`) stay distinct from unexpected owner failures (`owner-failed`). Reports show the latest cause; `report --full` retains earlier execution causes after resume. A broken store cannot reliably save its own failure and leaves the last committed evidence.
+Full reports separate configured identities from actual attempts and coordinator-only applicability results, including scope-creep in repository audits. When storage remains writable, a detached owner's fatal cause is saved with its execution controls: prompt identity changes (`input-changed`) stay distinct from unexpected owner failures (`owner-failed`). Reports show the latest cause; `report --full` retains earlier execution causes after resume. A broken store cannot reliably save its own failure and leaves the last committed evidence.
 
 Results and progress are saved locally in ignored `.degreaser/`. Review context is sent through your chosen harness to its model provider. Degreaser does not apply fixes; your coding agent decides which findings warrant changes.
 
