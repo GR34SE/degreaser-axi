@@ -115,7 +115,7 @@ const connection = new AgentSideConnection(
           sessionUpdate: "agent_message_chunk",
           content: {
             type: "text",
-            text: '<degreaser-result>{"aspect":"A06","status":"no-findings","findings":[],"limitations":[]}</degreaser-result>',
+            text: '<degreaser-result>{"aspect":"low-value-comments","status":"no-findings","findings":[],"limitations":[]}</degreaser-result>',
           },
         },
       });

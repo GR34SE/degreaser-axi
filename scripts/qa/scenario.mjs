@@ -175,8 +175,8 @@ export async function runScenario(node, packageRoot) {
       );
     setPlan({
       results: {
-        A06: {
-          aspect: "A06",
+        "low-value-comments": {
+          aspect: "low-value-comments",
           status: "findings",
           findings: [finding],
           limitations: [],
@@ -192,7 +192,7 @@ export async function runScenario(node, packageRoot) {
           "--task",
           "Review changed source",
           "--aspects",
-          "A06",
+          "low-value-comments",
           "--wait",
           "30",
         ],
@@ -222,14 +222,14 @@ export async function runScenario(node, packageRoot) {
     unchanged();
     setPlan({
       results: {
-        A06: {
-          aspect: "A06",
+        "low-value-comments": {
+          aspect: "low-value-comments",
           status: "findings",
           findings: [finding],
           limitations: [],
         },
       },
-      workers: { A05: { result: "" } },
+      workers: { "unjustified-defense": { result: "" } },
     });
     assert.match(
       run(
@@ -240,7 +240,7 @@ export async function runScenario(node, packageRoot) {
           "--task",
           "Review partial source",
           "--aspects",
-          "A05,A06",
+          "unjustified-defense,low-value-comments",
           "--wait",
           "30",
         ],
@@ -250,10 +250,10 @@ export async function runScenario(node, packageRoot) {
     );
     const partial = currentRun();
     const resolved = partial.tasks.find(
-      (task) => task.assignment.aspect === "A06",
+      (task) => task.assignment.aspect === "low-value-comments",
     );
     const unresolved = partial.tasks.find(
-      (task) => task.assignment.aspect === "A05",
+      (task) => task.assignment.aspect === "unjustified-defense",
     );
     assert.ok(resolved && unresolved);
     assert.notEqual(partial.id, firstId);
@@ -277,8 +277,8 @@ export async function runScenario(node, packageRoot) {
     assert.deepEqual(
       partialReport.coverage.map(({ aspect, status }) => [aspect, status]),
       [
-        ["A05", "failed"],
-        ["A06", "findings"],
+        ["unjustified-defense", "failed"],
+        ["low-value-comments", "findings"],
       ],
     );
     assert.ok(
@@ -297,11 +297,13 @@ export async function runScenario(node, packageRoot) {
     const completed = currentRun();
     assert.equal(completed.id, partial.id);
     assert.deepEqual(
-      completed.tasks.find((task) => task.assignment.aspect === "A06"),
+      completed.tasks.find(
+        (task) => task.assignment.aspect === "low-value-comments",
+      ),
       resolved,
     );
     const retried = completed.tasks.find(
-      (task) => task.assignment.aspect === "A05",
+      (task) => task.assignment.aspect === "unjustified-defense",
     );
     assert.deepEqual(
       retried.attempts.slice(0, unresolved.attempts.length),
@@ -316,7 +318,7 @@ export async function runScenario(node, packageRoot) {
       .map((line) => JSON.parse(line));
     assert.deepEqual(
       freshEvents.map((event) => event.aspect),
-      ["A05"],
+      ["unjustified-defense"],
     );
     assert.equal(freshEvents[0].model, "gpt-6-luna");
     assert.deepEqual(

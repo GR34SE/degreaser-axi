@@ -41,7 +41,7 @@ try {
           assert.equal(task.status, "no-findings");
           assert.equal(
             task.attempts.length,
-            task.assignment.aspect === "A06" ? 2 : 1,
+            task.assignment.aspect === "low-value-comments" ? 2 : 1,
           );
         }
         break;

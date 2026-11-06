@@ -61,8 +61,10 @@ function processFixture(
 
 test("killing the actual writer before rename preserves committed successes/history; release publishes a complete record", async (t) => {
   const f = queueFixture(t, { maxRetries: 1 });
-  f.setPlan({ workers: { A06: { attempts: [{ result: "" }, {}] } } });
-  f.start(["--aspects", "A04,A06"]);
+  f.setPlan({
+    workers: { "low-value-comments": { attempts: [{ result: "" }, {}] } },
+  });
+  f.start(["--aspects", "masked-errors,low-value-comments"]);
   assert.equal(f.finish().status, 0);
   const run = f.state();
   const path = join(f.root, ".degreaser/runs", run.id, "run.json");
@@ -110,7 +112,10 @@ test("an independent schema-validating process observes concurrent owner transit
   f.setPlan({
     worker: { resultGate: f.gate("results") },
     workers: {
-      A06: { attempts: [{ result: "" }, {}], resultGate: f.gate("results") },
+      "low-value-comments": {
+        attempts: [{ result: "" }, {}],
+        resultGate: f.gate("results"),
+      },
     },
   });
   assert.equal(f.start().status, 3);
@@ -137,7 +142,14 @@ test("the real owner rejects damaged input before writing a heartbeat or startin
   const f = queueFixture(t);
   const run = createRun(
     prepareReview(
-      ["--scope", "worktree", "--task", "Update", "--aspects", "A06"],
+      [
+        "--scope",
+        "worktree",
+        "--task",
+        "Update",
+        "--aspects",
+        "low-value-comments",
+      ],
       f.root,
     ),
   );
@@ -169,7 +181,14 @@ for (const [mode, code] of [
     const f = queueFixture(t, { concurrency: 1 });
     createRun(
       prepareReview(
-        ["--scope", "worktree", "--task", "Update", "--aspects", "A04,A06"],
+        [
+          "--scope",
+          "worktree",
+          "--task",
+          "Update",
+          "--aspects",
+          "masked-errors,low-value-comments",
+        ],
         f.root,
       ),
     );
@@ -197,16 +216,25 @@ for (const [mode, code] of [
 
 test("one heartbeat replacement failure stops later writes, names run.json and preserves the last committed peer/history", async (t) => {
   const f = queueFixture(t, { concurrency: 1 });
-  f.setPlan({ workers: { A06: { resultGate: f.gate("blocked") } } });
+  f.setPlan({
+    workers: { "low-value-comments": { resultGate: f.gate("blocked") } },
+  });
   createRun(
     prepareReview(
-      ["--scope", "worktree", "--task", "Update", "--aspects", "A04,A06"],
+      [
+        "--scope",
+        "worktree",
+        "--task",
+        "Update",
+        "--aspects",
+        "masked-errors,low-value-comments",
+      ],
       f.root,
     ),
   );
   const owner = processFixture(t, f, "owner");
   await until(
-    () => f.events().some((e) => e.aspect === "A06"),
+    () => f.events().some((e) => e.aspect === "low-value-comments"),
     "Peer committed and next attempt started",
   );
   const path = join(f.root, ".degreaser/runs", f.state().id, "run.json");

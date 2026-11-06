@@ -60,7 +60,7 @@
     "model": { "type": "string", "pattern": "^\\S+$" },
     "positiveInteger": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
     "seconds": { "type": "integer", "minimum": 1, "maximum": 2147483 },
-    "aspect": { "type": "string", "pattern": "^A(?:0[1-9]|1[0-6])$" },
+    "aspect": { "type": "string", "enum": ["missed-reuse", "unnecessary-layers", "speculative-flexibility", "masked-errors", "unjustified-defense", "low-value-comments", "convention-drift", "scope-creep", "contract-bypass", "low-value-tests", "incomplete-integration", "wrong-abstraction", "reinvented-infrastructure", "unidiomatic-code", "structural-erosion", "verification-theater"] },
     "aspectList": {
       "type": "array",
       "uniqueItems": true,

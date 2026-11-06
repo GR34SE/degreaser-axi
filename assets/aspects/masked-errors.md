@@ -1,4 +1,4 @@
-# A04 · Masked errors
+# Masked errors
 
 `masked-errors` · default ON
 
@@ -11,12 +11,12 @@
 **Boundaries:** Handling an expected error or explicitly degraded behavior is not automatically slop. Retry that eventually propagates the error does not conceal it.
 
 **Not here (another reviewer):**
-- Whether a check or handler is needed at all, such as redundant validation or try around a non-throwing operation: A05.
-- A cast, type suppression or default for missing data when no error has occurred: A09.
+- Whether a check or handler is needed at all, such as redundant validation or try around a non-throwing operation: unjustified-defense.
+- A cast, type suppression or default for missing data when no error has occurred: contract-bypass.
 
 Sources / inspiration: S01 S05. Teaching excerpts; context states omitted setup. These have not been executed as programs or model evaluations.
 
-## A04-B1 · REPORT
+## masked-errors-B1 · REPORT
 
 **Context:** The API must confirm durable order storage; database failure is not an allowed degradation.
 
@@ -27,7 +27,7 @@ catch { return { success: true }; }
 
 **Why:** Storage failure becomes a success claim. The caller cannot distinguish an order that was never persisted.
 
-## A04-B2 · REPORT
+## masked-errors-B2 · REPORT
 
 **Context:** A report of no outstanding debt must rely on a successful database read.
 
@@ -41,7 +41,7 @@ return {"debt_count": len(debts)}
 
 **Why:** Unavailable data is presented as zero debt, changing the report's meaning.
 
-## A04-B3 · REPORT
+## masked-errors-B3 · REPORT
 
 **Context:** fetchUser returns null for a nonexistent user (404) and rejects on timeout or 5xx. The handler maps null to HTTP 404.
 
@@ -52,7 +52,7 @@ if (user === null) return notFound();
 
 **Why:** Provider failure becomes a nonexistent-user response. A client may remove a cached account or display an incorrect message; logging does not fix the response. Show the two meanings of null and their observable consequence.
 
-## A04-G1 · PRESERVE
+## masked-errors-G1 · PRESERVE
 
 **Context:** Recommendations are optional; the response exposes degradation and preserves the page's core function.
 
@@ -63,7 +63,7 @@ catch { return { items: [], degraded: true }; }
 
 **Why:** The contract permits an empty section and distinguishes degradation from complete success.
 
-## A04-G2 · PRESERVE
+## masked-errors-G2 · PRESERVE
 
 **Context:** The endpoint maps an expected conflict to an explicit domain result.
 
@@ -76,7 +76,7 @@ except AlreadyReserved:
 
 **Why:** The error remains visible: the caller receives correct information that reservation is unavailable.
 
-## A04-G3 · PRESERVE
+## masked-errors-G3 · PRESERVE
 
 **Context:** A required resource has bounded retry, and the final failure propagates.
 

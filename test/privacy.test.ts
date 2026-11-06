@@ -114,17 +114,17 @@ test("provider errors stay out of every run artifact while literal source eviden
   f.write("source.ts", `${quote}\nexport const value = 1;\n`);
   f.setPlan({
     workers: {
-      A04: {
+      "masked-errors": {
         error: {
           message: `Authentication required: ${secret}`,
           data: { authRequired: true, token: secret },
         },
       },
-      A06: {
+      "low-value-comments": {
         diagnosticText: secret,
         result: `private assistant preamble ${secret}
 <degreaser-result>${JSON.stringify({
-          aspect: "A06",
+          aspect: "low-value-comments",
           status: "findings",
           limitations: [],
           findings: [
@@ -147,7 +147,7 @@ test("provider errors stay out of every run artifact while literal source eviden
       },
     },
   });
-  const start = f.start(["--aspects", "A04,A06"]);
+  const start = f.start(["--aspects", "masked-errors,low-value-comments"]);
   assert.ok([1, 3].includes(start.status ?? -1), start.stdout);
   const done = f.finish();
   assert.equal(done.status, 1, done.stdout);

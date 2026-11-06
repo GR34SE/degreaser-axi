@@ -29,8 +29,8 @@ function capture(child: ChildProcessWithoutNullStreams) {
 
 test("cancel during effective resumed admission refuses explicitly instead of returning the old terminal report", async (t) => {
   const f = queueFixture(t, { concurrency: 1 });
-  f.setPlan({ workers: { A06: { result: "" } } });
-  f.start(["--aspects", "A04,A06"]);
+  f.setPlan({ workers: { "low-value-comments": { result: "" } } });
+  f.start(["--aspects", "masked-errors,low-value-comments"]);
   assert.equal(f.finish().status, 1);
   const before = f.state();
   const oldOwner = before.owner;
@@ -94,7 +94,7 @@ test("cancel during effective resumed admission refuses explicitly instead of re
 test("a Git failure in the replacement owner's freshness check reaches the caller without mutation", async (t) => {
   const f = queueFixture(t);
   f.setPlan({ worker: { result: "" } });
-  f.start(["--aspects", "A06"]);
+  f.start(["--aspects", "low-value-comments"]);
   assert.equal(f.finish().status, 1);
   const run = f.state(),
     owner = run.owner;
@@ -149,7 +149,7 @@ for (const [mode, code] of [
     const f = queueFixture(t, { concurrency: 1 });
     const fault = f.gate("fault.json");
     writeFileSync(fault, JSON.stringify({ mode, afterAdmission: true }));
-    f.setPlan({ workers: { A04: { resultGate: f.gate("peer") } } });
+    f.setPlan({ workers: { "masked-errors": { resultGate: f.gate("peer") } } });
     const caller = await capture(
       f.launch(
         [
@@ -159,7 +159,7 @@ for (const [mode, code] of [
           "--task",
           "Update source",
           "--aspects",
-          "A04,A06",
+          "masked-errors,low-value-comments",
           "--wait",
           "1",
         ],

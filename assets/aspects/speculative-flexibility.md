@@ -1,4 +1,4 @@
-# A03 · Speculative flexibility
+# Speculative flexibility
 
 `speculative-flexibility` · default ON
 
@@ -11,13 +11,13 @@
 **Boundaries:** No local caller does not mean no public API consumer. Record uncertainty when requirements are missing rather than asserting a defect.
 
 **Not here (another reviewer):**
-- A layer with no behavior or variants, such as pass-through code or a single-product factory: A02.
-- Variants are used but have conflicting rules and accumulating mutual exclusions: A12.
-- An unrequested user-facing product feature such as a format, endpoint or permission: A08.
+- A layer with no behavior or variants, such as pass-through code or a single-product factory: unnecessary-layers.
+- Variants are used but have conflicting rules and accumulating mutual exclusions: wrong-abstraction.
+- An unrequested user-facing product feature such as a format, endpoint or permission: scope-creep.
 
 Sources / inspiration: S04 S05. Teaching excerpts; context states omitted setup. These have not been executed as programs or model evaluations.
 
-## A03-B1 · REPORT
+## speculative-flexibility-B1 · REPORT
 
 **Context:** The task is an internal CSV export with one caller invoking exportCsv(rows, {}). There is no public API or requirement for custom delimiters, plugins or streaming. Every option has a separate implementation path.
 
@@ -31,7 +31,7 @@ type ExportOptions = {
 
 **Why:** The options add contracts and combinations to maintain and test without serving the current task. Check requirements and the caller instead of treating every option as excessive.
 
-## A03-B2 · REPORT
+## speculative-flexibility-B2 · REPORT
 
 **Context:** An internal job uses one transport; no actual consumer configures another transport.
 
@@ -44,7 +44,7 @@ def make_sender(kind="http", plugin=None, resolver=None):
 
 **Why:** No current path uses the extension points, and kind is accepted but ignored: kind="grpc" silently produces HTTP. These options suggest a contract the code does not implement.
 
-## A03-B3 · REPORT
+## speculative-flexibility-B3 · REPORT
 
 **Context:** The new flag is true at every call site and is neither a public contract nor a migration mechanism.
 
@@ -57,7 +57,7 @@ function save(item: Item, enableFutureValidation = true) {
 
 **Why:** The validation-disabled variant exists only for a hypothetical future and expands the space of invalid calls.
 
-## A03-G1 · PRESERVE
+## speculative-flexibility-G1 · PRESERVE
 
 **Context:** Two current products require different delivery channels, and both calls are visible.
 
@@ -68,7 +68,7 @@ deliver(orderB, { channel: "webhook" });
 
 **Why:** Configuration serves actual requirements. The number of variants does not establish speculation.
 
-## A03-G2 · PRESERVE
+## speculative-flexibility-G2 · PRESERVE
 
 **Context:** The public SDK documentation promises custom transport, and documented consumers use it in offline deployments. The diff adds the option to the exported type.
 
@@ -81,7 +81,7 @@ export interface ClientOptions {
 
 **Why:** The extension point has an existing contract outside the repository. Local caller searches cannot invalidate it.
 
-## A03-G3 · PRESERVE
+## speculative-flexibility-G3 · PRESERVE
 
 **Context:** An approved migration supports old and new formats until 2027-03-31; producers still emit both.
 

@@ -13,25 +13,31 @@ const { decode } = createRequire(import.meta.resolve("axi-sdk-js"))(
 test("resume retains successes, supersedes incomplete evidence and records only fresh unresolved attempts", async (t) => {
   const f = queueFixture(t);
   const incomplete = {
-    aspect: "A06",
+    aspect: "low-value-comments",
     status: "incomplete",
     findings: [],
     limitations: ["One construct remains unexamined."],
   };
   f.setPlan({
     results: {
-      A04: {
-        aspect: "A04",
+      "masked-errors": {
+        aspect: "masked-errors",
         status: "not-applicable",
         findings: [],
         limitations: [],
         reason: "No error handling.",
       },
-      A06: incomplete,
+      "low-value-comments": incomplete,
     },
-    workers: { A05: { result: "" } },
+    workers: { "unjustified-defense": { result: "" } },
   });
-  assert.equal(f.start(["--aspects", "A01,A04,A05,A06"]).status, 3);
+  assert.equal(
+    f.start([
+      "--aspects",
+      "missed-reuse,masked-errors,unjustified-defense,low-value-comments",
+    ]).status,
+    3,
+  );
   assert.equal(f.finish().status, 1);
   const old = f.state();
   const successful = old.tasks[0];
@@ -62,7 +68,14 @@ test("resume retains successes, supersedes incomplete evidence and records only 
       .events()
       .map((e) => e.aspect)
       .sort(),
-    ["A01", "A04", "A05", "A05", "A06", "A06"],
+    [
+      "low-value-comments",
+      "low-value-comments",
+      "masked-errors",
+      "missed-reuse",
+      "unjustified-defense",
+      "unjustified-defense",
+    ],
   );
   assert.ok(
     current.tasks.every((task) => task.attempts.every((a) => a.endedAt)),
@@ -70,7 +83,7 @@ test("resume retains successes, supersedes incomplete evidence and records only 
   assert.deepEqual(current.tasks[3]?.attempts[0], old.tasks[3]?.attempts[0]);
   assert.equal(current.tasks[3]?.result?.status, "no-findings");
   assert.equal(new Set(f.events().map((e) => e.sessionId)).size, 6);
-  for (const aspect of ["A05", "A06"]) {
+  for (const aspect of ["unjustified-defense", "low-value-comments"]) {
     const events = f.events().filter((e) => e.aspect === aspect);
     assert.equal(events[0]?.prompt, events[1]?.prompt);
   }
@@ -97,17 +110,20 @@ test("resumed pre-result failure reports unknown latest usage while retaining di
     recommendation: "Remove the redundant comment.",
   };
   f.setPlan({
-    workers: { A04: { usage: peerUsage }, A06: { usage: priorUsage } },
+    workers: {
+      "masked-errors": { usage: peerUsage },
+      "low-value-comments": { usage: priorUsage },
+    },
     results: {
-      A06: {
-        aspect: "A06",
+      "low-value-comments": {
+        aspect: "low-value-comments",
         status: "incomplete",
         findings: [evidence],
         limitations: ["One construct remains."],
       },
     },
   });
-  f.start(["--aspects", "A04,A06"]);
+  f.start(["--aspects", "masked-errors,low-value-comments"]);
   assert.equal(f.finish().status, 1);
   const old = f.state();
   assert.equal(old.status, "partial");
@@ -167,7 +183,7 @@ test("resumed pre-result failure reports unknown latest usage while retaining di
   assert.equal(detail.aspectStatus, "failed");
   assert.ok(detail.limitations.includes("One construct remains."));
 
-  f.setPlan({ workers: { A06: { usage: nextUsage } } });
+  f.setPlan({ workers: { "low-value-comments": { usage: nextUsage } } });
   const completed = f.run(["resume", old.id, "--wait", "20"]);
   assert.equal(completed.status, 0, completed.stdout);
   const current = f.state();
@@ -181,8 +197,8 @@ test("resumed pre-result failure reports unknown latest usage while retaining di
   const final = decode(f.run(["report", old.id, "--full"]).stdout);
   assert.equal(final.usageScope, "latest-attempt-per-aspect");
   assert.deepEqual(final.usage, [
-    { aspect: "A04", ...peerUsage },
-    { aspect: "A06", ...nextUsage },
+    { aspect: "masked-errors", ...peerUsage },
+    { aspect: "low-value-comments", ...nextUsage },
   ]);
   assert.deepEqual(
     final.execution[1].attempts.map(
@@ -195,13 +211,13 @@ test("resumed pre-result failure reports unknown latest usage while retaining di
       .events()
       .map((event) => event.aspect)
       .sort(),
-    ["A04", "A06", "A06"],
+    ["low-value-comments", "low-value-comments", "masked-errors"],
   );
 });
 
 test("completed resume is a read-only no-op, but actual changed source is refused first", async (t) => {
   const f = queueFixture(t);
-  f.start(["--aspects", "A06"]);
+  f.start(["--aspects", "low-value-comments"]);
   assert.equal(f.finish().status, 0);
   const run = f.state();
   const path = join(f.root, ".degreaser/runs", run.id, "run.json");
@@ -224,7 +240,7 @@ test("completed resume is a read-only no-op, but actual changed source is refuse
 test("persisted wait and concurrency are not review identity and resume does not silently renew an expired deadline", async (t) => {
   const f = queueFixture(t);
   f.setPlan({ worker: { result: "" } });
-  f.start(["--aspects", "A06"]);
+  f.start(["--aspects", "low-value-comments"]);
   assert.equal(f.finish().status, 1);
   const old = f.state();
   const directory = join(f.root, ".degreaser/runs", old.id);
@@ -266,8 +282,10 @@ test("persisted wait and concurrency are not review identity and resume does not
 
 test("a killed owner exposes interrupted and racing resumes admit only one nonoverlapping replacement", async (t) => {
   const f = queueFixture(t, { concurrency: 1 });
-  f.setPlan({ workers: { A06: { hang: true, descendant: true } } });
-  f.start(["--aspects", "A04,A06,A07"]);
+  f.setPlan({
+    workers: { "low-value-comments": { hang: true, descendant: true } },
+  });
+  f.start(["--aspects", "masked-errors,low-value-comments,convention-drift"]);
   await until(
     () => f.lifecycle().some((e) => e.type === "descendant"),
     "Old attempt has a real descendant",
@@ -275,7 +293,7 @@ test("a killed owner exposes interrupted and racing resumes admit only one nonov
   const old = f.state();
   assert.ok(old.owner);
   const previousOwner = old.owner;
-  const oldWorker = f.events().find((e) => e.aspect === "A06");
+  const oldWorker = f.events().find((e) => e.aspect === "low-value-comments");
   assert.equal(old.tasks[1]?.attempts[0]?.sessionId, oldWorker?.sessionId);
   // Cleanup on a red run owns exactly this detached fixture process group.
   t.after(() => {
@@ -359,15 +377,15 @@ test("an unsuccessful continuation retains prior incomplete evidence and retries
   const f = queueFixture(t, { maxRetries: 1 });
   f.setPlan({
     results: {
-      A06: {
-        aspect: "A06",
+      "low-value-comments": {
+        aspect: "low-value-comments",
         status: "incomplete",
         findings: [],
         limitations: ["An unresolved construct remains."],
       },
     },
   });
-  f.start(["--aspects", "A04,A06"]);
+  f.start(["--aspects", "masked-errors,low-value-comments"]);
   assert.equal(f.finish().status, 1);
   const old = f.state();
   f.setPlan({ worker: { result: "" } });

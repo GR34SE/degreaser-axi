@@ -34,7 +34,7 @@ test("freshness preserves real Git, task permission and damaged-state failures w
     "--task-file",
     task,
     "--aspects",
-    "A06",
+    "low-value-comments",
     "--wait",
     "20",
   ]);
@@ -88,7 +88,7 @@ test("freshness preserves real Git, task permission and damaged-state failures w
 
 test("earlier development fingerprints remain readable history rather than blocking new reviews", (t) => {
   const f = queueFixture(t);
-  f.start(["--aspects", "A06"]);
+  f.start(["--aspects", "low-value-comments"]);
   assert.equal(f.finish().status, 0);
   const run = f.state();
   const directory = join(f.root, ".degreaser/runs", run.id);
@@ -112,7 +112,7 @@ test("earlier development fingerprints remain readable history rather than block
   const resume = f.run(["resume", run.id]);
   assert.equal(resume.status, 2, resume.stdout);
   assert.match(resume.stdout, /input-changed/);
-  f.start(["--aspects", "A06"]);
+  f.start(["--aspects", "low-value-comments"]);
   assert.equal(f.finish().status, 0);
   assert.notEqual(f.state().id, run.id);
   assert.deepEqual(readFileSync(path), before);
@@ -122,12 +122,20 @@ test("review fingerprint ignores independent execution controls but distinguishe
   const f = fixture(t);
   f.write("source.ts", "export const value = 1;\n");
   const input = prepareReview(
-    ["--scope", "worktree", "--task", "Update", "--aspects", "A06"],
+    [
+      "--scope",
+      "worktree",
+      "--task",
+      "Update",
+      "--aspects",
+      "low-value-comments",
+    ],
     f.root,
   );
   const fingerprint = (value: typeof input) =>
     reviewIdentity(value, [
-      assemblePrompt(value, "A06", "/same/patch.json").promptHash,
+      assemblePrompt(value, "low-value-comments", "/same/patch.json")
+        .promptHash,
     ]);
   const original = fingerprint(input);
   const controls = [
@@ -201,7 +209,7 @@ test("public resume independently re-resolves tracked content, new files, task-f
     "--task-file",
     taskFile,
     "--aspects",
-    "A06",
+    "low-value-comments",
     "--wait",
     "20",
   ]);
@@ -235,7 +243,9 @@ test("public resume independently re-resolves tracked content, new files, task-f
         ".degreaserrc.json",
         JSON.stringify({
           ...JSON.parse(config),
-          aspects: { overrides: { A06: { model: "exact-codex" } } },
+          aspects: {
+            overrides: { "low-value-comments": { model: "exact-codex" } },
+          },
         }),
       ),
   ];
@@ -272,7 +282,7 @@ test("moving an explicit branch base and copying a run to another repository can
     "--task",
     "Update",
     "--aspects",
-    "A06",
+    "low-value-comments",
     "--wait",
     "20",
   ]);
@@ -302,7 +312,7 @@ test("moving an explicit branch base and copying a run to another repository can
 test("an alternate installed package refuses independently changed instruction, response, schema and rubric bytes", (t) => {
   const f = queueFixture(t);
   f.setPlan({ worker: { result: "" } });
-  f.start(["--aspects", "A06"]);
+  f.start(["--aspects", "low-value-comments"]);
   assert.equal(f.finish().status, 1);
   const run = f.state();
   const path = join(f.root, ".degreaser/runs", run.id, "run.json");
@@ -316,7 +326,7 @@ test("an alternate installed package refuses independently changed instruction, 
     "worker.md",
     "response.md",
     "schemas/result-v1.json",
-    "aspects/a06-low-value-comments.md",
+    "aspects/low-value-comments.md",
   ]) {
     const file = join(install, "dist/assets", asset);
     const original = readFileSync(file, "utf8");
@@ -342,7 +352,7 @@ for (const field of ["wait", "concurrency"] as const) {
   test(`changing only persisted ${field} remains readable and resumable without altering review identity`, (t) => {
     const f = queueFixture(t);
     f.setPlan({ worker: { result: "" } });
-    f.start(["--aspects", "A06"]);
+    f.start(["--aspects", "low-value-comments"]);
     assert.equal(f.finish().status, 1);
     const run = f.state();
     const path = join(f.root, ".degreaser/runs", run.id, "input/review.json");

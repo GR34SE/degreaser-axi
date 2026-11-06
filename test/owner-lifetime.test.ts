@@ -28,7 +28,7 @@ function capture(child: ChildProcessWithoutNullStreams) {
 test("bounded waits and lost waiters retain one detached owner and terminal waits are read-only", async (t) => {
   const f = queueFixture(t);
   f.setPlan({ worker: { resultGate: f.gate("finish") } });
-  const started = f.start(["--aspects", "A06"]);
+  const started = f.start(["--aspects", "low-value-comments"]);
   assert.equal(started.status, 3, started.stdout);
   const { id, owner } = f.state();
   assert.ok(owner);
@@ -85,7 +85,7 @@ test("killing the original review caller process group does not kill its owner o
       "--task",
       "Update source",
       "--aspects",
-      "A06",
+      "low-value-comments",
       "--wait",
       "20",
     ],
@@ -129,19 +129,22 @@ for (const useful of [false, true]) {
     });
     const other = queueFixture(t);
     other.setPlan({ worker: { resultGate: other.gate("finish") } });
-    assert.equal(other.start(["--aspects", "A06"]).status, 3);
+    assert.equal(other.start(["--aspects", "low-value-comments"]).status, 3);
     const otherOwner = other.state().owner;
     assert.ok(otherOwner);
     const f = queueFixture(t, { concurrency: 1, maxRetries: 3 });
     f.setPlan({
       workers: {
-        A01: useful
+        "missed-reuse": useful
           ? {}
           : { attempts: [{ result: "" }, { descendant: true, hang: true }] },
-        A02: { descendant: true, hang: true },
+        "unnecessary-layers": { descendant: true, hang: true },
       },
     });
-    f.start(["--aspects", "A01,A02,A03"]);
+    f.start([
+      "--aspects",
+      "missed-reuse,unnecessary-layers,speculative-flexibility",
+    ]);
     await until(
       () => f.lifecycle().some((event) => event.childPid),
       "Owned descendant is active",
@@ -191,7 +194,7 @@ for (const useful of [false, true]) {
 test("completion racing cancel never loses evidence, duplicates attempts or leaves workers", async (t) => {
   const f = queueFixture(t);
   f.setPlan({ worker: { resultGate: f.gate("finish") } });
-  f.start(["--aspects", "A06"]);
+  f.start(["--aspects", "low-value-comments"]);
   const { id, owner } = f.state();
   assert.ok(owner);
   const cancellation = capture(f.launch(["cancel", id]));
@@ -215,7 +218,7 @@ test("completion racing cancel never loses evidence, duplicates attempts or leav
 
 test("cancel after completion is a read-only completed no-op", async (t) => {
   const f = queueFixture(t);
-  f.start(["--aspects", "A06"]);
+  f.start(["--aspects", "low-value-comments"]);
   assert.equal(f.finish().status, 0);
   const { id, owner } = f.state();
   assert.ok(owner);
@@ -231,7 +234,10 @@ test("cancel after completion is a read-only completed no-op", async (t) => {
 test("cancel before invocation stops cold admission without retries", async (t) => {
   const f = queueFixture(t, { maxRetries: 3 });
   f.setPlan({ worker: { initializeGate: f.gate("never") } });
-  f.start(["--aspects", "A01,A02,A03"]);
+  f.start([
+    "--aspects",
+    "missed-reuse,unnecessary-layers,speculative-flexibility",
+  ]);
   await until(
     () => f.lifecycle().some((event) => event.type === "initialize"),
     "Worker is starting",
@@ -255,7 +261,7 @@ test("cancel retains evidence received before a worker finishes", async (t) => {
     worker: {
       afterHang: true,
       result: {
-        aspect: "A06",
+        aspect: "low-value-comments",
         status: "findings",
         limitations: [],
         findings: [
@@ -277,7 +283,7 @@ test("cancel retains evidence received before a worker finishes", async (t) => {
       },
     },
   });
-  f.start(["--aspects", "A06"]);
+  f.start(["--aspects", "low-value-comments"]);
   await until(
     () => f.lifecycle().some((event) => event.type === "output"),
     "Evidence was sent before cancellation",
@@ -295,7 +301,7 @@ test("cancel retains evidence received before a worker finishes", async (t) => {
 
 test("cancel refuses an unrelated live PID instead of trusting persisted ownership", async (t) => {
   const f = queueFixture(t);
-  f.start(["--aspects", "A06"]);
+  f.start(["--aspects", "low-value-comments"]);
   assert.equal(f.finish().status, 0);
   const before = f.state();
   const owner = before.owner;
@@ -330,7 +336,7 @@ test("cancel refuses an unrelated live PID instead of trusting persisted ownersh
 test("cancel from a different Node executable refuses without weakening live owner verification", async (t) => {
   const f = queueFixture(t);
   f.setPlan({ worker: { resultGate: f.gate("finish") } });
-  assert.equal(f.start(["--aspects", "A06"]).status, 3);
+  assert.equal(f.start(["--aspects", "low-value-comments"]).status, 3);
   const run = f.state(),
     owner = run.owner;
   assert.ok(owner);
@@ -358,14 +364,14 @@ test("cancel from a different Node executable refuses without weakening live own
 test("cancelling an explicit earlier run does not signal the latest owner in the same repository", async (t) => {
   const f = queueFixture(t);
   f.setPlan({ worker: { descendant: true, hang: true } });
-  f.start(["--aspects", "A01"]);
+  f.start(["--aspects", "missed-reuse"]);
   await until(
     () => f.lifecycle().some((event) => event.childPid),
     "First run owns a descendant",
   );
   const first = f.state();
   f.setPlan({ worker: { resultGate: f.gate("finish-second") } });
-  assert.equal(f.start(["--aspects", "A06"]).status, 3);
+  assert.equal(f.start(["--aspects", "low-value-comments"]).status, 3);
   const second = f.state(),
     secondOwner = second.owner;
   assert.ok(secondOwner);
@@ -383,6 +389,6 @@ test("cancelling an explicit earlier run does not signal the latest owner in the
   assert.equal(f.state().owner?.pid, secondOwner.pid);
   assert.deepEqual(
     f.events().map((event) => event.aspect),
-    ["A01", "A06"],
+    ["missed-reuse", "low-value-comments"],
   );
 });
