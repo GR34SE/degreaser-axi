@@ -1,117 +1,86 @@
-# Working on degreaser-axi
+# Working on Degreaser
 
-## Current phase
+## Product and scope
 
-Product implementation is authorized. The compiled CLI, review engine, continuation, sixteen public rubrics and Codex/Claude/Pi onboarding/integrations are implemented. Readiness and final delivery remain in progress; this is a local, unpublished package. Current user behavior is documented in README and `assets/`; private mission reports hold development validation evidence. When private handoff is available, start from `specs/README.md`; `specs/pending/review-opus-2026-11-04.md` is historical review context. The Lavish prototype in `.lavish/` is frozen at workshop version 0.6 and is historical; do not update or reopen it.
+Degreaser is a local CLI for coding agents to review their work for unjustified complexity, broken contracts and misleading verification. The caller supplies the task and change scope; Degreaser sends each enabled review aspect to a fresh, isolated, read-only worker through acpx. Workers return source evidence. The caller evaluates the findings and makes edits. Degreaser does not fix code or detect AI authorship.
 
-Start with `specs/pending/degreaser.md`, then `contracts.md`, `execution.md`, `init.md`, `worker.md` and `development.md` in that directory. `review-notes.md` is history, not a source for restoring superseded decisions. Released project material, CLI output, skills and worker rubrics are English (D12); local gitignored specs may remain Polish. Current v1 supports **Codex, Claude Code and Pi on macOS, Node 24+**. Droid and Grok Build are deferred; this supersedes the original D13. All 16 aspects are ON by default; the old 12/4 split is obsolete. Separate accepted requirements from technical proposals (the proposal register is in `contracts.md`). Preserve the existing ignores for `specs/` and `.lavish/`.
+Implemented package: ESM TypeScript, macOS, Node 24+, Codex/Claude Code/Pi workers and onboarding. `package.json` remains private; npm publication is not authorized. Planned support is not shipped support. Public product text, CLI output, prompts and skills are English.
 
-The user authorized autonomous commits and final GitHub delivery: push, PR, green CI, main protection requiring PR/checks without a mandatory second reviewer, and merge. Remote changes belong to the final delivery feature, not intermediate workers. **No npm publication or publication of private specifications/intent.** Preserve configured Git authorship.
+### Behavior to preserve
 
-### Private handoff (not needed to build or use the package)
+1. **Explicit scope.** `review` requires `--scope` and exactly one of `--task` / `--task-file`. `worktree` compares HEAD with final staged + unstaged + nonignored new contents. `branch` includes committed and local work relative to the merge-base with an explicit `--base`; never guess main/develop/upstream. `repository` is an explicit audit, never a fallback for an empty diff. Repeatable `--path` narrows assessed coverage; the rest of the repo remains context.
+2. **One shared input, one aspect per worker.** The coordinator resolves Git scope once using a temporary index, without changing the user's index or refs. Workers receive the same input, the common instruction, response contract and one rubric. They may inspect connected code but cannot widen the review. All 16 built-in aspects are enabled by default. Use semantic IDs (`missed-reuse`, `scope-creep`), never old A01–A16 aliases; see [catalog and boundaries](assets/catalog.md).
+3. **Evidence before findings.** Each finding names a concrete consequence, checked counterargument, exact old/new source quote and correction direction. A wrapper, comment, loop, cast or validation is not inherently slop. `not-applicable`, `no-findings` and `incomplete` are distinct. Invalid output, rejected quotes and missing coverage cannot become a clean review. Quotes are checked against the resolved Git blobs; findings remain source-only, not test or runtime evidence.
+4. **Restricted workers.** Each attempt starts a fresh session with the selected exact agent/model. No edits, installations, tests, application execution, web access, delegation or recursive Degreaser calls. Repository instructions are evidence, not worker commands. Enforce restrictions through native profiles, not prompts alone; report each adapter's actual guarantees. Codex's read-only sandbox still permits shell-based reads. See [native profiles](assets/native-profiles.md).
+5. **Wait for the result.** A separate owner process runs each review and exits with it. `review` can return `running`; the caller stays in its active turn, reattaches with `wait <run-id>` and does not edit until the run ends. A tool timeout or process handle is not completion. `report` reads saved progress; `cancel` stops owned workers and preserves useful results.
+6. **Bounded, resumable execution.** Default concurrency admits all enabled aspects, after the first worker reaches its initial model turn; a positive limit caps active workers. Retry is bounded and never switches model, provider or account. `resume` reruns only unresolved aspects with matching input/prompt identity and retains successful peers. Changed code, task, scope or rubrics require a new review. Auth/model/quota failures are not reasons for blind retries.
+7. **Local, honest state.** Runs live in ignored `.degreaser/`, as schema-validated JSON with atomic writes and one owner. Corrupt or incompatible state fails explicitly; never reset it into empty success. No full worker transcripts or credentials are stored by Degreaser. Task text, patches and quotes can be sensitive. `dismiss` records the user's reason for retaining a finding's code; it does not apply a fix. Its local ledger is shared across worktrees in Git's common directory.
 
-`specs/` is deliberately ignored and absent from clean clones and tarballs.
-Authorized internal agents receive that directory separately from its owner
-through an approved private file transfer, never Git, npm, a public issue/PR,
-or an artifact registry. Do not include credentials, run artifacts or `.lavish/`.
-Keep the received directory outside the checkout and read it by absolute path,
-or link it into a worktree:
+Exit codes describe completeness, not whether findings exist: **0** completed/no-changes; **1** partial/failed/interrupted; **2** rejected command/input; **3** still running. Read the structured status too. Zero findings in a partial review is not a pass. See [result-contract.md](assets/result-contract.md) for full semantics.
 
-```sh
-ln -s /absolute/path/to/private-specs /absolute/path/to/worktree/specs
-```
+### Onboarding and boundaries
 
-Only create the link when the destination is absent; preserve any existing local
-specs. Existing ignore rules cover the link. Do not change `.gitignore` or
-force-add private material. If handoff is unavailable, public build/test/package
-work still uses this file and `assets/`; do not reconstruct private decisions
-from historical notes. Implementation decisions needing private intent require
-the owner's handoff.
+`init` discovers models, prefills a recommendation and requires the user to confirm or change the exact worker agent/model on every init. It also requires the installation harness selection. Without resolved choices and without a TTY, return `decision-required` without writes. Caller and worker harnesses are independent; there is no caller profile setting.
 
-## Product constraints
+One harness selection installs its startup hook/native equivalent and product skill together. Default installation scope is the project; user-wide installation is explicit. Init saves `.degreaserrc.json` and adds `/.degreaser/` to the root `.gitignore`, preserving unrelated content. `config sync` fills missing defaults; `setup hooks` repairs/removes owned integrations. Startup context only reads local state; it never starts models, resumes work or fetches packages.
 
-- The root README is for Degreaser users: purpose, setup, usage, configuration and results. Keep development handoff, internal decisions and local spec links in `specs/` and this file, not in the README. Until release, label planned usage honestly; do not invent installation instructions for an unpublished package.
-- The caller provides scope, target base when needed, and task context. Review the change; use the repository as context. Full-repository review is explicit.
-- The coordinator may run in a caller session with full access; worker tools remain separately read-only. Init does not modify Codex rules or global permission settings. Restricted callers use only host-supported per-command approval, or report that the environment is blocked.
-- Each worker gets one aspect and a fresh, isolated, read-only session. The coordinator resolves the change; the worker reports evidence; the calling agent decides and edits.
-- Use acpx and the harness's tools. Reuse existing capabilities before proposing new infrastructure or dependencies.
-- All 16 built-in aspects are enabled by default. Each aspect has three good and three bad code examples with context and explanations, plus symmetric "not here" boundaries. Do not turn syntax preferences or one anecdote into universal slop rules.
-- Persist local run results and queue state under ignored `.degreaser/`. Run all enabled aspects concurrently by default; a positive `concurrency` optionally caps active reviewers. Bound retries and preserve successful results for continuation.
-- The caller waits without editing until completed/partial/failed. A run is owned by a per-run background process, so the caller can re-attach with `wait <run-id>` when its own command times out. Keep the selected agent and model; never switch them silently.
-- Init adds `/.degreaser/` to the root project `.gitignore`. Every init requires the user to confirm or change the prefilled model choice. The CLI works across Codex, Claude and Pi without caller configuration. D08 is settled: selecting harnesses installs their startup hooks/native equivalents and skill, without a separate hook-versus-skill choice. Test installations only in disposable projects/homes, never actual user/global projects. Do not use the AXI bulk installer, which changes unselected targets and global Codex features.
-- Custom aspects are outside v1; configuration of built-in aspects is in scope. See `specs/TODO.md`.
+Do not change global permissions, trust, Codex rules or unselected harnesses. Do not use the AXI bulk installer. A restricted caller uses host-supported per-command approval or reports the actual block. Test installations only in disposable projects/homes. `doctor` checks local configuration/capabilities; it does not prove login, model access or delivery of startup context.
 
-## Skills and references
+Outside v1: custom rubrics, automatic apply, model judge, semantic finding merges, custom diff parser, per-review worktree/snapshot, daemon, hosted queue or benchmark platform. Use Git, public `acpx/runtime`, AXI routing/TOON, Ajv and Node built-ins before inventing infrastructure. Effect is not this package's required stack.
 
-Skills live in `.agents/skills/` (read natively by Codex and Pi). `.claude/skills/` contains symlinks to the same directories for Claude Code. Upstream skills are installed with the Skills CLI and recorded in `skills-lock.json`. Do not fork them in place. The local `deslop-scoped` skill reads installed `deslop` by path and applies the caller-selected scope instead of the upstream main-branch assumption. Read required skills by project path to avoid personal copies taking precedence. If a skill does not load automatically in your harness, read its `SKILL.md` by path.
+## Where to work
 
-- For writing or revising aspects, read `.agents/skills/write-degreaser-aspect/SKILL.md` and its template. Verify library-specific examples against current documentation.
-- For AXI command/output/integration design, read `.agents/skills/axi/SKILL.md`. D08 combines startup integration and the skill in one harness-selection step; see `specs/pending/init.md`.
-- For a future authorized visual workshop, read `.agents/skills/lavish/SKILL.md` and current CLI playbooks. Keep that session; after applying feedback, reply through `lavish-axi poll ... --agent-reply-file ...` and stay attached until the user ends or pauses the review.
-- During implementation, use `deslop-scoped` and `thermo-nuclear-code-quality-review` on the authorized change and the caller-selected scope, not an assumed main branch. For test work also read `test-audit`. Read thermo-nuclear by path: it disables model auto-invocation.
-- `no-mistakes` is required for the final delivery feature after real checks and product validation pass. That feature owns init, push, PR, CI and merge towards public `origin`; intermediate workers must not start a competing pipeline. Always use `--no-publish-intent`. Do not publish private specification details.
-- Backpass is a read-only reference at `.references/backpass/`, excluded from Git. Do not edit, install or execute it. Inspect its README, `src/analyze.js`, `src/state.js`, `src/acpx.js` and `src/acpx-output.js` when reviewing queue, state and worker invocation design.
-- `effect-ts-is-king` informed the generic missed-reuse aspect. Its example does not choose Effect as Degreaser's implementation stack and does not mandate Effect in reviewed projects.
+| Concern | Entry points |
+| --- | --- |
+| Public CLI and command contracts | `src/cli.ts`, `src/commands.ts`, `README.md` |
+| Scope, config and resolved input | `src/scope.ts`, `src/input.ts`, `src/config.ts`, `src/git.ts`; `assets/input-contract.md` |
+| Run lifecycle and continuation | `src/review.ts`, `src/owner.ts`, `src/ownership.ts`, `src/freshness.ts`, `src/storage.ts` |
+| Worker launch and restrictions | `src/worker-runtime.ts`, `src/native-profile.ts`, `src/native-launch.ts`, `src/model-discovery.ts`; `assets/native-profiles.md` |
+| Prompts, findings and reports | `src/prompt.ts`, `src/results.ts`, `src/report.ts`, `src/dismissals.ts`; `assets/worker.md`, `assets/response.md`, `assets/result-contract.md` |
+| Rubrics and persisted schemas | `assets/aspects/`, `assets/catalog.md`, `assets/schemas/` |
+| Init, integrations and generated skill | `src/init.ts`, `src/integrations.ts`, `src/integration-targets.ts`, `src/guidance.ts`; `assets/skills/degreaser/SKILL.md` |
+| Validation and packaging | `test/`, `scripts/qa/`, `scripts/test-live.ts`, `scripts/package-check.ts`, `.github/workflows/check.yml` |
 
-For library, framework or CLI documentation use Context7: resolve with `npx ctx7@latest library <name> "<specific question>"` before `docs <id> "<question>"`; at most three calls per question. Use version-matched primary sources if the indexed documentation is ambiguous. Never put secrets in queries. A quota failure must be reported; suggest login or `CONTEXT7_API_KEY` rather than silently relying on memory.
+Read the relevant contract before editing. Build/runtime must work from public `assets/` without private files. Generate the product skill from `src/guidance.ts` with `pnpm skill:generate`; never hand-edit it. README is for users: purpose, verified setup, usage and results, without development handoff or private links.
 
-## Change hygiene
+### Private intent and history
 
-One small ESM TypeScript package uses strict NodeNext and erasable syntax, compiled JavaScript, public AXI routing/TOON, public `acpx/runtime`, Ajv and Node built-ins. Keep dependencies and pnpm pinned. Lifecycle scripts and unnecessary builds are denied. Do not approve dependency skills automatically. Only necessary exact local package-age exceptions are authorized; remove obsolete exceptions before delivery. Never weaken global security policy.
+For product intent, start from `specs/README.md` and `specs/pending/degreaser.md` when available. Then read the relevant companion: `contracts.md` (interfaces), `execution.md` (lifecycle/profiles), `init.md` (onboarding), `worker.md` / `aspects.md` (review quality), `development.md` (acceptance). Distinguish accepted requirements, proposals and implementation. Surface discrepancies; public assets/source describe the checkout, historical notes do not override current decisions.
 
-Public product assets live in `assets/`, not ignored `specs/`. Builds and runtime must work in a clean checkout without private material. The product skill is generated from `src/guidance.ts`; run `pnpm skill:generate` after changing it. Build checks drift rather than silently accepting stale guidance.
+`specs/` is private and ignored; build/test/package work does not need it. If a decision requires private intent, obtain approved handoff from the owner. Read outside the checkout or symlink only to an absent destination. Never force-add specs, change their ignore or publish private contents/intent in PRs, npm or artifacts. `.lavish/` is frozen historical work; do not reopen/update it.
 
-Commands from the repository root:
+## Change and validation workflow
 
-- `pnpm install --frozen-lockfile --ignore-scripts`
-- `pnpm test` (build plus deterministic Node tests, concurrency 2)
-- `pnpm typecheck`
-- `pnpm lint` (lint and format check); `pnpm format` applies fixes
-- `pnpm build` (JavaScript, assets and generated skill check)
-- `pnpm qa` (repeatable isolated init/review/report/partial/resume; synthetic external adapter, no model account)
-- `pnpm package:check` (separate installed tarballs; requires `DEGREASER_NODE24_MIN` pointing to a verified Node 24.0.0 executable unless running that exact version)
-- `pnpm check` (all deterministic gates)
-- `pnpm release:notes --since <commit-or-tag>` (local draft from an explicit Git range)
-- `pnpm release:prepare --since <commit-or-tag> --output <new-directory>` (clean checkout, build, minimum/current Node tarball installs, checksum and draft notes; never publishes)
-- `pnpm test:live --help` (opt-in tooling, outside ordinary CI; unimplemented scenarios return nonzero and never count as passes)
+- Inspect Git root, branch, HEAD, staged/unstaged changes and any active delivery pipeline first. Preserve other work and configured authorship. New manual worktrees belong under `/Users/adriancelczynski/worktrees/manual/<owner-repo>/<task-id>`; use an already assigned worktree and leave tool-managed worktrees with their owner.
+- Choose the smallest complete change. Keep strict NodeNext/erasable TypeScript, exact dependency and pnpm pins, disabled lifecycle scripts and existing package-age policy. Never weaken global security settings or automatically approve dependency skills.
+- For behavior changes, first demonstrate a meaningful failing case. Prefer public CLI/process boundaries and real disposable Git repositories with independent expectations. Synthetic adapters test orchestration, not model quality or native compatibility. Source assertions cannot prove model interpretation.
+- For **changes limited to `.md` files, skip `no-mistakes`**. Review the diff, referenced paths, commands and consistency with source/contracts; run only checks relevant to changed content. Markdown prompts, rubrics and generated product guidance still require their applicable validation. Do not run the full code pipeline merely because prose changed. This supersedes older blanket requirements in specs/skill indexes, but preserves required CI and branch protection.
+- For code delivery, use the required review skills below, relevant product checks and `no-mistakes --no-publish-intent` before final delivery. One delivery owner manages push/PR/CI/merge; intermediate workers do not start competing pipelines. Autonomous commits and GitHub delivery to `main` are authorized through PR and green required checks. No npm publication; retain `private: true` until separately authorized.
 
-### CI and local release preparation
+| Command | When / what it verifies |
+| --- | --- |
+| `pnpm install --frozen-lockfile --ignore-scripts` | Restore pinned dependencies |
+| `pnpm test` | Build + deterministic Node tests, concurrency 2 |
+| `pnpm typecheck`; `pnpm lint` | Types; lint/format (`pnpm format` writes fixes) |
+| `pnpm build` | Compiled JS, packaged assets, generated-skill drift |
+| `pnpm qa` | Isolated init/review/report/partial/resume with a synthetic adapter |
+| `pnpm package:check` | Separate installed tarballs on minimum/current Node; set `DEGREASER_NODE24_MIN` to a verified Node 24.0.0 binary |
+| `pnpm check` | Aggregate deterministic gates; QA and live tests are separate |
+| `pnpm test:live --help` | Opt-in native/model scenarios; unsupported/unrun is never passed |
+| `pnpm release:prepare --since <ancestor> --output <new-directory>` | From a clean committed checkout after checks: tested tarball, checksum and draft notes; no publishing |
 
-`.github/workflows/check.yml` runs `pnpm check` on macOS with pinned Node 24 and
-pnpm from `packageManager`. It saves the exact minimum Node 24.0.0 path before
-switching to the current pinned Node 24 for the aggregate gate. The single
-stable check name is **macOS deterministic**. Require that actual hosted check
-when configuring protection; local success or workflow validation is not a
-hosted pass. PRs have no path filters; pushes to main recheck the merged result.
-The ephemeral runner initializes a Git fixture identity only if none is
-configured. No model credentials, native logins or live tests belong in CI.
+Live tests require synthetic code, confirmed models and a fresh quota check, without paid API fallback. Stop only owned processes. No model credentials/logins in CI. Required hosted check: **macOS deterministic**; local success does not replace it. Release output: external/ignored, existing parent, new destination; review notes before sharing.
 
-After `pnpm check` passes, prepare a candidate from a clean committed checkout:
+## Task-specific skills and references
 
-```sh
-export DEGREASER_NODE24_MIN=/absolute/path/to/node-v24.0.0/bin/node
-pnpm release:prepare --since <commit-or-tag> --output /absolute/path/to/new-candidate
-```
+Read skills by repository path under `.agents/skills/`; `.claude/skills/` links to the same files. Upstream skills are managed by Skills CLI and `skills-lock.json`; do not fork them in place.
 
-The output directory must not exist and its parent must exist. It contains the
-same tarball exercised by `package:check`, `SHA256SUMS` and `RELEASE_NOTES.md`.
-Use an external or ignored output location. The script does not bump versions,
-tag, push, upload, publish npm or create a GitHub release. Notes contain only
-commit subjects and IDs from the explicit ancestor-to-HEAD range, not bodies or
-authors; review them before sharing. Preparation reruns build/package acceptance,
-not the full test/type/lint gate. Keep `private: true` until publication is
-separately authorized.
+- CLI/output/integration design: `axi/SKILL.md`.
+- Rubrics: `write-degreaser-aspect/SKILL.md` and its template. Each rubric needs applicability, symmetric boundaries and three REPORT / three PRESERVE examples with context and reasons.
+- Code implementation/review: `deslop-scoped/SKILL.md` and `thermo-nuclear-code-quality-review/SKILL.md`, on the caller-selected diff/base. Thermo-nuclear disables automatic model invocation. Tests also require `test-audit/SKILL.md`.
+- Final code delivery: `no-mistakes/SKILL.md`, always `--no-publish-intent`; Markdown-only exception above.
+- Backpass reference: `.references/backpass/` is read-only, excluded from Git; never edit, install or execute that clone. For queue/state/worker design consult its README, `src/analyze.js`, `src/state.js`, `src/acpx.js`, `src/acpx-output.js`. An explicitly requested published `npx backpass` run is separate; keep analysis artifacts local and review proposals before editing instructions.
 
-Dependabot checks npm/pnpm and SHA-pinned Actions weekly with bounded open PRs
-and a seven-day version-update cooldown. It does not auto-merge. Security updates
-can bypass Dependabot's cooldown, but our frozen install still enforces the
-repository's age/build/script policy. Review package, lockfile and tool pins
-together; preserve exact versions and the minimum Node baseline. Adapter/native
-compatibility changes also need the relevant opt-in live checks, never model
-accounts in ordinary CI. Do not approve dependency skills automatically.
+For library/framework/CLI documentation, use Context7 outside the default sandbox: resolve with `npx ctx7@latest library <name> "<specific question>"`, then `docs <returned-id> "<question>"`; at most three calls per question. Use version-matched primary sources if indexing is ambiguous. Do not send secrets. Report quota failures and suggest login or `CONTEXT7_API_KEY`, rather than silently relying on memory.
 
-Use meaningful failing tests before behavior changes. Test public CLI/process boundaries and real disposable Git repositories with independent expected outcomes. Preserve failed/unrun results. Source text assertions protect prompt/asset interfaces only, not model interpretation. Live subscription tests use synthetic code, exact confirmed models and a fresh quota check, without paid API fallback. No servers or ports are needed. Stop only processes owned by the test.
-
-Preserve user edits and staged files. Inspect the current Git state before editing. If a development task later needs a new worktree, use `/Users/adriancelczynski/worktrees/manual/<owner-repo>/<task-id>` unless one is already assigned, and link `specs/` as described above; leave tool-managed worktrees with their owner. Reference clones are not implementation worktrees.
-
-Use the smallest complete design. Name the actual obligation before adding a layer. Do not claim an example, prototype, source review or unexercised adapter was run successfully. Report checks performed and remaining uncertainty plainly.
+Report exactly what was checked, what failed and what remains unverified. Examples, source review, synthetic tests and real native/model runs are different evidence.
