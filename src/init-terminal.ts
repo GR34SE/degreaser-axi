@@ -14,6 +14,7 @@ import {
 import type { Agent, Identity } from "./config.ts";
 import type { Catalog } from "./init.ts";
 import type { InstallationScope } from "./integration-targets.ts";
+import type { SkillInstall } from "./integrations.ts";
 import { StateError } from "./storage.ts";
 
 const names = { codex: "Codex", claude: "Claude Code", pi: "Pi" };
@@ -47,6 +48,7 @@ export async function configureTerminal(
     previous: Identity | undefined;
     harnesses: Agent[] | undefined;
     scope: InstallationScope;
+    skillInstall: SkillInstall | undefined;
   },
   load: (agent: Agent, signal: AbortSignal) => Promise<Catalog>,
 ) {
@@ -84,6 +86,24 @@ export async function configureTerminal(
         initialValue: options.scope,
       }),
     );
+    const skillInstall: SkillInstall =
+      harnesses.includes("claude") && harnesses.some((a) => a !== "claude")
+        ? answered(
+            await select<SkillInstall>({
+              ...terminal,
+              message: "How should Claude Code get the Degreaser skill?",
+              options: [
+                {
+                  value: "link",
+                  label: "Symlink",
+                  hint: "to the .agents/skills copy Codex and Pi read",
+                },
+                { value: "copy", label: "Copy", hint: "separate file" },
+              ],
+              initialValue: options.skillInstall ?? "link",
+            }),
+          )
+        : "copy";
     const cache = new Map<Agent, Catalog>();
     const catalog = async (agent: Agent) => {
       let result = cache.get(agent);
@@ -117,7 +137,7 @@ export async function configureTerminal(
         ? answered(
             await select<Agent>({
               ...terminal,
-              message: "Review agent",
+              message: "Which agent should run the reviews?",
               options: available.map((value) => ({
                 value,
                 label: names[value],
@@ -151,7 +171,7 @@ export async function configureTerminal(
     const model = answered(
       await autocomplete({
         ...terminal,
-        message: "Review model",
+        message: "Which model should run the reviews?",
         placeholder: "Search models",
         options: models.map((candidate) => {
           const hint = [
@@ -181,7 +201,7 @@ export async function configureTerminal(
       )
     )
       throw new StateError("decision-required", "Installation cancelled.");
-    return { identity, harnesses, scope, choices };
+    return { identity, harnesses, scope, skillInstall, choices };
   } catch (error) {
     if (
       controller.signal.aborted ||

@@ -29,6 +29,15 @@ export function installationChoices(values: Record<string, unknown>): {
   return { harnesses, scope };
 }
 
+export function skillInstallChoice(
+  values: Record<string, unknown>,
+): "copy" | "link" {
+  const choice = values["skill-install"] ?? "copy";
+  if (choice !== "copy" && choice !== "link")
+    throw new InputError("--skill-install must be copy or link.");
+  return choice;
+}
+
 const quote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
 const startup = fileURLToPath(
   new URL("../bin/startup-context.js", import.meta.url),

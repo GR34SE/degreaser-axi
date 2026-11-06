@@ -29,6 +29,11 @@ const installation = {
     type: "string",
     description: "project (default) or explicit user installation",
   },
+  "skill-install": {
+    type: "string",
+    description:
+      "copy (default) or link: Claude's skill as a symlink to the codex/pi .agents/skills copy",
+  },
 } satisfies Record<string, Flag>;
 const noPositionals = { min: 0, max: 0 };
 const runId = { min: 1, max: 1 };

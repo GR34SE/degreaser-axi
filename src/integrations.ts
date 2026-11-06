@@ -1,21 +1,25 @@
+import { readdirSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { Ajv } from "ajv";
 import type { HookGroup } from "axi-sdk-js";
 import type { Agent } from "./config.ts";
 import { repositoryRoot } from "./git.ts";
 import { ensureStateIgnored } from "./init-ignore.ts";
+import { InputError } from "./input-error.ts";
 import {
   conflict,
   IntegrationEdits,
   parseObject,
+  readIntegrationLink,
 } from "./integration-files.ts";
 import {
   HOOK_MARKER,
   type InstallationScope,
   installationChoices,
   integrationTarget,
+  skillInstallChoice,
   startupHook,
 } from "./integration-targets.ts";
 import { hash } from "./prompt.ts";
@@ -100,15 +104,18 @@ function updateHook(
     conflict(path);
   const previous = receipt.hooks[agent];
   if (previous && previous.path !== path) conflict(path);
-  const matches = groups.filter(
-    (group) => previous && isDeepStrictEqual(group, previous.group),
-  );
   const marked = groups.filter((group) =>
     group.hooks.some(
       (hook: { command?: unknown }) =>
         typeof hook?.command === "string" && hook.command.includes(HOOK_MARKER),
     ),
   );
+  // Without a receipt (fresh clone, new worktree), our marked entry is ours.
+  const matches = previous
+    ? groups.filter((group) => isDeepStrictEqual(group, previous.group))
+    : !remove && marked.length === 1
+      ? marked
+      : [];
   if (matches.length > 1 || marked.some((group) => !matches.includes(group)))
     conflict(path);
   const remaining = groups.filter((group) => !matches.includes(group));
@@ -148,17 +155,84 @@ function updateHook(
   edits.set(path, json(settings));
 }
 
+export type SkillInstall = "copy" | "link";
+
+/** Claude's skill directory as a link to the shared .agents copy, or back to a copy. */
+function planClaudeSkill(
+  edits: IntegrationEdits,
+  receipt: Receipt,
+  skillFile: string,
+  shared: string,
+  options: {
+    link: boolean;
+    remove: boolean;
+    replace: ReadonlySet<string>;
+    content: string;
+  },
+): { skipFile: boolean; fileBelowRemovedLink: boolean } {
+  const dir = dirname(skillFile);
+  const current = readIntegrationLink(dir);
+  const isLink = current !== null && current !== "";
+  const ownedLink =
+    isLink &&
+    receipt.files[dir]?.hash === hash(`symlink:${current}`) &&
+    receipt.files[dir]?.owners.includes("claude");
+  if (options.remove || !options.link) {
+    if (!isLink) return { skipFile: false, fileBelowRemovedLink: false };
+    if (!ownedLink && !options.replace.has(dir)) conflict(dir, !options.remove);
+    edits.link(dir, null);
+    delete receipt.files[dir];
+    return { skipFile: options.remove, fileBelowRemovedLink: true };
+  }
+  const target = relative(dirname(dir), dirname(shared));
+  if (current !== target) {
+    if (isLink && !ownedLink && !options.replace.has(dir)) conflict(dir, true);
+    if (current === "") {
+      if (readdirSync(dir).some((entry) => entry !== "SKILL.md")) conflict(dir);
+      const before = edits.read(skillFile);
+      const owned = receipt.files[skillFile];
+      if (
+        before !== null &&
+        owned?.hash !== hash(before) &&
+        before !== options.content &&
+        !options.replace.has(skillFile)
+      )
+        conflict(skillFile, true);
+      if (before !== null) edits.set(skillFile, null);
+      if (owned) {
+        owned.owners = owned.owners.filter((o) => o !== "claude");
+        if (!owned.owners.length) delete receipt.files[skillFile];
+      }
+    }
+    edits.link(dir, target);
+  }
+  receipt.files[dir] = { hash: hash(`symlink:${target}`), owners: ["claude"] };
+  return { skipFile: true, fileBelowRemovedLink: false };
+}
+
 export function prepareIntegrations(
   repository: string,
   harnesses: Agent[],
   scope: InstallationScope,
-  remove = false,
+  options: {
+    remove?: boolean;
+    replace?: ReadonlySet<string>;
+    skillInstall?: SkillInstall;
+  } = {},
 ) {
+  const { remove = false, replace = new Set<string>() } = options;
+  const link = options.skillInstall === "link";
+  if (
+    link &&
+    !remove &&
+    !(harnesses.includes("claude") && harnesses.some((a) => a !== "claude"))
+  )
+    throw new InputError(
+      "--skill-install link needs claude plus codex or pi: Claude's skill links to their .agents/skills copy.",
+    );
   const edits = new IntegrationEdits();
-  const path = join(
-    scope === "project" ? repository : homedir(),
-    ".degreaser/integrations.json",
-  );
+  const base = scope === "project" ? repository : homedir();
+  const path = join(base, ".degreaser/integrations.json");
   const original = edits.read(path);
   const receipt: Receipt =
     original === null
@@ -170,8 +244,28 @@ export function prepareIntegrations(
         })();
   const results = [];
   const files: string[] = [];
+  const shared = join(base, ".agents/skills/degreaser/SKILL.md");
   for (const agent of harnesses) {
     const target = integrationTarget(agent, repository, scope);
+    let fileBelowRemovedLink = false;
+    if (agent === "claude") {
+      const skillFile = [...target.files.keys()].find((f) =>
+        f.endsWith("/SKILL.md"),
+      );
+      if (skillFile) {
+        const plan = planClaudeSkill(edits, receipt, skillFile, shared, {
+          link,
+          remove,
+          replace,
+          content: target.files.get(skillFile) ?? "",
+        });
+        fileBelowRemovedLink = plan.fileBelowRemovedLink;
+        if (plan.skipFile) {
+          target.files.delete(skillFile);
+          if (!remove) files.push(dirname(skillFile));
+        }
+      }
+    }
     files.push(
       ...target.files.keys(),
       ...(target.hookPath ? [target.hookPath] : []),
@@ -179,9 +273,14 @@ export function prepareIntegrations(
     for (const [file, content] of target.files) {
       const owned = receipt.files[file];
       if (remove && !owned?.owners.includes(agent)) continue;
-      const before = edits.read(file);
-      if (before !== null && (!owned || hash(before) !== owned.hash))
-        conflict(file);
+      const before = fileBelowRemovedLink ? null : edits.read(file);
+      const adoptable = !remove && (before === content || replace.has(file));
+      if (
+        before !== null &&
+        (!owned || hash(before) !== owned.hash) &&
+        !adoptable
+      )
+        conflict(file, !remove);
       if (remove) {
         if (!owned?.owners.includes(agent)) continue;
         owned.owners = owned.owners.filter((owner) => owner !== agent);
@@ -194,7 +293,8 @@ export function prepareIntegrations(
           hash: hash(content),
           owners: [...new Set([...(owned?.owners ?? []), agent])].sort(),
         };
-        edits.set(file, content);
+        if (fileBelowRemovedLink) edits.set(file, content, { before: null });
+        else edits.set(file, content);
       }
     }
     if (target.hookPath)
@@ -224,12 +324,10 @@ export function setupIntegrations(
     );
   const { harnesses, scope } = installationChoices(values);
   const repository = repositoryRoot(cwd);
-  const plan = prepareIntegrations(
-    repository,
-    harnesses,
-    scope,
-    values.remove === true,
-  );
+  const plan = prepareIntegrations(repository, harnesses, scope, {
+    remove: values.remove === true,
+    skillInstall: skillInstallChoice(values),
+  });
   if (scope === "project" && !values.remove) ensureStateIgnored(repository);
   plan.apply();
   return {
