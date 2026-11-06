@@ -287,6 +287,11 @@ export function dismissCommand(
   values: Record<string, unknown>,
   cwd: string,
 ) {
+  if (process.env.DEGREASER_WORKER)
+    throw new StateError(
+      "nested-review",
+      "Workers cannot dismiss findings; the caller decides.",
+    );
   const reason = typeof values.reason === "string" ? values.reason.trim() : "";
   if (!reason)
     throw new InputError(
