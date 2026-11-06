@@ -35,6 +35,7 @@ export interface RunTask {
     startedAt: number;
     endedAt: number | null;
     sessionId: string | null;
+    lastActivityAt?: number;
     failure: string | null;
     result?: WorkerResult | null;
     rejections?: Rejection[];

@@ -258,6 +258,7 @@ For example, a fresh init after selecting Codex and Luna writes:
   "maxRetries": 1,
   "limits": {
     "workerTimeoutSeconds": 300,
+    "workerIdleSeconds": 120,
     "maxTurns": 40,
     "runTimeoutSeconds": 900
   },
@@ -308,9 +309,13 @@ harness and model. A model-only entry under `aspects.overrides.A06`, for example
 `{"model":"<exact-model-id>"}`, keeps the default agent. An agent override must
 also supply its compatible exact model.
 
-Defaults are one additional retry, a 300-second worker timeout, a 900-second
-run deadline and a 40-turn budget. Configure `maxRetries` and
-`limits.workerTimeoutSeconds`, `limits.runTimeoutSeconds`, `limits.maxTurns`.
+Defaults are one additional retry, a 300-second worker timeout, a 120-second
+worker idle limit, a 900-second run deadline and a 40-turn budget. The idle
+limit stops an attempt that sends no events for that long, so a stuck worker
+retries early while an active one keeps its full timeout; running reports show
+each aspect's `lastActivity`. Configure `maxRetries` and
+`limits.workerTimeoutSeconds`, `limits.workerIdleSeconds`,
+`limits.runTimeoutSeconds`, `limits.maxTurns`.
 Only Claude enforces the turn budget natively; Codex and Pi treat it as advisory.
 `exclude` accepts literal repository-relative files or directory prefixes, not globs.
 For a one-run selection, use `review --path` instead.

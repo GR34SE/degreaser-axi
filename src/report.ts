@@ -117,6 +117,11 @@ function coverage(task: RunTask, input: ReviewInput, interrupted: boolean) {
       (l) => l !== reason && !harness.has(l),
     ),
     rejected: task.rejections.length,
+    ...(task.status === "running" && task.attempts.at(-1)?.lastActivityAt
+      ? {
+          lastActivity: `${Math.round((Date.now() - (task.attempts.at(-1)?.lastActivityAt ?? 0)) / 1000)}s ago`,
+        }
+      : {}),
     examined: task.result?.examinedPaths
       ? `${task.result.examinedPaths.length}/${input.paths.length}`
       : "unknown",

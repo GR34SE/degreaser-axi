@@ -213,6 +213,12 @@ export async function ownRun(
               timeoutMs: Math.max(1, attemptDeadline - Date.now()),
               signal: abort.signal,
               onPromptStarted: started,
+              ...(input.config.limits.workerIdleSeconds
+                ? { idleMs: input.config.limits.workerIdleSeconds * 1000 }
+                : {}),
+              onActivity: () => {
+                record.lastActivityAt = Date.now();
+              },
               onLifecycle: () => persist(),
               onSessionReady: (id) => {
                 record.sessionId = id;

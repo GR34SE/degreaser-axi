@@ -28,7 +28,12 @@ const pty = fileURLToPath(new URL("./fixtures/init-pty.py", import.meta.url));
 const defaultSettings = {
   concurrency: null,
   maxRetries: 1,
-  limits: { workerTimeoutSeconds: 300, maxTurns: 40, runTimeoutSeconds: 900 },
+  limits: {
+    workerTimeoutSeconds: 300,
+    workerIdleSeconds: 120,
+    maxTurns: 40,
+    runTimeoutSeconds: 900,
+  },
   aspects: {
     enable: [
       "A01",
