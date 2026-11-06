@@ -19,7 +19,13 @@ import { init } from "./init.ts";
 import { InputError } from "./input-error.ts";
 import { setupIntegrations } from "./integrations.ts";
 import { observedStatus } from "./report.ts";
-import { cancel, readCommand, resume, review } from "./review.ts";
+import {
+  cancel,
+  dismissCommand,
+  readCommand,
+  resume,
+  review,
+} from "./review.ts";
 import { loadInput, loadRun, StateError } from "./storage.ts";
 import { VERSION } from "./version.js";
 
@@ -180,6 +186,8 @@ async function execute(
   if (name === "cancel") return cancel(parsed.positionals[0], process.cwd());
   if (name === "resume")
     return resume(parsed.positionals[0] ?? "", parsed.values, process.cwd());
+  if (name === "dismiss")
+    return dismissCommand(parsed.positionals, parsed.values, process.cwd());
   if (["wait", "report", "finding"].includes(name))
     return readCommand(name, parsed.positionals, parsed.values, process.cwd());
   process.exitCode = 2;

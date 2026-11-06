@@ -370,6 +370,18 @@ Pass `report <run-id>` or `finding F1 --run <run-id>` to read historical evidenc
 otherwise reads select this repository's latest run. Reports of running reviews
 return the current snapshot without waiting. Home reads history even without a
 current RC. These read commands do not start reviews or modify local state.
+
+When you decide not to apply a finding, record that decision:
+
+```sh
+degreaser-axi dismiss F3 --reason "Kept for clients on the old API"
+```
+
+Later reviews that assess the same file pass dismissed findings and reasons to
+their reviewers, which should not raise the same issue again. Dismissals live in
+`degreaser/dismissed.json` inside the Git common directory (usually
+`.git/degreaser/`), so every worktree of the repository shares them and they
+are never committed. Edit or delete that file to undo a dismissal.
 Full reports separate configured identities from actual attempts and
 coordinator-only applicability results, including A08 in repository audits.
 When storage remains writable, a detached owner's fatal cause is saved with its

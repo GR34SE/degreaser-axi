@@ -19,6 +19,7 @@ export function reviewIdentity(input: ReviewInput, prompts: (string | null)[]) {
       excludedPaths: input.excludedPaths,
       patch: input.patch,
       task: input.task,
+      dismissed: input.dismissed,
       assignments: input.config.assignments,
       prompts,
     }),
@@ -59,6 +60,7 @@ export function assemblePrompt(
     paths: input.paths,
     excludedPaths: input.excludedPaths,
     limitations: input.limitations,
+    dismissed: input.dismissed,
     patch: input.patch,
   };
   const scopeHash = hash(data(scope));

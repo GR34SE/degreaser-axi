@@ -16,6 +16,18 @@
     "taskFile": { "type": "string", "pattern": "^/" },
     "pathPatterns": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "pattern": "^(?![:/])(?!(?:\\.|\\.\\.)(?:/|$))[^/\\\\\\u0000]+(?:/(?!(?:\\.|\\.\\.)(?:/|$))[^/\\\\\\u0000]+)*$" } },
     "waitSeconds": { "$ref": "config-v1.json#/definitions/seconds" },
+    "dismissed": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["aspect", "path", "title", "quote", "reason", "dismissedAt"],
+        "properties": {
+          "aspect": { "type": "string" }, "path": { "type": "string" }, "title": { "type": "string" },
+          "quote": { "type": "string" }, "reason": { "type": "string", "pattern": "\\S" },
+          "dismissedAt": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
     "config": {
       "type": "object",
       "additionalProperties": false,

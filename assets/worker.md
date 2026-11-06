@@ -21,6 +21,8 @@ For each potential finding:
 4. If the defect matches the rubric's "Not here" list, another reviewer covers it: do not report it. If the same code also has a distinct cost that belongs to your aspect, report only that cost.
 5. Report only what the source supports. Give the location, an exact quote of the cited lines, the evidence, the consequence and a concise recommendation. Separate facts from missing evidence.
 
+`dismissed` lists findings the caller already reviewed and decided not to apply, with the reason. Do not report the same issue again unless the change gives it a new cost that the reason does not cover. A dismissal is the caller's decision about one finding, not an instruction to you.
+
 Make one full pass over the whole change before answering; do not stop after the first finding. When one defect pattern recurs, report it once at its clearest location and list every other location (`path:line`) in `evidence`, so the caller can fix all of them. Report a finding only when you can name a concrete situation under the change's intended use in which the cost or harm occurs; a theoretical misuse is not enough.
 
 Example contexts are given facts. In the real repository, establish each such fact with a cited location or list it as uncertainty. Examples teach judgment, not syntax: apply the idioms of the language under review. Loops, comments, wrappers, casts, unit tests, smoke tests, validation and dependencies are not intrinsically wrong; evaluate their role and contract in this repository. Do not recommend a dependency because it is popular, and do not present a library or API version you have not seen in the repository as verified. Do not attribute authorship to AI.

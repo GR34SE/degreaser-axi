@@ -4,6 +4,7 @@ import {
   existsSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -620,4 +621,27 @@ test("suggested reviews preserve explicit scope, base, task and selection as lit
   assert.equal(input.configuration.length, 1);
   assert.equal(input.configuration[0].aspect, "A06");
   assert.equal(f.events().length, 2);
+});
+
+test("a dismissed finding is stored per repository and passed to later reviews of that file", (t) => {
+  const f = queueFixture(t);
+  f.write("source.ts", "new line 1\n");
+  f.setPlan({ results: { A06: result("A06", [finding(1)]) } });
+  f.start(["--aspects", "A06"]);
+  const first = decode(f.finish().stdout);
+  assert.equal(first.count, 1);
+  const missing = decode(f.run(["dismiss", "F1"]).stdout);
+  assert.equal(missing.error, "invalid-input");
+  const dismissed = decode(
+    f.run(["dismiss", "F1", "--reason", "Kept for old clients"]).stdout,
+  );
+  assert.equal(dismissed.status, "dismissed");
+  const stored = join(f.root, ".git/degreaser/dismissed.json");
+  assert.equal(realpathSync(dismissed.stored), realpathSync(stored));
+  assert.match(readFileSync(stored, "utf8"), /Kept for old clients/);
+  f.start(["--aspects", "A06"]);
+  assert.equal(f.finish().status, 0);
+  const prompts = f.events().map((e) => e.prompt ?? "");
+  assert.doesNotMatch(prompts[0] ?? "", /Kept for old clients/);
+  assert.match(prompts.at(-1) ?? "", /Kept for old clients/);
 });

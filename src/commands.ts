@@ -161,6 +161,22 @@ export const COMMANDS: Record<string, Command> = {
       "degreaser-axi finding F1 --run <run-id>",
     ],
   },
+  dismiss: {
+    description:
+      "Record that a finding should not be applied, so later reviews skip it",
+    usage: "dismiss <finding-id> --reason <text> [--run <run-id>]",
+    flags: {
+      reason: {
+        type: "string",
+        description: "Required: why the user decided not to apply it",
+      },
+      run: { type: "string", description: "Run ID (default latest run)" },
+    },
+    positionals: runId,
+    examples: [
+      'degreaser-axi dismiss F3 --reason "The user keeps this fallback for old clients"',
+    ],
+  },
   resume: {
     description:
       "Continue unresolved aspects of unchanged input, retaining successful results",
