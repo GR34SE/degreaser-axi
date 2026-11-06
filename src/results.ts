@@ -76,6 +76,7 @@ export function ingestResult(
   const result = parseResult(text, aspect);
   const rejections: Rejection[] = [];
   const blobs = new Map<string, string | null>();
+  const unjudged: string[] = [];
   result.findings = result.findings.filter((finding, index) => {
     const { path, side, startLine, endLine } = finding.location;
     const entry = input.paths.find((p) =>
@@ -117,14 +118,19 @@ export function ingestResult(
           reason = "quote-mismatch";
       }
     }
-    if (reason) rejections.push({ index: index + 1, reason });
+    if (reason) {
+      rejections.push({ index: index + 1, reason });
+      if (entry) unjudged.push(entry.path, entry.oldPath ?? entry.path);
+    }
     return !reason;
   });
   if (result.examinedPaths) {
     const assessed = new Set(
       input.paths.flatMap((p) => [p.path, p.oldPath].filter(Boolean)),
     );
-    result.examinedPaths = result.examinedPaths.filter((p) => assessed.has(p));
+    result.examinedPaths = result.examinedPaths.filter(
+      (p) => assessed.has(p) && !unjudged.includes(p),
+    );
     if (result.status === "no-findings" && !result.examinedPaths.length) {
       result.status = "incomplete";
       result.limitations.push(

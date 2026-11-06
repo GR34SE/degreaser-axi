@@ -197,6 +197,7 @@ export async function ownRun(
           pass.status !== "incomplete" ||
           !advanced ||
           stopped() ||
+          task.attempts.at(-1)?.failure ||
           !uncovered(input, pass.examinedPaths ?? []).length
         )
           break;
@@ -313,7 +314,11 @@ export async function ownRun(
               );
               const pass = validated.result;
               receivedResult = true;
-              task.rejections = validated.rejections;
+              task.rejections = [
+                ...(accumulated ? task.rejections : []),
+                ...validated.rejections,
+              ];
+              record.rejections = structuredClone(validated.rejections);
               if (
                 !cleanupFailed &&
                 !runStopped &&
@@ -322,6 +327,7 @@ export async function ownRun(
                 record.failure = null;
               else {
                 pass.status = "incomplete";
+                pass.examinedPaths = [];
                 pass.limitations.push(
                   `Worker lifecycle did not finish successfully: ${record.failure}.`,
                 );
@@ -367,9 +373,7 @@ export async function ownRun(
         if (task.status === "failed" && stopped()) task.status = "cancelled";
         record.endedAt = Date.now();
         if (!receivedResult) record.result = null;
-        record.rejections = receivedResult
-          ? structuredClone(task.rejections)
-          : [];
+        if (!receivedResult) record.rejections = [];
         record.limitations = [...task.limitations];
         persist();
         if (
