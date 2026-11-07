@@ -124,12 +124,12 @@ for (const useful of [false, true]) {
         "missed-reuse": useful
           ? {}
           : { attempts: [{ result: "" }, { descendant: true, hang: true }] },
-        "unnecessary-layers": { descendant: true, hang: true },
+        "speculative-flexibility": { descendant: true, hang: true },
       },
     });
     f.start([
       "--aspects",
-      "missed-reuse,unnecessary-layers,speculative-flexibility",
+      "missed-reuse,speculative-flexibility,unnecessary-layers",
     ]);
     await until(
       () => f.lifecycle().some((event) => event.childPid),

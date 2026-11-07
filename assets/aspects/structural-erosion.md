@@ -11,6 +11,7 @@
 **Boundaries:** A finding must arise from the change, not the file's general condition. Do not propose broad refactoring unrelated to the diff.
 
 **Not here (another reviewer):**
+- More mechanism than one existing responsibility needs, without added responsibilities, dependencies or coupling: unnecessary-complexity.
 - Copying existing code instead of reusing it: missed-reuse.
 - A shared mechanism combining cases with divergent rules: wrong-abstraction.
 - Departure from an established repository pattern without increased coupling: convention-drift.

@@ -185,7 +185,7 @@ test("repository audit has explicit coverage, no patch and coordinator-owned sco
   );
   assert.ok(r.excludedPaths.includes("package.json"));
   assert.ok(r.excludedPaths.includes("dist/generated"));
-  assert.equal(r.workers.length, 15);
+  assert.equal(r.workers.length, 16);
   assert.equal(
     r.workers.some((a) => a.aspect === "scope-creep"),
     false,

@@ -11,6 +11,7 @@
 **Boundaries:** Do not impose Effect on projects without Effect. Matching names are insufficient: the existing helper may have a different contract.
 
 **Not here (another reviewer):**
+- No existing component applies, but the new logic uses more mechanism than its requirements need: unnecessary-complexity.
 - No equivalent exists in the repository or its dependencies, and the suggestion involves adding a library: reinvented-infrastructure.
 - A single expression or loop replaceable by a language or standard-library construct such as map, Set or join: unidiomatic-code.
 - Nothing is duplicated; the change merely departs from an established repository pattern in format, channel or naming: convention-drift.

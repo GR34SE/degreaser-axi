@@ -33,7 +33,7 @@
       "additionalProperties": false,
       "required": ["assignments", "concurrency", "maxRetries", "limits", "exclude"],
       "properties": {
-        "assignments": { "type": "array", "minItems": 1, "maxItems": 16, "uniqueItems": true, "items": { "$ref": "#/definitions/assignment" } },
+        "assignments": { "type": "array", "minItems": 1, "maxItems": 17, "uniqueItems": true, "items": { "$ref": "#/definitions/assignment" } },
         "concurrency": { "anyOf": [{ "type": "null" }, { "$ref": "config-v1.json#/definitions/positiveInteger" }] },
         "maxRetries": { "$ref": "config-v1.json#/properties/maxRetries" },
         "limits": {
@@ -82,7 +82,7 @@
         }
       }
     },
-    "workers": { "type": "array", "maxItems": 16, "uniqueItems": true, "items": { "$ref": "#/definitions/assignment" } },
+    "workers": { "type": "array", "maxItems": 17, "uniqueItems": true, "items": { "$ref": "#/definitions/assignment" } },
     "coordinatorResults": {
       "type": "array",
       "maxItems": 1,

@@ -8,22 +8,23 @@ import { prepareReview } from "../src/input.ts";
 import { fixture } from "./git-fixture.ts";
 
 const all = [
-  "missed-reuse",
-  "unnecessary-layers",
-  "speculative-flexibility",
+  "unnecessary-complexity",
   "masked-errors",
-  "unjustified-defense",
-  "low-value-comments",
-  "convention-drift",
-  "scope-creep",
-  "contract-bypass",
-  "low-value-tests",
-  "incomplete-integration",
-  "wrong-abstraction",
-  "reinvented-infrastructure",
-  "unidiomatic-code",
-  "structural-erosion",
   "verification-theater",
+  "contract-bypass",
+  "incomplete-integration",
+  "low-value-tests",
+  "scope-creep",
+  "reinvented-infrastructure",
+  "missed-reuse",
+  "wrong-abstraction",
+  "structural-erosion",
+  "speculative-flexibility",
+  "unnecessary-layers",
+  "unjustified-defense",
+  "convention-drift",
+  "unidiomatic-code",
+  "low-value-comments",
 ];
 const identity = { agent: "codex", model: "gpt-6-luna" };
 const args = ["--scope", "worktree", "--task", "Add CSV import"];
@@ -165,7 +166,11 @@ test("strict public RC schema rejects unknown fields and bounded invalid values 
       agent: "cursor",
       model: "composer-2.5-fast",
     }).assignments[0],
-    { aspect: "missed-reuse", agent: "cursor", model: "composer-2.5-fast" },
+    {
+      aspect: "unnecessary-complexity",
+      agent: "cursor",
+      model: "composer-2.5-fast",
+    },
   );
   assert.throws(
     () => resolveConfig({ ...identity, limits: { workerTimeoutSecons: 300 } }),
@@ -173,7 +178,7 @@ test("strict public RC schema rejects unknown fields and bounded invalid values 
   );
 });
 
-test("selection narrows all sixteen defaults without re-enabling disabled aspects or mutating RC", () => {
+test("selection narrows all seventeen defaults without re-enabling disabled aspects or mutating RC", () => {
   assert.deepEqual(
     resolveConfig(identity).assignments.map((a) => a.aspect),
     all,
@@ -198,12 +203,12 @@ test("selection narrows all sixteen defaults without re-enabling disabled aspect
   });
   assert.deepEqual(config.assignments, [
     { aspect: "masked-errors", agent: "codex", model: "exact-codex-id" },
+    { aspect: "verification-theater", agent: "pi", model: "openai/gpt-6-luna" },
     {
       aspect: "contract-bypass",
       agent: "claude",
       model: "claude-haiku-4-5-20251001",
     },
-    { aspect: "verification-theater", agent: "pi", model: "openai/gpt-6-luna" },
   ]);
   assert.equal(config.concurrency, 1);
   assert.equal(config.maxRetries, 1);
@@ -214,7 +219,7 @@ test("selection narrows all sixteen defaults without re-enabling disabled aspect
     runTimeoutSeconds: 900,
   });
   assert.equal(JSON.stringify(rc), original);
-  assert.equal(resolveConfig(rc).assignments.length, 15);
+  assert.equal(resolveConfig(rc).assignments.length, 16);
   assert.throws(
     () => resolveConfig(rc, { aspects: ["unnecessary-layers"] }),
     /disabled/,
@@ -262,7 +267,7 @@ test("selection narrows all sixteen defaults without re-enabling disabled aspect
       assertSupportedModels(config, [
         { agent: "codex", model: "exact-codex-id" },
       ]),
-    /contract-bypass.*not available/,
+    /verification-theater.*not available/,
   );
   assert.throws(
     () =>

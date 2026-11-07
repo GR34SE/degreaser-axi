@@ -8,23 +8,25 @@ export type Agent = (typeof AGENTS)[number];
 export function isAgent(value: string): value is Agent {
   return (AGENTS as readonly string[]).includes(value);
 }
+/** Review priority: reports, configuration and worker admission follow this order. */
 export const ASPECT_IDS = [
-  "missed-reuse",
-  "unnecessary-layers",
-  "speculative-flexibility",
+  "unnecessary-complexity",
   "masked-errors",
-  "unjustified-defense",
-  "low-value-comments",
-  "convention-drift",
-  "scope-creep",
-  "contract-bypass",
-  "low-value-tests",
-  "incomplete-integration",
-  "wrong-abstraction",
-  "reinvented-infrastructure",
-  "unidiomatic-code",
-  "structural-erosion",
   "verification-theater",
+  "contract-bypass",
+  "incomplete-integration",
+  "low-value-tests",
+  "scope-creep",
+  "reinvented-infrastructure",
+  "missed-reuse",
+  "wrong-abstraction",
+  "structural-erosion",
+  "speculative-flexibility",
+  "unnecessary-layers",
+  "unjustified-defense",
+  "convention-drift",
+  "unidiomatic-code",
+  "low-value-comments",
 ] as const;
 export type AspectId = (typeof ASPECT_IDS)[number];
 export interface Identity {

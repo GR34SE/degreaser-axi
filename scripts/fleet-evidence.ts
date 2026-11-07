@@ -28,6 +28,7 @@ export function fleetEvidence(
   );
   assert.equal(run.executions[0]?.concurrency, null, "Fleet must be uncapped");
   const aspects = [...ASPECT_IDS];
+  const [first] = aspects;
   assert.deepEqual(
     run.tasks.map((t) => t.assignment.aspect),
     aspects,
@@ -44,7 +45,7 @@ export function fleetEvidence(
   );
   const firstPrompt = events.findIndex((e) => e.type === "prompt");
   assert.ok(
-    firstPrompt >= 0 && events[firstPrompt]?.aspect === "missed-reuse",
+    firstPrompt >= 0 && events[firstPrompt]?.aspect === first,
     "Missing first-worker warmup",
   );
   assert.deepEqual(
@@ -52,7 +53,7 @@ export function fleetEvidence(
       .slice(0, firstPrompt)
       .filter((e) => e.type === "start")
       .map((e) => e.aspect),
-    ["missed-reuse"],
+    [first],
     "Cold admission before warmup",
   );
   const sessions = new Set<string>();
@@ -92,7 +93,7 @@ export function fleetEvidence(
           "Unexpected automatic retry cause",
         );
     }
-    if (aspect !== "missed-reuse")
+    if (aspect !== first)
       assert.ok(
         (task.attempts[0]?.startedAt ?? 0) >=
           (events[firstPrompt]?.time ?? Infinity),
@@ -104,7 +105,7 @@ export function fleetEvidence(
     run.tasks.reduce((n, t) => n + t.attempts.length, 0),
     "Sessions must be fresh",
   );
-  // missed-reuse can finish during startup; the remaining fifteen must be admitted
+  // The first worker can finish during startup; the rest must be admitted
   // together, not trickled through slots as earlier workers finish.
   const rest = run.tasks.slice(1).map((t) => t.attempts[0]);
   assert.ok(

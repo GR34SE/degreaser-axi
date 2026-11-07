@@ -36,7 +36,7 @@ try {
       }
       if (run.status !== "running") {
         assert.equal(run.status, "completed");
-        assert.equal(run.tasks.length, 16);
+        assert.equal(run.tasks.length, 17);
         for (const task of run.tasks) {
           assert.equal(task.status, "no-findings");
           assert.equal(

@@ -11,6 +11,7 @@
 **Boundaries:** A loop alone is not evidence of slop. Idioms do not transfer automatically between languages; for example, for loops are idiomatic Go. Stylistic preferences without concrete cost are not findings.
 
 **Not here (another reviewer):**
+- Excess algorithm or control-flow design beyond one expression, such as manual phases, duplicated state or extra passes: unnecessary-complexity.
 - An existing repository, dependency or framework component with its own contract: missed-reuse.
 - Custom general-purpose infrastructure such as a standard parser or evicting cache: reinvented-infrastructure.
 

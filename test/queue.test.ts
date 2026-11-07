@@ -5,7 +5,7 @@ import { alive, queueFixture, until } from "./queue-fixture.ts";
 
 const all = [...ASPECT_IDS].sort();
 
-test("default fleet holds at session readiness, then sixteen real workers overlap before any result", async (t) => {
+test("default fleet holds at session readiness, then seventeen real workers overlap before any result", async (t) => {
   const f = queueFixture(t);
   f.setPlan({
     worker: { invocationGate: f.gate("invoke"), resultGate: f.gate("result") },
@@ -19,8 +19,8 @@ test("default fleet holds at session readiness, then sixteen real workers overla
   assert.equal(f.events().length, 0);
   f.release("invoke");
   await until(
-    () => f.events().length === 16,
-    "All sixteen prompts must start without a hidden cap",
+    () => f.events().length === 17,
+    "All seventeen prompts must start without a hidden cap",
   );
   assert.deepEqual(
     f
@@ -29,13 +29,13 @@ test("default fleet holds at session readiness, then sixteen real workers overla
       .sort(),
     all,
   );
-  assert.equal(f.events()[0]?.aspect, "missed-reuse");
+  assert.equal(f.events()[0]?.aspect, "unnecessary-complexity");
   assert.ok(f.events().every((e) => alive(e.pid)));
   assert.ok(f.state().tasks.every((task) => task.status === "running"));
   f.release("result");
   const done = f.finish();
   assert.equal(done.status, 0, done.stdout);
-  assert.match(done.stdout, /aspects: 16\/16/);
+  assert.match(done.stdout, /aspects: 17\/17/);
 });
 
 for (const cap of [1, 2, 20]) {
@@ -62,8 +62,8 @@ for (const cap of [1, 2, 20]) {
     );
     for (const [index, id] of [
       "masked-errors",
-      "low-value-comments",
       "contract-bypass",
+      "low-value-comments",
     ].entries()) {
       await until(
         () => f.events().some((e) => e.aspect === id),
@@ -93,17 +93,17 @@ test("a pre-invocation failure does not release the whole cold fleet", async (t)
   f.setPlan({
     workers: {
       "missed-reuse": { startupError: { message: "Authentication required" } },
-      "unnecessary-layers": {
+      "speculative-flexibility": {
         invocationGate: f.gate("invoke"),
         resultGate: f.gate("result"),
       },
-      "speculative-flexibility": { resultGate: f.gate("result") },
+      "unnecessary-layers": { resultGate: f.gate("result") },
     },
   });
   assert.equal(
     f.start([
       "--aspects",
-      "missed-reuse,unnecessary-layers,speculative-flexibility",
+      "missed-reuse,speculative-flexibility,unnecessary-layers",
     ]).status,
     3,
   );
@@ -112,7 +112,8 @@ test("a pre-invocation failure does not release the whole cold fleet", async (t)
       f
         .lifecycle()
         .some(
-          (e) => e.aspect === "unnecessary-layers" && e.type === "set-model",
+          (e) =>
+            e.aspect === "speculative-flexibility" && e.type === "set-model",
         ),
     "Second worker warms after first failure",
   );
@@ -157,13 +158,13 @@ test("retries retain their cap slot and join the prior process before a fresh se
       "missed-reuse": {
         attempts: [{ result: "" }, { resultGate: f.gate("retry") }],
       },
-      "unnecessary-layers": { resultGate: f.gate("peer") },
+      "speculative-flexibility": { resultGate: f.gate("peer") },
     },
   });
   assert.equal(
     f.start([
       "--aspects",
-      "missed-reuse,unnecessary-layers,speculative-flexibility",
+      "missed-reuse,speculative-flexibility,unnecessary-layers",
     ]).status,
     3,
   );
@@ -180,12 +181,12 @@ test("retries retain their cap slot and join the prior process before a fresh se
   assert.ok(alive(retry.pid));
   assert.equal(f.events().filter((e) => alive(e.pid)).length, 2);
   assert.ok(
-    !f.events().some((e) => e.aspect === "speculative-flexibility"),
+    !f.events().some((e) => e.aspect === "unnecessary-layers"),
     "Retry did not free a third slot",
   );
   f.release("retry");
   await until(
-    () => f.events().some((e) => e.aspect === "speculative-flexibility"),
+    () => f.events().some((e) => e.aspect === "unnecessary-layers"),
     "Completed retry refills the slot",
   );
   assert.equal(
