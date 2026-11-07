@@ -1,10 +1,17 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, realpathSync, rmSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { data, Evaluator, Lexer, Parser } from "@actions/expressions";
 import { parseDocument } from "yaml";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
@@ -80,7 +87,6 @@ test("CI selects checks without path filters and requires every macOS lane", () 
     "matrix.lane == 'package' && github.event_name != 'pull_request'",
   );
   assert.equal(steps[minimum + 1].if, steps[minimum].if);
-  assert.equal(manifest.private, true);
 });
 
 test("required aggregate fails for failed, cancelled or skipped dependencies", () => {
@@ -133,36 +139,40 @@ test("CI saves the minimum executable before changing Node, using the runner env
 });
 
 test("dependency updates preserve exact versions, installation policy and bounded PR volume", () => {
-  const config = yaml(".github/dependabot.yml");
-  const policy = yaml("pnpm-workspace.yaml");
-  assert.equal(config.version, 2);
-  assert.deepEqual(
-    config.updates
-      .map(
-        (update: { "package-ecosystem": string }) =>
-          update["package-ecosystem"],
-      )
-      .sort(),
-    ["github-actions", "npm"],
+  const config = JSON.parse(
+    readFileSync(resolve(root, "renovate.json"), "utf8"),
   );
-  for (const update of config.updates) {
-    assert.equal(update.directory, "/");
-    assert.equal(update.schedule.interval, "weekly");
-    assert.ok(
-      update["open-pull-requests-limit"] > 0 &&
-        update["open-pull-requests-limit"] <= 3,
-    );
-    assert.ok(
-      update.cooldown["default-days"] * 24 * 60 >= policy.minimumReleaseAge,
-    );
-    assert.equal(update.cooldown.exclude, undefined);
-  }
+  const policy = yaml("pnpm-workspace.yaml");
+  assert.equal(existsSync(resolve(root, ".github/dependabot.yml")), false);
+  assert.deepEqual(config.enabledManagers, ["npm", "github-actions"]);
+  assert.equal(config.rangeStrategy, "pin");
+  assert.equal(config.minimumReleaseAge, "7 days");
+  assert.equal(config.minimumReleaseAgeBehaviour, "timestamp-required");
+  assert.equal(config.internalChecksFilter, "strict");
+  assert.equal(config.ignoreScripts, true);
   assert.equal(
-    config.updates.find(
-      (update: { "package-ecosystem": string }) =>
-        update["package-ecosystem"] === "npm",
-    )["versioning-strategy"],
-    "increase",
+    config.vulnerabilityAlerts.minimumReleaseAge,
+    config.minimumReleaseAge,
+  );
+  assert.equal(config.vulnerabilityAlerts.rangeStrategy, "pin");
+  assert.ok(config.prConcurrentLimit > 0 && config.prConcurrentLimit <= 3);
+  assert.equal(config.automerge, false);
+  assert.equal(config.automergeType, "pr");
+  assert.equal(config.platformAutomerge, true);
+  const rules = config.packageRules;
+  assert.ok(
+    rules.some(
+      (rule: { matchUpdateTypes?: string[]; automerge?: boolean }) =>
+        rule.automerge === true &&
+        JSON.stringify(rule.matchUpdateTypes) ===
+          JSON.stringify(["minor", "patch", "pin", "digest"]),
+    ),
+  );
+  assert.ok(
+    rules.some(
+      (rule: { matchCurrentVersion?: string; automerge?: boolean }) =>
+        rule.matchCurrentVersion === "/^0\\./" && rule.automerge === false,
+    ),
   );
   for (const version of Object.values({
     ...manifest.dependencies,
@@ -176,3 +186,125 @@ test("dependency updates preserve exact versions, installation policy and bounde
     Object.values(policy.allowBuilds).every((allowed) => allowed === false),
   );
 });
+
+test("release publication is opt-in and uses the tested artifact after preparation", () => {
+  const workflow = yaml(".github/workflows/release.yml");
+  assert.deepEqual(workflow.on.workflow_run, {
+    workflows: ["Checks"],
+    types: ["completed"],
+    branches: ["main"],
+  });
+  assert.equal(workflow.on.pull_request_target, undefined);
+  assert.deepEqual(workflow.permissions, { contents: "read" });
+  assert.equal(workflow.concurrency["cancel-in-progress"], false);
+  const { release, prepare, publish, finalize } = workflow.jobs;
+  const github = {
+    ref: "refs/heads/main",
+    repository: "fixture/fixture",
+    event_name: "workflow_run",
+    event: {
+      workflow_run: {
+        conclusion: "success",
+        event: "push",
+        head_repository: { full_name: "fixture/fixture" },
+      },
+    },
+  };
+  for (const enabled of ["", "false", "true"]) {
+    assert.equal(
+      evaluate(release.if, {
+        github,
+        vars: { RELEASE_AUTOMATION_ENABLED: enabled },
+      }),
+      enabled === "true",
+    );
+    assert.equal(
+      evaluate(publish.if, { vars: { NPM_PUBLISH_ENABLED: enabled } }),
+      enabled === "true",
+    );
+  }
+  for (const conclusion of ["failure", "cancelled", "skipped"]) {
+    const event = {
+      workflow_run: { ...github.event.workflow_run, conclusion },
+    };
+    assert.equal(
+      evaluate(release.if, {
+        github: { ...github, event },
+        vars: { RELEASE_AUTOMATION_ENABLED: "true" },
+      }),
+      false,
+    );
+  }
+  for (const untrusted of [
+    { ...github, ref: "refs/heads/feature" },
+    {
+      ...github,
+      event: {
+        workflow_run: { ...github.event.workflow_run, event: "pull_request" },
+      },
+    },
+    {
+      ...github,
+      event: {
+        workflow_run: {
+          ...github.event.workflow_run,
+          head_repository: { full_name: "fork/fixture" },
+        },
+      },
+    },
+  ]) {
+    assert.equal(
+      evaluate(release.if, {
+        github: untrusted,
+        vars: { RELEASE_AUTOMATION_ENABLED: "true" },
+      }),
+      false,
+    );
+  }
+  assert.equal(prepare.needs, "release");
+  assert.equal(prepare["runs-on"], "macos-15");
+  assert.deepEqual(publish.needs, ["release", "prepare"]);
+  assert.equal(publish.if, "vars.NPM_PUBLISH_ENABLED == 'true'");
+  assert.equal(publish.environment, "npm");
+  assert.deepEqual(publish.permissions, {
+    contents: "read",
+    "id-token": "write",
+  });
+  assert.equal(publish.env.NODE_AUTH_TOKEN, "");
+  assert.deepEqual(finalize.needs, ["release", "publish"]);
+  assert.equal(finalize.if, undefined);
+  const upload = prepare.steps.find((step: { uses?: string }) =>
+    step.uses?.startsWith("actions/upload-artifact@"),
+  );
+  for (const job of [publish, finalize]) {
+    const download = job.steps.find((step: { uses?: string }) =>
+      step.uses?.startsWith("actions/download-artifact@"),
+    );
+    assert.equal(download.with.name, upload.with.name);
+  }
+  assert.equal(manifest.private, false);
+  assert.equal(manifest.publishConfig.access, "public");
+  for (const job of Object.values(workflow.jobs) as {
+    steps: { uses?: string; run?: string; name?: string }[];
+  }[]) {
+    for (const step of job.steps) {
+      if (step.uses) assert.match(step.uses, /^[\w-]+\/[\w-]+@[a-f0-9]{40}$/);
+      if (step.run)
+        assert.equal(
+          spawnSync("bash", ["-n"], { input: step.run }).status,
+          0,
+          step.name,
+        );
+    }
+  }
+});
+
+function evaluate(expression: string, context: object) {
+  const { tokens } = new Lexer(expression).lex();
+  const ast = new Parser(tokens, Object.keys(context), []).parse();
+  return (
+    new Evaluator(ast, JSON.parse(JSON.stringify(context), data.reviver))
+      .evaluate()
+      .coerceString() === "true"
+  );
+}

@@ -15,6 +15,9 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
+const manifest: { version: string; packageManager: string } = JSON.parse(
+  await readFile(join(root, "package.json"), "utf8"),
+);
 const { values } = parseArgs({
   options: {
     "pack-destination": { type: "string" },
@@ -96,7 +99,7 @@ try {
       JSON.stringify({
         private: true,
         type: "module",
-        packageManager: "pnpm@12.14.0",
+        packageManager: manifest.packageManager,
       }),
     );
     await cp(
@@ -125,14 +128,17 @@ try {
       const installedBin = join(installDir, "node_modules/.bin", name);
       assert.equal(
         run(installedBin, ["--version"], installDir, runtime),
-        "0.1.0\n",
+        `${manifest.version}\n`,
       );
       assert.match(
         run(installedBin, ["review", "--help"], installDir, runtime),
         /--task-file/,
       );
     }
-    assert.equal(run(runtime, [bin, "--version"], installDir), "0.1.0\n");
+    assert.equal(
+      run(runtime, [bin, "--version"], installDir),
+      `${manifest.version}\n`,
+    );
     assert.match(
       run(runtime, [bin, "review", "--help"], installDir),
       /--task-file/,
