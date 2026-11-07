@@ -1,7 +1,22 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { readFile } from "node:fs/promises";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { NativeProfile } from "../src/native-profile.ts";
+
+export function readPiSettings() {
+  const path = join(
+    process.env.PI_CODING_AGENT_DIR ?? join(homedir(), ".pi", "agent"),
+    "settings.json",
+  );
+  return readFile(path).catch((error: unknown) => {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT")
+      return null;
+    throw error;
+  });
+}
 
 // Claude's documented family aliases track releases; explicit IDs remain exact.
 // https://code.claude.com/docs/en/model-config#model-aliases

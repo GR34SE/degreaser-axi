@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
-import { homedir, tmpdir } from "node:os";
+import { mkdtemp, rm, stat, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Agent } from "../src/config.ts";
+import { readPiSettings } from "./live-profile.ts";
 
 /** Opt-in native metadata only. Never starts a model turn. */
 export async function liveModels(agent: Agent, model: string) {
@@ -12,17 +13,7 @@ export async function liveModels(agent: Agent, model: string) {
     await import(
       new URL("../dist/src/model-discovery.js", import.meta.url).href
     );
-  const piSettings = join(
-    process.env.PI_CODING_AGENT_DIR ?? join(homedir(), ".pi/agent"),
-    "settings.json",
-  );
-  const readSettings = () =>
-    readFile(piSettings).catch((error: unknown) => {
-      if (error instanceof Error && "code" in error && error.code === "ENOENT")
-        return null;
-      throw error;
-    });
-  const before = agent === "pi" ? await readSettings() : null;
+  const before = agent === "pi" ? await readPiSettings() : null;
   const cwd = await mkdtemp(join(tmpdir(), "degreaser-live-models-"));
   try {
     const models = await discoverModels({ agent, model }, cwd, 30_000);
@@ -130,7 +121,7 @@ export async function liveModels(agent: Agent, model: string) {
     await rm(cwd, { recursive: true, force: true });
     if (agent === "pi")
       assert.deepEqual(
-        await readSettings(),
+        await readPiSettings(),
         before,
         "Pi defaults must remain unchanged.",
       );

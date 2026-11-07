@@ -6,31 +6,33 @@ import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-test("metadata pilot refuses unreadable settings before native discovery", (t) => {
+test("live pilots refuse unreadable settings before launching Pi", (t) => {
   const root = mkdtempSync(join(tmpdir(), "degreaser-settings-read-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   mkdirSync(join(root, "settings.json"));
-  const result = spawnSync(
-    process.execPath,
-    [
-      fileURLToPath(new URL("../scripts/test-live.ts", import.meta.url)),
-      "--run",
-      "--case",
-      "models",
-      "--agent",
-      "pi",
-      "--model",
-      "synthetic/model",
-    ],
-    {
-      env: { PATH: "", PI_CODING_AGENT_DIR: root },
-      encoding: "utf8",
-      timeout: 5_000,
-    },
-  );
-  assert.equal(result.status, 1);
-  assert.match(result.stderr, /EISDIR/);
-  assert.equal(result.stdout, "");
+  for (const scenario of ["models", "native-worker"]) {
+    const result = spawnSync(
+      process.execPath,
+      [
+        fileURLToPath(new URL("../scripts/test-live.ts", import.meta.url)),
+        "--run",
+        "--case",
+        scenario,
+        "--agent",
+        "pi",
+        "--model",
+        "synthetic/model",
+      ],
+      {
+        env: { PATH: "", PI_CODING_AGENT_DIR: root },
+        encoding: "utf8",
+        timeout: 5_000,
+      },
+    );
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /EISDIR/);
+    assert.equal(result.stdout, "");
+  }
 });
 
 test("live scaffold never reports unimplemented scenarios as passing", () => {

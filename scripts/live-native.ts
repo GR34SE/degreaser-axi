@@ -9,8 +9,9 @@ import {
   rm,
   writeFile,
 } from "node:fs/promises";
-import { homedir, tmpdir } from "node:os";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import type { Agent } from "../src/config.ts";
 import {
   collectOwned,
@@ -18,7 +19,7 @@ import {
   processes,
   sameProcess,
 } from "./fleet-resources.ts";
-import { inspectNativeProfile } from "./live-profile.ts";
+import { inspectNativeProfile, readPiSettings } from "./live-profile.ts";
 
 export async function liveNativeWorker(agent: Agent, model: string) {
   const { nativeProfile }: typeof import("../src/native-profile.ts") =
@@ -29,18 +30,13 @@ export async function liveNativeWorker(agent: Agent, model: string) {
     await import(
       new URL("../dist/src/worker-runtime.js", import.meta.url).href
     );
+  const settingsBefore = agent === "pi" ? await readPiSettings() : null;
   const cwd = await mkdtemp(join(tmpdir(), "degreaser-live-"));
   const nonce = randomBytes(16).toString("hex");
   const marker = `AMBIENT_${randomBytes(8).toString("hex")}`;
   const owned = new Set<number>();
   const tools: { kind: string; status: string }[] = [];
   const started = Date.now();
-  const piSettings = join(
-    process.env.PI_CODING_AGENT_DIR ?? join(homedir(), ".pi", "agent"),
-    "settings.json",
-  );
-  const settingsBefore =
-    agent === "pi" ? await readFile(piSettings).catch(() => null) : null;
   try {
     await mkdir(join(cwd, ".claude"), { recursive: true });
     await mkdir(join(cwd, ".codex"), { recursive: true });
@@ -257,9 +253,7 @@ export async function liveNativeWorker(agent: Agent, model: string) {
       elapsedMs: Date.now() - started,
       piSettingsUnchanged:
         agent === "pi"
-          ? ((await readFile(piSettings).catch(() => null))?.equals(
-              settingsBefore ?? Buffer.alloc(0),
-            ) ?? settingsBefore === null)
+          ? isDeepStrictEqual(await readPiSettings(), settingsBefore)
           : null,
     };
     console.log(JSON.stringify(evidence, null, 2));
