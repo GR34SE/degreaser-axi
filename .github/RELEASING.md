@@ -38,8 +38,9 @@ computer neither enables nor prevents OIDC publishing from GitHub.
    auto-merge, draft releases and artifact preparation, not npm publication.
 
 Major dependency updates and every update to an npm package whose current
-version is 0.x (runtime or development) are deliberately not auto-merged. They stay visible for compatibility work. The bot never fixes
-an incompatible API or bypasses a failed check. Deterministic and synthetic
+version is 0.x (runtime or development) are deliberately not auto-merged. They
+stay visible for compatibility work. The bot never fixes an incompatible API or
+bypasses a failed check. Deterministic and synthetic
 checks do not prove native worker/model compatibility.
 
 All npm dependencies remain exact pins. Releases must be at least seven days
@@ -60,8 +61,8 @@ runtime, package-age policy and disabled build permissions.
    required human reviewers. Use GitHub-hosted runners. The publishing job
    uses OIDC with `id-token: write`, not an `NPM_TOKEN`.
 4. Check the repository/package metadata before the first public
-   distribution. The package is MIT-licensed and ships `LICENSE`. Provenance requires a public source
-   repository and a matching `repository.url`.
+   distribution. The package is MIT-licensed and ships `LICENSE`. Provenance
+   requires a public source repository and a matching `repository.url`.
 5. Only after explicit authorization, set the repository Actions variable
    `NPM_PUBLISH_ENABLED=true`. Turning it off stops new publishing jobs;
    cancel an already running publishing job separately if necessary.
