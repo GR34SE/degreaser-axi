@@ -38,25 +38,28 @@ function processTable(): ProcessRow[] {
       "owner-unverified",
       "Cannot inspect local processes safely. Use a caller with process-inspection permission; no process was signalled.",
     );
-  return result.stdout
-    .trim()
-    .split("\n")
-    .map((line) => {
-      const fields = line.trim().split(/\s+/);
-      if (fields.length !== 9)
-        throw new StateError(
-          "owner-unverified",
-          "Unrecognized local process identity; no process was signalled.",
-        );
-      return {
-        pid: Number(fields[0]),
-        parent: Number(fields[1]),
-        group: Number(fields[2]),
-        started: fields.slice(3, 8).join(" "),
-        zombie: fields[8]?.startsWith("Z"),
-      };
-    })
-    .filter((row) => !row.zombie);
+  return (
+    result.stdout
+      .trim()
+      .split("\n")
+      .map((line) => {
+        const fields = line.trim().split(/\s+/);
+        if (fields.length !== 9)
+          throw new StateError(
+            "owner-unverified",
+            "Unrecognized local process identity; no process was signalled.",
+          );
+        return {
+          pid: Number(fields[0]),
+          parent: Number(fields[1]),
+          group: Number(fields[2]),
+          started: fields.slice(3, 8).join(" "),
+          zombie: fields[8]?.startsWith("Z"),
+        };
+      })
+      // The probe itself is a child of the caller, never an owned worker.
+      .filter((row) => !row.zombie && row.pid !== result.pid)
+  );
 }
 const sameProcess = (a: ProcessIdentity, b: ProcessIdentity) =>
   a.pid === b.pid && a.started === b.started && a.group === b.group;
@@ -137,8 +140,19 @@ export function ownerRecoveryGuidance(run: Run) {
   return `Inspect .degreaser/runs/${run.id}/run.json and owner.lock against local PID/start/group identities with process-inspection permission. Use the same Node executable as the original owner. Do not signal reused PIDs or remove ambiguous locks. If ownership cannot be verified, preserve this run and start a new review only after confirming old work has stopped.`;
 }
 
+/** A terminal run whose owner lock was removed has no owner or workers left. */
+export function ownerReleased(run: Run) {
+  return (
+    run.status !== "running" &&
+    !existsSync(statePath(run.repository, "runs", run.id, "owner.lock"))
+  );
+}
+/** Released owners record only workers still alive at release; any listed are verified. */
+export const needsCleanup = (run: Run) =>
+  !ownerReleased(run) || Boolean(run.owner?.processes?.length);
+
 export function assertAvailable(run: Run, initial = false) {
-  if (run.owner && processAlive(run.owner.pid)) {
+  if (run.owner && !ownerReleased(run) && processAlive(run.owner.pid)) {
     if (!verifyOwner(run))
       throw new StateError(
         "owner-unverified",

@@ -80,7 +80,7 @@ export const resolved = (task: RunTask) =>
 export function terminalStatus(tasks: RunTask[]): Run["status"] {
   return tasks.every(resolved)
     ? "completed"
-    : tasks.some((t) => t.result)
+    : tasks.some((t) => t.promptHash !== null && t.result)
       ? "partial"
       : "failed";
 }

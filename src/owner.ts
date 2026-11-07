@@ -8,6 +8,7 @@ import {
   captureOwner,
   checkOwnerLock,
   cleanInterruptedOwner,
+  needsCleanup,
   replaceOwnerLock,
 } from "./ownership.ts";
 import { assemblePrompt, continuationSection } from "./prompt.ts";
@@ -63,7 +64,7 @@ export async function ownRun(
         );
     }
     checkOwnerLock(run);
-    await cleanInterruptedOwner(run);
+    if (needsCleanup(run)) await cleanInterruptedOwner(run);
     const ownership = replaceOwnerLock(run);
     unlockOwner = ownership.release;
     if (controls?.deadlineSeconds !== undefined)
@@ -124,10 +125,24 @@ export async function ownRun(
   const deadline = setTimeout(expire, Math.max(1, run.deadline - Date.now()));
   let persistenceError: StateError | undefined;
   let fatalError: StateError | undefined;
-  const persist = () => {
+  /** Inspection failures are transient; only worker launch requires fresh identities. */
+  const persist = (verify = false) => {
     if (persistenceError) throw persistenceError;
+    if (verify || !run.owner) {
+      try {
+        run.owner = captureOwner(run.owner);
+      } catch (error) {
+        throw fail(error, "Owner process identities could not be captured.");
+      }
+    } else {
+      try {
+        run.owner = captureOwner(run.owner);
+      } catch (error) {
+        if (!(error instanceof StateError)) throw error;
+        run.owner = { ...run.owner, heartbeat: Date.now() };
+      }
+    }
     try {
-      run.owner = captureOwner(run.owner);
       saveRun(run);
     } catch (error) {
       persistenceError =
@@ -253,7 +268,7 @@ export async function ownRun(
             task.assignment,
             "review",
             signal,
-            persist,
+            () => persist(true),
           );
           if (stopped()) abort.signal.throwIfAborted();
           if (Date.now() >= attemptDeadline) profileTimeout.abort();
@@ -273,7 +288,7 @@ export async function ownRun(
               onActivity: () => {
                 record.lastActivityAt = Date.now();
               },
-              onLifecycle: () => persist(),
+              onLifecycle: (event) => persist(event.type === "spawn"),
               onSessionReady: (id) => {
                 record.sessionId = id;
                 persist();
@@ -344,6 +359,7 @@ export async function ownRun(
               const earlierApplicable = task.attempts.some(
                 (a) =>
                   a !== record &&
+                  !a.failure &&
                   a.result &&
                   a.result.status !== "not-applicable",
               );
