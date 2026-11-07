@@ -1,14 +1,18 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import {
+  closeSync,
   existsSync,
   lstatSync,
   mkdirSync,
+  mkdtempSync,
+  openSync,
   readFileSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
 import { createRequire } from "node:module";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -260,28 +264,41 @@ test("actual native Codex read-only sandbox refuses review but permits local hom
   const f = fixture(t);
   f.write("source.ts", "export const value = 1;\n");
   const index = readFileSync(join(f.root, ".git/index"));
-  const run = (args: string[]) =>
-    spawnSync(
-      process.execPath,
-      [
-        codex,
-        "sandbox",
-        "--permission-profile",
-        ":read-only",
-        "-C",
-        f.root,
-        "--",
+  // spawnSync pipes are sockets, and Codex's Linux sandbox silently drops
+  // Node stream writes to a socket stdout; capture stdout through a file.
+  const output = mkdtempSync(join(tmpdir(), "degreaser-stdout-"));
+  t.after(() => rmSync(output, { recursive: true, force: true }));
+  const run = (args: string[]) => {
+    const path = join(output, "stdout");
+    const stdout = openSync(path, "w");
+    try {
+      const result = spawnSync(
         process.execPath,
-        cli,
-        ...args,
-      ],
-      {
-        cwd: f.root,
-        encoding: "utf8",
-        timeout: 20000,
-        env: { HOME: f.root, PATH: process.env.PATH },
-      },
-    );
+        [
+          codex,
+          "sandbox",
+          "--permission-profile",
+          ":read-only",
+          "-C",
+          f.root,
+          "--",
+          process.execPath,
+          cli,
+          ...args,
+        ],
+        {
+          cwd: f.root,
+          encoding: "utf8",
+          stdio: ["ignore", stdout, "pipe"],
+          timeout: 20000,
+          env: { HOME: f.root, PATH: process.env.PATH },
+        },
+      );
+      return { ...result, stdout: readFileSync(path, "utf8") };
+    } finally {
+      closeSync(stdout);
+    }
+  };
   const denied = run([
     "review",
     "--scope",
@@ -297,6 +314,10 @@ test("actual native Codex read-only sandbox refuses review but permits local hom
   assert.match(denied.stdout, /authorized session/);
   assert.ok(!existsSync(join(f.root, ".degreaser")));
   assert.deepEqual(readFileSync(join(f.root, ".git/index")), index);
+  // Codex's Linux seccomp filter fails Node's socket-backed child pipes with
+  // EPERM, so local Git reads (and with them home/doctor context) are blocked
+  // there too; the refusal above is the cross-platform guarantee.
+  if (process.platform !== "darwin") return;
   for (const args of [["home"], ["doctor"]]) {
     const result = run(args);
     assert.equal(result.status, 0, result.stdout + result.stderr);
