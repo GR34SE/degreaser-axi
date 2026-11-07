@@ -265,6 +265,8 @@ Cancel uses that same short admission lock before reading/signalling the current
 owner or accepting a terminal no-op. Contention refuses with exit 2 and explicit
 "cancellation was not applied" guidance to retry cancel after admission, not an
 old terminal report. A live owner's ordinary lock does not block cancellation.
+Cancelling an interrupted run performs the same verified cleanup of old workers
+as resume, without starting work.
 Heartbeat age alone never authorizes eviction. After confirmed death, recovery
 checks recorded OS birth identities and process groups before stopping old
 workers, and waits for cleanup before admitting replacements. Process identities
