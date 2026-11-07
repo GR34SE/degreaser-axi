@@ -414,3 +414,58 @@ test("quotes tolerate CRLF, copied diff markers and repo-path spellings but neve
     /schema/,
   );
 });
+
+test("symlinks are reviewed as links: target text reaches the worker and quotes validate against the link blob", (t) => {
+  const f = fixture(t);
+  f.write("skills/real/SKILL.md", "# Real\n");
+  symlinkSync("../skills/real", join(f.root, "dir-link"));
+  symlinkSync("skills/real/SKILL.md", join(f.root, "file-link"));
+  symlinkSync("old-target", join(f.root, "moved link"));
+  f.git("add", ".");
+  f.git("commit", "-m", "Links");
+  rmSync(join(f.root, "moved link"));
+  symlinkSync("new-target", join(f.root, "moved link"));
+  symlinkSync("does-not-exist", join(f.root, "dangling"));
+  symlinkSync("/etc/hosts", join(f.root, "naïve external"));
+  const argv = (scope: string) => [
+    "--scope",
+    scope,
+    "--task",
+    "Review links",
+    "--aspects",
+    "low-value-comments",
+  ];
+  const input = prepareReview(argv("worktree"), f.root);
+  const byPath = new Map(input.paths.map((p) => [p.path, p]));
+  assert.equal(byPath.get("moved link")?.oldLink, "old-target");
+  assert.equal(byPath.get("moved link")?.newLink, "new-target");
+  assert.equal(byPath.get("dangling")?.newLink, "does-not-exist");
+  assert.equal(byPath.get("naïve external")?.newLink, "/etc/hosts");
+  assert.equal(byPath.get("dir-link"), undefined);
+  const { text } = assemblePrompt(input, "low-value-comments", "/p.diff");
+  assert.match(text, /newLink: new-target/);
+  assert.match(text, /oldLink: old-target/);
+  assert.match(text, /newMode: "120000"/);
+  const run = (path: string, side: "old" | "new", quote: string) =>
+    ingestResult(
+      block({
+        ...clean,
+        status: "findings",
+        findings: [finding(path, side, quote)],
+      }),
+      "low-value-comments",
+      input,
+    ).rejections.map((r) => r.reason);
+  assert.deepEqual(run("moved link", "new", "new-target"), []);
+  assert.deepEqual(run("moved link", "old", "old-target"), []);
+  assert.deepEqual(run("moved link", "new", "old-target"), ["quote-mismatch"]);
+  assert.deepEqual(run("dangling", "new", "does-not-exist"), []);
+
+  const audit = prepareReview(argv("repository"), f.root);
+  const dir = audit.paths.find((p) => p.path === "dir-link");
+  assert.equal(dir?.newLink, "../skills/real");
+  assert.match(
+    assemblePrompt(audit, "low-value-comments", "/p.diff").text,
+    /newLink: \.\.\/skills\/real/,
+  );
+});

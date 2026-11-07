@@ -16,7 +16,7 @@ Absolute or `./`-prefixed finding paths inside the repository are normalized
 before schema validation; other paths remain invalid. Old evidence uses the old path
 (including rename sources); new evidence uses the new path. Excluded paths,
 binaries and gitlinks cannot supply source quotes. Missing Git objects are
-unavailable evidence, never an empty source file.
+unavailable evidence, never an empty source file. A symbolic link (mode `120000`) is cited at its own path as line 1 of its target text; quotes validate against that blob, not the target.
 
 Each unsupported finding is rejected separately, with its one-based index and
 reason available in `report --full`. Valid neighbors survive. If every finding
