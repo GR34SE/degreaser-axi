@@ -194,7 +194,7 @@ export async function init(
     skillInstall = selected.skillInstall;
     choices = selected.choices;
   } else {
-    choices = await catalog(repository);
+    choices = await catalog(repository, agent ? [agent] : agents);
   }
   const matchesFlags = (candidate: Identity) =>
     (!agent || candidate.agent === agent) &&
