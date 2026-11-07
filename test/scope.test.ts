@@ -3,13 +3,16 @@ import { spawnSync } from "node:child_process";
 import {
   chmodSync,
   existsSync,
+  mkdtempSync,
   readdirSync,
   readFileSync,
   renameSync,
   rmSync,
   statSync,
   utimesSync,
+  writeFileSync,
 } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { prepareReview } from "../src/input.ts";
@@ -470,8 +473,9 @@ for (const fails of [false, true]) {
     f.git("config", "splitIndex.sharedIndexExpire", "now");
     f.git("update-index", "--split-index");
     f.write("source", "final contents\n");
-    // Invalid patch text fails resolution after Git has written the tree.
-    f.write("new", fails ? Buffer.from([0xe9, 0x0a]) : "untracked contents\n");
+    // An invalid diff setting fails resolution after Git has written the tree.
+    if (fails) f.git("config", "diff.renames", "invalid");
+    f.write("new", "untracked contents\n");
     const sharedFiles = () =>
       readdirSync(join(f.root, ".git"))
         .filter((name) => name.startsWith("sharedindex."))
@@ -496,7 +500,7 @@ for (const fails of [false, true]) {
     if (fails) {
       assert.throws(() => prepareReview(request, f.root), {
         name: "InputError",
-        message: /non-UTF-8/,
+        message: /Git diff failed/,
       });
     } else {
       const result = prepareReview(request, f.root);
@@ -556,10 +560,90 @@ test("literal exclusion directories cannot inject pathspecs and renames crossing
   assert.doesNotMatch(r.patch ?? "", /not assessed|generated/);
 });
 
-test("non-UTF-8 source is refused rather than persisting replacement characters", (t) => {
+test("non-UTF-8 file contents are omitted like binary while other files stay covered", (t) => {
   const f = fixture(t);
-  f.write("legacy", Buffer.from([0xe9, 0x0a]));
-  assert.throws(() => prepareReview(request, f.root), /UTF-8/);
+  f.write("legacy", Buffer.from("caf\xe9\n", "latin1"));
+  f.write("a-text", "old\n");
+  f.git("add", ".");
+  f.git("commit", "--no-gpg-sign", "-m", "Base");
+  f.write("legacy", Buffer.from("na\xefve\n", "latin1"));
+  f.write("a-text", "new\n");
+  f.write("z-latin", Buffer.from([0xe9, 0x0a]));
+  const r = prepareReview(request, f.root);
+  assert.equal(r.status, "ready");
+  assert.deepEqual(
+    r.paths.map((p) => [p.path, p.binary]),
+    [
+      ["a-text", false],
+      ["legacy", true],
+      ["z-latin", true],
+    ],
+  );
+  assert.match(r.patch ?? "", /\+new/);
+  assert.match(r.patch ?? "", /Binary files a\/legacy and b\/legacy differ/);
+  assert.doesNotMatch(r.patch ?? "", /�|caf|na.ve/);
+  assert.deepEqual(r.limitations.find((l) => l.code === "non-utf8")?.paths, [
+    "legacy",
+    "z-latin",
+  ]);
+  assert.equal(
+    r.limitations.some((l) => l.code === "binary"),
+    false,
+  );
+});
+
+test("built-in exclusions cover generated directories, not files with those names", (t) => {
+  const f = fixture(t);
+  for (const path of [
+    "scripts/build",
+    "internal/dist",
+    "docs/coverage",
+    "build/out.js",
+    "a/dist/b/c.js",
+    "node_modules/x/index.js",
+  ])
+    f.write(path, "content\n");
+  const r = prepareReview(request, f.root);
+  assert.deepEqual(
+    r.paths.map((p) => p.path),
+    ["docs/coverage", "internal/dist", "scripts/build"],
+  );
+  assert.deepEqual([...r.excludedPaths].sort(), [
+    "a/dist/b/c.js",
+    "build/out.js",
+    "node_modules/x/index.js",
+  ]);
+});
+
+test("scope resolution adds the tree with one recursive pathspec, not one per file", (t) => {
+  const f = fixture(t);
+  for (let i = 0; i < 300; i++) f.write(`pkg/f${i}.txt`, `${i}\n`);
+  f.git("add", ".");
+  f.git("commit", "--no-gpg-sign", "-m", "Many files");
+  f.write("pkg/f1.txt", "changed\n");
+  f.write("pkg/new.txt", "new\n");
+  const bin = mkdtempSync(join(tmpdir(), "degreaser-gitshim-"));
+  t.after(() => rmSync(bin, { recursive: true, force: true }));
+  const real = spawnSync("which", ["git"], { encoding: "utf8" }).stdout.trim();
+  const log = join(bin, "add.log");
+  writeFileSync(
+    join(bin, "git"),
+    `#!/bin/sh\ncase " $* " in *" add "*) echo "$*" >> '${log}'; esac\nexec '${real}' "$@"\n`,
+    { mode: 0o755 },
+  );
+  const previous = process.env.PATH;
+  process.env.PATH = `${bin}:${previous}`;
+  t.after(() => {
+    process.env.PATH = previous;
+  });
+  const r = prepareReview(request, f.root);
+  assert.deepEqual(
+    r.paths.map((p) => p.path),
+    ["pkg/f1.txt", "pkg/new.txt"],
+  );
+  const adds = readFileSync(log, "utf8").trim().split("\n");
+  assert.equal(adds.length, 1, adds.join("\n"));
+  assert.match(adds[0] ?? "", / add -A -- :\(top\)$/);
 });
 
 test("Git hooks, filesystem monitors and text converters cannot run during resolution", (t) => {
