@@ -167,13 +167,11 @@ export function prepareReview(args: string[], cwd: string) {
     config.exclude,
     request.pathPatterns,
   );
-  if (
-    request.scope === "repository" &&
-    request.pathPatterns.length &&
-    !scope.paths.length
-  )
+  if (request.pathPatterns.length && !scope.paths.length)
     throw new InputError(
-      `No assessable repository files match --path ${request.pathPatterns.join(", ")} after exclusions; no review was started.`,
+      request.scope === "repository"
+        ? `No assessable repository files match --path ${request.pathPatterns.join(", ")} after exclusions; no review was started.`
+        : `No changed assessable file matches --path ${request.pathPatterns.join(", ")} in ${request.scope} scope (after exclusions); check for typos or run without --path. No review was started.`,
     );
   const noChanges = request.scope !== "repository" && scope.paths.length === 0;
   const dismissed = relevantDismissals(repository, scope.paths);
