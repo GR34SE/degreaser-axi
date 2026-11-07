@@ -22,7 +22,6 @@ jobs:
     timeout-minutes: 3
     outputs:
       scope: ${{ steps.plan.outputs.scope }}
-      matrix: ${{ steps.plan.outputs.matrix }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
@@ -39,14 +38,40 @@ jobs:
           CI_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: node scripts/ci-plan.ts
 
-  validate:
-    name: macOS ${{ matrix.lane }} ${{ matrix.shard }}
+  # CI_LINUX_RUNNER and CI_MACOS_RUNNER repository variables may name
+  # self-hosted runner labels; unset, jobs use GitHub-hosted runners. Each PR
+  # takes one macOS job, because macOS hosts run at most two VMs. Dependabot
+  # PRs run third-party updates, so they always use GitHub-hosted runners.
+  static:
+    name: Linux static
+    runs-on: ${{ github.actor != 'dependabot[bot]' && vars.CI_LINUX_RUNNER || 'ubuntu-24.04' }}
+    timeout-minutes: 10
+    env:
+      CI: "true"
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          run_install: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "24.21.0"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install locked dependencies without lifecycle scripts
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Build and check generated-skill drift
+        run: pnpm build
+      - name: Typecheck and lint
+        run: pnpm typecheck && pnpm lint
+
+  macos:
+    name: macOS runtime
     needs: plan
-    runs-on: macos-15
-    timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    runs-on: ${{ github.actor != 'dependabot[bot]' && vars.CI_MACOS_RUNNER || 'macos-15' }}
+    timeout-minutes: 25
     env:
       CI: "true"
     steps:
@@ -54,13 +79,13 @@ jobs:
         with:
           persist-credentials: false
       - name: Set up minimum Node for full acceptance
-        if: matrix.lane == 'package' && github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request'
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: "24.0.0"
           package-manager-cache: false
       - name: Retain minimum Node path
-        if: matrix.lane == 'package' && github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request'
         run: echo "DEGREASER_NODE24_MIN=$(node -p process.execPath)" >> "$GITHUB_ENV"
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
@@ -81,35 +106,33 @@ jobs:
           fi
       - name: Install locked dependencies without lifecycle scripts
         run: pnpm install --frozen-lockfile --ignore-scripts
-      - name: Build once for this lane
+      - id: build
+        name: Build once for this job
         run: pnpm build
-      - name: Typecheck and lint
-        if: matrix.lane == 'static'
-        run: pnpm typecheck && pnpm lint
       - name: Documentation contracts
-        if: matrix.lane == 'tests' && needs.plan.outputs.scope == 'documentation'
-        run: node --test --test-concurrency=2 test/documentation.test.ts
-      - name: Runtime regression shard
-        if: matrix.lane == 'tests' && needs.plan.outputs.scope == 'full'
-        env:
-          TEST_SHARD: ${{ matrix.shard }}
-        run: node --test --test-concurrency=2 --test-shard="$TEST_SHARD" test/*.test.ts
+        if: needs.plan.outputs.scope == 'documentation'
+        run: node --test --test-concurrency=4 test/documentation.test.ts
+      - name: Runtime regression suite
+        if: needs.plan.outputs.scope == 'full'
+        run: node --test --test-concurrency=4 test/*.test.ts
+      # Run after a test failure too, so one PR run reports both results.
       - name: Installed package on current Node (PR)
-        if: matrix.lane == 'package' && github.event_name == 'pull_request'
+        if: ${{ !cancelled() && steps.build.outcome == 'success' && github.event_name == 'pull_request' }}
         run: node scripts/package-check.ts --current-node-only
       - name: Installed package on minimum and current Node (full acceptance)
-        if: matrix.lane == 'package' && github.event_name != 'pull_request'
+        if: ${{ !cancelled() && steps.build.outcome == 'success' && github.event_name != 'pull_request' }}
         run: node scripts/package-check.ts
 
   check:
     name: macOS deterministic
     if: always()
-    needs: [plan, validate]
+    needs: [plan, static, macos]
     runs-on: ubuntu-24.04
     timeout-minutes: 1
     steps:
-      - name: Require every selected lane to pass
+      - name: Require every selected job to pass
         env:
           PLAN_RESULT: ${{ needs.plan.result }}
-          VALIDATE_RESULT: ${{ needs.validate.result }}
-        run: test "$PLAN_RESULT" = success && test "$VALIDATE_RESULT" = success
+          STATIC_RESULT: ${{ needs.static.result }}
+          MACOS_RESULT: ${{ needs.macos.result }}
+        run: test "$PLAN_RESULT" = success && test "$STATIC_RESULT" = success && test "$MACOS_RESULT" = success
