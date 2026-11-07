@@ -128,8 +128,13 @@ export async function ownRun(
   /** Inspection failures are transient; only worker launch requires fresh identities. */
   const persist = (verify = false) => {
     if (persistenceError) throw persistenceError;
-    if (verify || !run.owner) run.owner = captureOwner(run.owner);
-    else {
+    if (verify || !run.owner) {
+      try {
+        run.owner = captureOwner(run.owner);
+      } catch (error) {
+        throw fail(error, "Owner process identities could not be captured.");
+      }
+    } else {
       try {
         run.owner = captureOwner(run.owner);
       } catch (error) {
@@ -283,7 +288,7 @@ export async function ownRun(
               onActivity: () => {
                 record.lastActivityAt = Date.now();
               },
-              onLifecycle: () => persist(true),
+              onLifecycle: (event) => persist(event.type === "spawn"),
               onSessionReady: (id) => {
                 record.sessionId = id;
                 persist();
@@ -479,13 +484,6 @@ export async function ownRun(
     await Promise.allSettled(active);
     clearInterval(heartbeat);
     clearTimeout(deadline);
-    // A finished run keeps no process identities that the OS may later reuse.
-    if (!persistenceError && run.status !== "running" && run.owner) {
-      try {
-        run.owner = { ...run.owner, processes: [] };
-        saveRun(run);
-      } catch {}
-    }
     process.off("SIGTERM", stop);
     process.off("SIGINT", stop);
     unlockOwner();

@@ -147,7 +147,7 @@ export function ownerReleased(run: Run) {
     !existsSync(statePath(run.repository, "runs", run.id, "owner.lock"))
   );
 }
-/** Released owners record no workers; older records that still list some are verified. */
+/** Released owners record only workers still alive at release; any listed are verified. */
 export const needsCleanup = (run: Run) =>
   !ownerReleased(run) || Boolean(run.owner?.processes?.length);
 

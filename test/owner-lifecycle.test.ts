@@ -18,7 +18,7 @@ const incomplete = (aspect: string) => ({
   examinedPaths: [],
 });
 
-test("a terminal owner record keeps no process identities, so recycled PIDs cannot block resume", async (t) => {
+test("a terminal owner record keeps no exited process identities, so recycled PIDs cannot block resume", async (t) => {
   const f = queueFixture(t);
   f.setPlan({
     workers: {
@@ -97,6 +97,39 @@ test("a failing process inspection during heartbeats does not strand the run", a
   f.release("finish");
   assert.equal(f.finish().status, 0);
   assert.equal(f.state().status, "completed");
+});
+
+test("a failing process inspection at worker lifecycle stops admission and records the cause", async (t) => {
+  const f = queueFixture(t);
+  const marker = f.gate("ps-fault");
+  f.setPlan({
+    workers: { "masked-errors": { resultGate: f.gate("finish") } },
+  });
+  const first = f.launch(
+    [
+      "review",
+      "--scope",
+      "worktree",
+      "--task",
+      "Update source",
+      "--aspects",
+      "masked-errors,low-value-comments",
+      "--concurrency",
+      "1",
+      "--wait",
+      "1",
+    ],
+    { imports: [psFault], env: { SYNTHETIC_PS_FAULT: marker } },
+  );
+  await once(first, "exit");
+  await until(() => f.events().length === 1, "First worker prompt starts");
+  f.release("ps-fault");
+  f.release("finish");
+  assert.equal(f.finish().status, 1);
+  const run = f.state();
+  assert.equal(run.executions?.at(-1)?.failure?.code, "owner-unverified");
+  assert.equal(f.events().length, 1, "No further worker is launched");
+  assert.notEqual(run.status, "completed");
 });
 
 test("a repository audit where every worker fails is failed, not partial", (t) => {
