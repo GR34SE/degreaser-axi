@@ -53,10 +53,10 @@ In a terminal, Space selects agents and Enter confirms. Init detects Codex, Clau
 
 Every init, including reinit, needs you to confirm or change the model. An existing RC prefills the last choice. Otherwise init recommends a small model from the catalogs your harnesses advertise at that moment: Claude Haiku first, then Codex Luna, then another small model. A newer Haiku or Luna is matched by name, with no Degreaser update. Without a terminal, missing decisions return `decision-required` (exit 2) with exact candidates and example commands, and write nothing. After the user chooses, pass `--agent`, `--model` and `--harnesses`. The existing RC is not consent for a later invocation.
 
-`--agent` is the reviewer harness; `--harnesses` are caller integrations. Pick only the ones you use.
+`--agent` is the reviewer harness; `--harnesses` are caller integrations. Pick only the ones you use. `--model` is that harness's exact catalog ID. Cursor puts parameter brackets in the ID, so quote it:
 
 ```sh
-degreaser-axi init --agent cursor --model composer-2.5-fast --harnesses cursor,codex,claude,pi
+degreaser-axi init --agent cursor --model 'composer-2.5[fast=true]' --harnesses cursor,codex,claude,pi
 ```
 
 Init reads native catalogs without inference. The non-interactive response includes credential sources, not private account identities. Catalog entries do not guarantee later provider availability. Invalid choices or failed discovery never silently pick a replacement.
