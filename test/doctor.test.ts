@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
 import test from "node:test";
@@ -294,4 +300,22 @@ test("actual native Codex read-only sandbox refuses review but permits local hom
     assert.equal(result.status, 0, result.stdout + result.stderr);
     assert.match(result.stdout, /gpt-6-luna/);
   }
+});
+
+test("doctor before init reports the missing RC, native versions and integrations", (t) => {
+  const f = fixture(t);
+  rmSync(join(f.root, ".degreaserrc.json"));
+  const result = spawnSync(process.execPath, [cli, "doctor"], {
+    cwd: f.root,
+    encoding: "utf8",
+    timeout: 15000,
+    env: { HOME: f.root, PATH: `/usr/bin:/bin` },
+  });
+  assert.doesNotMatch(result.stdout, /must exist/);
+  assert.match(result.stdout, /configuration: missing/);
+  assert.match(result.stdout, /degreaser-axi init/);
+  assert.match(result.stdout, /integrations/);
+  assert.match(result.stdout, /supportedNativeVersion/);
+  assert.ok(!existsSync(join(f.root, ".degreaserrc.json")));
+  assert.ok(!existsSync(join(f.root, ".degreaser")));
 });
