@@ -2,52 +2,68 @@
 
 `low-value-comments` · default ON
 
-**Question:** Does the added comment explain a reason, constraint or knowledge not visible in the code?
+**Question:** Would removing this comment lose a specific reason, constraint, contract or trap that names, types and nearby code do not convey?
 
 **Applies when:** The change adds or edits comments or docstrings. Otherwise return not-applicable.
 
-**Evidence:** Quote the comment and surrounding code. Check repository and language documentation conventions, whether the symbol is public, and what knowledge the comment adds.
+**Evidence:** Quote the comment and surrounding code. State what the comment adds beyond the symbol name, signature and visible statements. Check repository and language documentation conventions, and whether the symbol is part of a real public contract. Name the wrong maintenance decision the comment would prevent or the contract that would be lost; if you cannot, the comment is a candidate.
 
-**Boundaries:** Preserve rationale, security information, public API documentation and required headers. A comment required by a language or repository convention, such as documentation of an exported Go name, stays even if it repeats the name.
+**Boundaries:** Preserve a comment whose removal would lose a rationale, a hidden constraint (ordering, concurrency, external-library or vendor behavior), a security fact, a real contract such as thrown errors or units, or a documentation obligation set by the language, a linter or repository docs, including required headers and tool directives. Being exported, written as JSDoc, long, or mentioning security is not enough; an export inside an internal module is not a public API unless the repository says so. Describing what the code visibly does, restating a name or signature, or narrating a sequence of steps is not rationale. When one useful fact is buried in narration, report the comment and recommend keeping only that fact.
 
 **Not here (another reviewer):**
 - Comments suppressing type checking or lint rules, such as @ts-ignore, # type: ignore or eslint-disable: contract-bypass.
 
 Teaching excerpts; context states omitted setup. These have not been executed as programs or model evaluations.
 
+Sources / inspiration: S01. Teaching excerpts; context states omitted setup. These have not been executed as programs or model evaluations.
+
 ## low-value-comments-B1 · REPORT
 
-**Context:** The repository does not require narrative comments on obvious statements.
+**Context:** The repository has no comment convention. The function is short and its steps are visible.
 
 ```typescript
-// Increase count by one.
-count += 1;
+// First we check whether the session has expired. If it has, we remove it
+// from the store. Finally we return whether a session is still active.
+function pruneSession(id: string): boolean {
+  if (store.get(id)!.expiresAt < clock.now()) store.delete(id);
+  return store.has(id);
+}
 ```
 
-**Why:** The comment repeats the visible operation without explaining a reason or constraint.
+**Why:** The comment narrates the three visible statements in order. It gives no reason, constraint or contract, and it will drift when the code changes.
 
 ## low-value-comments-B2 · REPORT
 
-**Context:** The function is private to the module, and the repository does not require docstrings. Its name describes the read; the comment adds no contract or special condition.
+**Context:** `formatPrice` is exported from an internal module that no package entry point re-exports. No linter rule or repository document requires doc comments there.
 
-```python
-# This function gets the user.
-def get_user(user_id):
-    return users.get(user_id)
+```typescript
+/**
+ * Formats a price.
+ * @param cents - The price in cents.
+ * @param currency - The currency.
+ * @returns The formatted price.
+ */
+export function formatPrice(cents: number, currency: string): string {
+  return new Intl.NumberFormat("en", { style: "currency", currency }).format(cents / 100);
+}
 ```
 
-**Why:** The information adds nothing to the name and single statement. Public API or required documentation conventions would reverse the verdict; see G3.
+**Why:** Every line repeats the name or the parameter types. Export and JSDoc form are not a documented contract. Public API documentation, or a stated rule requiring it, would reverse the verdict; see G3.
 
 ## low-value-comments-B3 · REPORT
 
-**Context:** The comment comes from generation narration rather than a program requirement.
+**Context:** The comment is long, but one sentence holds a constraint the code does not show. The rest paraphrases the body.
 
 ```typescript
-// Now we gracefully handle the data in a robust way.
-const result = parse(input);
+// This helper turns a record into a row for the export. It copies the id and
+// the name, formats the date and returns the row. The finance system rejects
+// rows whose date is not zero-padded ISO 8601, so keep toISOString.
+function toRow(r: Record): Row {
+  return { id: r.id, name: r.name, date: r.date.toISOString() };
+}
 ```
 
-**Why:** A generic quality claim explains neither behavior nor risk. It makes important notes harder to distinguish from filler.
+**Why:** The paraphrase adds nothing and hides the external-system constraint. Report it and recommend keeping only the sentence about the date format, not removing the whole comment.
 
 ## low-value-comments-G1 · PRESERVE
 
@@ -62,7 +78,7 @@ const batchSize = 50;
 
 ## low-value-comments-G2 · PRESERVE
 
-**Context:** Resource shutdown order matters but cannot easily be inferred from method names alone.
+**Context:** Resource shutdown order is a concurrency and data-loss trap that cannot easily be inferred from method names alone.
 
 ```go
 // Drain before closing the socket so acknowledged messages are not lost.
