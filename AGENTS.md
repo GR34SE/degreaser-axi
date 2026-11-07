@@ -53,7 +53,7 @@ For product intent, start from `specs/README.md` and `specs/pending/degreaser.md
 
 ## Change and validation workflow
 
-- Inspect Git root, branch, HEAD, staged/unstaged changes and any active delivery pipeline first. Preserve other work and configured authorship. If another session may commit here, use a separate worktree before changing the shared index. New manual worktrees belong under `/Users/adriancelczynski/worktrees/manual/<owner-repo>/<task-id>`; use an already assigned worktree and leave tool-managed worktrees with their owner.
+- Inspect Git root, branch, HEAD, staged/unstaged changes and any active delivery pipeline first. Preserve other work and configured authorship. If another session may commit here, use a separate worktree before changing the shared index. New manual worktrees belong outside this checkout, one per task; use an already assigned worktree and leave tool-managed worktrees with their owner.
 - Choose the smallest complete change. Keep strict NodeNext/erasable TypeScript, exact dependency and pnpm pins, disabled lifecycle scripts and existing package-age policy. Never weaken global security settings or automatically approve dependency skills.
 - For behavior changes, first demonstrate a meaningful failing case. Prefer public CLI/process boundaries and real disposable Git repositories with independent expectations. Synthetic adapters test orchestration, not model quality or native compatibility. Source assertions cannot prove model interpretation.
 - For **changes limited to `.md` files, skip `no-mistakes`**. Review the diff, referenced paths, commands and consistency with source/contracts; run only checks relevant to changed content. Markdown prompts, rubrics and generated product guidance still require their applicable validation. Do not run the full code pipeline merely because prose changed. This supersedes older blanket requirements in specs/skill indexes, but preserves required CI and branch protection.
@@ -74,17 +74,23 @@ For product intent, start from `specs/README.md` and `specs/pending/degreaser.md
 
 Live tests require synthetic code, confirmed models and a fresh quota check, without paid API fallback. Stop only owned processes. No model credentials/logins in CI. Required hosted check: **macOS deterministic**; local success does not replace it.
 
+CI runs build, typecheck and lint in one Linux job, and runtime tests plus
+installed-package QA in one macOS job; keep each PR to one macOS job. Repository
+variables `CI_LINUX_RUNNER` / `CI_MACOS_RUNNER` may name self-hosted runner
+labels; unset, jobs use GitHub-hosted runners. Fork PRs always use
+GitHub-hosted runners. Never commit
+machine names, local paths or other private infrastructure details.
 CI selects documentation contracts only for PRs changing root `README.md` and/or
 `AGENTS.md`; static checks and current-Node installed-package QA still run.
-Any other path, empty diff or unavailable history runs all tests in four macOS
-shards, concurrency 2 per shard. Keep the allowlist conservative; assets,
-guidance, dependencies and workflow changes require full coverage. All selected
-lanes must pass the aggregate; failure, cancellation or skipping cannot pass.
+Any other path, empty diff or unavailable history runs all tests, concurrency 4.
+Keep the allowlist conservative; assets, guidance, dependencies and workflow
+changes require full coverage. All jobs must pass the aggregate; failure,
+cancellation or skipping cannot pass.
 Every push to main, nightly schedule and manual dispatch runs the full suite
 and installed-package QA on minimum Node 24.0.0 plus pinned current Node 24.
 PRs defer only minimum-runtime acceptance. `pnpm check` and release preparation
 retain both runtimes by default. CI caches the pnpm store by lockfile and builds
-once per lane. Release output: external/ignored, existing parent, new destination; review notes before sharing.
+once per job. Release output: external/ignored, existing parent, new destination; review notes before sharing.
 
 ### Dependency and release automation
 

@@ -22,18 +22,6 @@ if (
       scope = "documentation";
   }
 }
-const matrix = {
-  include: [
-    { lane: "static", shard: "1/1" },
-    { lane: "package", shard: "1/1" },
-    ...(scope === "documentation" ? ["1/1"] : ["1/4", "2/4", "3/4", "4/4"]).map(
-      (shard) => ({ lane: "tests", shard }),
-    ),
-  ],
-};
-console.log(JSON.stringify({ scope, matrix }));
+console.log(JSON.stringify({ scope }));
 if (process.env.GITHUB_OUTPUT)
-  appendFileSync(
-    process.env.GITHUB_OUTPUT,
-    `scope=${scope}\nmatrix=${JSON.stringify(matrix)}\n`,
-  );
+  appendFileSync(process.env.GITHUB_OUTPUT, `scope=${scope}\n`);
