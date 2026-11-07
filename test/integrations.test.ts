@@ -419,3 +419,26 @@ test("Claude's skill can link to the shared .agents copy and switch back to a co
   ]);
   assert.equal(alone.status, 2, alone.stdout);
 });
+
+test("hooks use the bare command when PATH resolves to this install, including pnpm shims", (t) => {
+  const bin = mkdtempSync(join(tmpdir(), "degreaser-path-"));
+  t.after(() => rmSync(bin, { recursive: true, force: true }));
+  const command = (path: string) =>
+    spawnSync(
+      process.execPath,
+      [
+        "--input-type=module",
+        "-e",
+        `const m = await import(${JSON.stringify(new URL("../dist/src/integration-targets.js", import.meta.url).href)}); console.log(m.hookSpec.command);`,
+      ],
+      { encoding: "utf8", env: { ...process.env, PATH: path } },
+    ).stdout;
+  assert.match(command(bin), /node' '.*degreaser-axi\.js' startup-context/);
+  writeFileSync(
+    join(bin, "degreaser-axi"),
+    `#!/bin/sh\nexec node "$0" "$@"\n# cmd-shim-target=${cli}\n`,
+    { mode: 0o755 },
+  );
+  assert.match(command(bin), /then 'degreaser-axi' startup-context /);
+  assert.match(command(`.:${bin.replace(/^\//, "")}`), /node' '/);
+});

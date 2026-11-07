@@ -42,6 +42,17 @@ const realPath = (path: string) => {
     return undefined;
   }
 };
+/** pnpm global bins are sh shims naming their target; the SDK parses only npm shims. */
+function pnpmShimTarget(path: string) {
+  try {
+    const target = /^# cmd-shim-target=(.+)$/m.exec(
+      readFileSync(path, "utf8").slice(0, 65_536),
+    )?.[1];
+    return target ? realPath(target) : undefined;
+  } catch {
+    return undefined;
+  }
+}
 /** The bare command when PATH resolves to this install (AXI section 7), else absolute. */
 const portable = resolvePortableHookCommand(
   bin,
@@ -52,6 +63,7 @@ const portable = resolvePortableHookCommand(
     pathEntries: (process.env.PATH ?? "").split(delimiter).filter(isAbsolute),
     pathExtensions: [""],
     resolveRealPath: realPath,
+    resolveShimTarget: pnpmShimTarget,
   },
 );
 const executable = portable === bin ? [process.execPath, bin] : [portable];
