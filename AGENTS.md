@@ -4,7 +4,7 @@
 
 Degreaser is a local CLI for coding agents to review their work for unjustified complexity, broken contracts and misleading verification. The caller supplies the task and change scope; Degreaser sends each enabled review aspect to a fresh, isolated, read-only worker through acpx. Workers return source evidence. The caller evaluates the findings and makes edits. Degreaser does not fix code or detect AI authorship.
 
-Implemented package: ESM TypeScript, macOS, Node 24+, Codex/Claude Code/Pi workers and onboarding. `package.json` remains private; npm publication is not authorized. Planned support is not shipped support. Public product text, CLI output, prompts and skills are English.
+Implemented package: ESM TypeScript, macOS, Node 24+, Codex/Claude Code/Pi/Cursor workers and onboarding. `package.json` remains private; npm publication is not authorized. Planned support is not shipped support. Public product text, CLI output, prompts and skills are English.
 
 ### Behavior to preserve
 
@@ -24,7 +24,7 @@ Exit codes describe completeness, not whether findings exist: **0** completed/no
 
 One harness selection installs its startup hook/native equivalent and product skill together. Default installation scope is the project; user-wide installation is explicit. Init saves `.degreaserrc.json` and adds `/.degreaser/` to the root `.gitignore`, preserving unrelated content. `config sync` fills missing defaults; `setup hooks` repairs/removes owned integrations. Startup context only reads local state; it never starts models, resumes work or fetches packages.
 
-Do not change global permissions, trust, Codex rules or unselected harnesses. Do not use the AXI bulk installer. A restricted caller uses host-supported per-command approval or reports the actual block. Test installations only in disposable projects/homes. `doctor` checks local configuration/capabilities; it does not prove login, model access or delivery of startup context.
+Do not change global permissions, trust, Codex rules or unselected harnesses. Do not use the AXI bulk installer. A restricted caller uses host-supported per-command approval or reports the actual block. Test installations only in disposable projects/homes. The CLI works across Codex, Claude, Pi and Cursor without caller configuration. `doctor` checks local configuration/capabilities; it does not prove login, model access or delivery of startup context.
 
 Outside v1: custom rubrics, automatic apply, model judge, semantic finding merges, custom diff parser, per-review worktree/snapshot, daemon, hosted queue or benchmark platform. Use Git, public `acpx/runtime`, AXI routing/TOON, Ajv and Node built-ins before inventing infrastructure. Effect is not this package's required stack.
 

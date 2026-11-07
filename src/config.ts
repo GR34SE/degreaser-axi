@@ -3,7 +3,11 @@ import { join } from "node:path";
 import { Ajv } from "ajv";
 import { InputError } from "./input-error.ts";
 
-export type Agent = "codex" | "claude" | "pi";
+export const AGENTS = ["codex", "claude", "pi", "cursor"] as const;
+export type Agent = (typeof AGENTS)[number];
+export function isAgent(value: string): value is Agent {
+  return (AGENTS as readonly string[]).includes(value);
+}
 export const ASPECT_IDS = [
   "missed-reuse",
   "unnecessary-layers",

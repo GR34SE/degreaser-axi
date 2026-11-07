@@ -182,7 +182,7 @@ try {
     "setup",
     "hooks",
     "--harnesses",
-    "codex,claude,pi",
+    "codex,claude,pi,cursor",
     "--installation-scope",
     "user",
   ]);

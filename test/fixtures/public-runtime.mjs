@@ -13,7 +13,7 @@ registerHooks({
       shortCircuit: true,
       source: `
       const synthetic = ["Synthetic external adapter; not a live provider result."];
-export const PROFILE_LIMITATIONS = {codex: synthetic, claude: synthetic, pi: synthetic};
+export const PROFILE_LIMITATIONS = {codex: synthetic, claude: synthetic, pi: synthetic, cursor: synthetic};
       export async function nativeProfile(identity, purpose = "review", signal) {
         const {readFileSync} = await import("node:fs");
         const {setTimeout} = await import("node:timers/promises");

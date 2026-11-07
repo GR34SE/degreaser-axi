@@ -54,7 +54,7 @@
   },
   "allOf": [{ "$ref": "#/definitions/piIdentity" }],
   "definitions": {
-    "agent": { "enum": ["codex", "claude", "pi"] },
+    "agent": { "enum": ["codex", "claude", "pi", "cursor"] },
     "model": { "type": "string", "pattern": "^\\S+$" },
     "positiveInteger": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
     "seconds": { "type": "integer", "minimum": 1, "maximum": 2147483 },

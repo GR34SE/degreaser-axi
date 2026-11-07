@@ -557,7 +557,7 @@ for (const useful of [false, true]) {
 }
 
 test("runtime passes supported maxTurns and reports unsupported enforcement in the result", (t) => {
-  for (const agent of ["claude", "codex", "pi"] as const) {
+  for (const agent of ["claude", "codex", "pi", "cursor"] as const) {
     const f = queueFixture(t, {
       agent,
       model:
@@ -565,7 +565,9 @@ test("runtime passes supported maxTurns and reports unsupported enforcement in t
           ? "claude-haiku-4-5-20251001"
           : agent === "pi"
             ? "openai/gpt-6-luna"
-            : "gpt-6-luna",
+            : agent === "cursor"
+              ? "composer-2.5-fast"
+              : "gpt-6-luna",
       limits: { maxTurns: 3, workerTimeoutSeconds: 10, runTimeoutSeconds: 20 },
     });
     f.start(["--aspects", "low-value-comments"]);

@@ -33,6 +33,6 @@ await cp(new URL("assets/", root), new URL("dist/assets/", root), {
   recursive: true,
 });
 await chmod(new URL("dist/bin/degreaser-axi.js", root), 0o755);
-for (const agent of ["codex", "claude", "pi"]) {
+for (const agent of ["codex", "claude", "pi", "cursor"]) {
   await chmod(new URL(`dist/bin/${agent}-worker.js`, root), 0o755);
 }
