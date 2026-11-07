@@ -26,8 +26,8 @@ import {
   integrationTarget,
   skillInstallChoice,
 } from "./integration-targets.ts";
+import { assertNotWorker } from "./native-environment.ts";
 import { hash } from "./prompt.ts";
-import { StateError } from "./storage.ts";
 
 export interface Receipt {
   schemaVersion: 1;
@@ -179,6 +179,15 @@ function planClaudeSkill(
     receipt.files[dir]?.hash === hash(`symlink:${current}`) &&
     receipt.files[dir]?.owners.includes("claude");
   if (options.remove || !options.link) {
+    // Claude no longer reads the shared copy through a link.
+    const sharedOwner = receipt.files[shared];
+    if (sharedOwner?.owners.includes("claude")) {
+      sharedOwner.owners = sharedOwner.owners.filter((o) => o !== "claude");
+      if (!sharedOwner.owners.length) {
+        delete receipt.files[shared];
+        edits.set(shared, null);
+      }
+    }
     if (!isLink) return { skipFile: false, fileBelowRemovedLink: false };
     if (!ownedLink && !options.replace.has(dir)) conflict(dir, !options.remove);
     edits.link(dir, null);
@@ -308,6 +317,10 @@ export function prepareIntegrations(
         : target.activation,
     });
   }
+  // A linked Claude skill keeps the shared copy alive until Claude is removed.
+  const sharedOwner = receipt.files[shared];
+  if (link && !remove && sharedOwner && !sharedOwner.owners.includes("claude"))
+    sharedOwner.owners = [...sharedOwner.owners, "claude" as const].sort();
   if (Object.keys(receipt.files).length || Object.keys(receipt.hooks).length)
     edits.set(path, json(receipt));
   else if (original !== null) edits.set(path, null);
@@ -318,11 +331,7 @@ export function setupIntegrations(
   values: Record<string, unknown>,
   cwd: string,
 ) {
-  if (process.env.DEGREASER_WORKER)
-    throw new StateError(
-      "nested-review",
-      "Workers cannot install Degreaser integrations.",
-    );
+  assertNotWorker("install Degreaser integrations");
   const { harnesses, scope } = installationChoices(values);
   const repository = repositoryRoot(cwd);
   const plan = prepareIntegrations(repository, harnesses, scope, {

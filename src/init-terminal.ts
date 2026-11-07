@@ -63,7 +63,7 @@ export async function configureTerminal(
     if (!targets.length)
       throw new StateError(
         "environment-blocked",
-        "No supported harnesses found in PATH.",
+        "No supported agent CLI (codex, claude or pi) found in PATH. Install and log in to one, then rerun degreaser-axi init.",
       );
     intro("Degreaser", terminal);
     const harnesses = answered(
@@ -118,7 +118,10 @@ export async function configureTerminal(
       if (!result.candidates.length)
         throw new StateError(
           "environment-blocked",
-          `${names[agent]} returned no models. Log in to it or choose another agent, then rerun degreaser init.`,
+          `${names[agent]} is unavailable: ${
+            result.discovery.find((d) => d.agent === agent)?.reason ??
+            "it returned no models."
+          } Choose another agent or fix this, then rerun degreaser-axi init.`,
         );
       return result;
     };

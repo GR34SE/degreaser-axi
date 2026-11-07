@@ -382,7 +382,7 @@ test("TTY absence of harnesses is a short error without discovery or writes", (t
   const before = f.unchanged();
   const result = f.run([], []);
   assert.equal(result.status, 2, result.stdout);
-  assert.match(result.stdout, /No supported harnesses found in PATH/);
+  assert.match(result.stdout, /No supported agent CLI .* found in PATH/);
   assert.deepEqual(f.events(), []);
   assert.deepEqual(f.unchanged(), before);
 });
@@ -430,6 +430,8 @@ test("TTY discovery failure leaves configuration untouched", (t) => {
   const result = f.run([], [integrations, project, skill, acceptAgent]);
   assert.equal(result.status, 2, result.stdout);
   assert.match(result.stdout, /environment-blocked/);
+  assert.match(result.stdout, /Codex is unavailable: /);
+  assert.doesNotMatch(result.stdout, /Log in to it/);
   assert.doesNotMatch(result.stdout, /private diagnostic/);
   assert.deepEqual(f.unchanged(), before);
 });

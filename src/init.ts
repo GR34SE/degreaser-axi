@@ -19,6 +19,7 @@ import {
 } from "./integration-targets.ts";
 import { prepareIntegrations, type SkillInstall } from "./integrations.ts";
 import { discoverModels } from "./model-discovery.ts";
+import { assertNotWorker } from "./native-environment.ts";
 import { atomicWrite, StateError } from "./storage.ts";
 
 const agents: Agent[] = ["codex", "claude", "pi"];
@@ -107,11 +108,7 @@ export async function init(
   values: Record<string, unknown>,
   cwd: string,
 ): Promise<Record<string, unknown> | string> {
-  if (process.env.DEGREASER_WORKER)
-    throw new StateError(
-      "nested-review",
-      "Workers cannot initialize Degreaser.",
-    );
+  assertNotWorker("initialize Degreaser");
   const agent =
     values.agent === undefined ? undefined : agentChoice(String(values.agent));
   const model = values.model === undefined ? undefined : String(values.model);

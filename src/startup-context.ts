@@ -28,7 +28,7 @@ export function startupContext(cwd: string): string {
   const root = git.stdout.trimEnd();
   const intro = "Degreaser reviews code changes with focused reviewers.";
   if (!existsSync(join(root, ".degreaserrc.json"))) {
-    return `${intro}\nNot configured in this repository. Use degreaser-axi --help.`;
+    return `${intro}\nNot configured in this repository; run degreaser-axi init.`;
   }
   const config = loadConfig(root);
   resolveConfig(config);
@@ -37,13 +37,10 @@ export function startupContext(cwd: string): string {
     return code < 32 || code === 127 ? " " : character;
   }).join("");
   const lines = [intro, `Review model: ${config.agent}/${model}.`];
-  const missing = missingConfigFields(config);
-  if (missing.length) {
-    const fields = missing.map(({ field, value }) => `${field}=${value}`);
+  if (missingConfigFields(config).length)
     lines.push(
-      `Missing settings use installed defaults (RC unchanged): ${fields.join(", ")}. Run degreaser-axi config sync to persist them.`,
+      "Some settings use installed defaults; degreaser-axi config sync saves them.",
     );
-  }
   try {
     const run = loadRun(root);
     lines.push(`Last run: ${run.id} (${run.status}).`);
@@ -57,6 +54,6 @@ export function startupContext(cwd: string): string {
       throw error;
     lines.push("No local run yet.");
   }
-  lines.push("Use degreaser-axi --help for review instructions.");
+  lines.push("Run degreaser-axi for review instructions and status.");
   return lines.join("\n");
 }

@@ -1,8 +1,11 @@
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import type { Agent } from "./config.ts";
-import { readIntegrationFile } from "./integration-files.ts";
+import {
+  readIntegrationFile,
+  readIntegrationLink,
+} from "./integration-files.ts";
 import {
   HOOK_MARKER,
   hookSpec,
@@ -44,6 +47,25 @@ function inspectFile(
   receipt: Receipt | undefined,
   reliable: boolean,
 ): Component {
+  const linked = receipt?.files[dirname(path)];
+  if (linked) {
+    // A Claude skill installed as a symlink to the shared .agents copy.
+    let target: string | null = null;
+    try {
+      target = readIntegrationLink(dirname(path));
+    } catch {
+      // A non-link entry at the directory is a modification.
+    }
+    return {
+      path: dirname(path),
+      status:
+        target === null
+          ? "missing"
+          : hash(`symlink:${target}`) === linked.hash
+            ? "installed"
+            : "modified",
+    };
+  }
   const { text, readable } = read(path);
   const owned = receipt?.files[path];
   let status: Status;
