@@ -547,7 +547,9 @@ test("home observes configuration and history independently and all read command
   assert.equal(home.run, run.id, "History remains readable without current RC");
   assert.equal(home.status, "completed");
   assert.equal(decode(f.run(["report"]).stdout).run, run.id);
-  assert.equal(f.run(["doctor"]).status, 2);
+  const doctor = f.run(["doctor"]);
+  assert.equal(doctor.status, 0, doctor.stdout);
+  assert.equal(decode(doctor.stdout).configuration, "missing");
   assert.deepEqual(snapshot(f.root), noConfig);
   f.write(".degreaserrc.json", "{");
   const invalid = f.run(["home"]);
