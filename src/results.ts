@@ -115,12 +115,30 @@ export function parseResult(
   } catch {
     throw new ResultError("Final result JSON is malformed.");
   }
+  omitEmptyOptionalReason(value);
   if (repository !== undefined) normalizeFindingPaths(value, repository);
   if (!validate(value))
     throw new ResultError(`Result schema: ${ajv.errorsText(validate.errors)}`);
   if (value.aspect !== aspect)
     throw new ResultError("Result aspect differs from the assignment.");
   return value;
+}
+
+/**
+ * A null, empty or whitespace-only `reason` carries no content. It is omitted
+ * unless the status requires one; `not-applicable` then still fails validation
+ * rather than receiving an invented reason.
+ */
+function omitEmptyOptionalReason(value: unknown) {
+  if (typeof value !== "object" || value === null) return;
+  const result = value as { status?: unknown; reason?: unknown };
+  if (
+    "reason" in result &&
+    result.status !== "not-applicable" &&
+    (result.reason === null ||
+      (typeof result.reason === "string" && result.reason.trim() === ""))
+  )
+    delete result.reason;
 }
 
 function normalizeFindingPaths(value: unknown, repository: string) {
