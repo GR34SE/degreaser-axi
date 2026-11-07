@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { workerFailure } from "../src/worker-failure.ts";
+import { failureDiagnostic, workerFailure } from "../src/worker-failure.ts";
 
 test("structured runtime causes take precedence over loose messages", () => {
   for (const [error, expected] of [
@@ -112,3 +112,33 @@ for (const [name, error, expected] of [
     assert.equal(workerFailure(error), expected);
   });
 }
+
+test("diagnostics keep only recognized machine fields", () => {
+  assert.deepEqual(
+    failureDiagnostic(
+      "turn-result",
+      "rate-limited",
+      {
+        code: "ACP_TURN_FAILED",
+        detailCode: "sk-secret-token",
+        retryable: false,
+        message: "private provider text",
+      },
+      "max_tokens",
+    ),
+    {
+      stage: "turn-result",
+      recovery: "wait-for-quota",
+      code: "ACP_TURN_FAILED",
+      retryable: false,
+      stopReason: "max_tokens",
+    },
+  );
+  assert.deepEqual(
+    failureDiagnostic("usage", "runtime", { code: "weird" }, "x"),
+    {
+      stage: "usage",
+      recovery: "inspect",
+    },
+  );
+});

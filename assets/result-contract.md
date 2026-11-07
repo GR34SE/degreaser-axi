@@ -16,7 +16,16 @@ Absolute or `./`-prefixed finding paths inside the repository are normalized
 before schema validation; other paths remain invalid. Old evidence uses the old path
 (including rename sources); new evidence uses the new path. Excluded paths,
 binaries and gitlinks cannot supply source quotes. Missing Git objects are
-unavailable evidence, never an empty source file.
+unavailable evidence, never an empty source file. A symbolic link (mode `120000`) is cited at its own path as line 1 of its target text; quotes validate against that blob, not the target.
+
+Wire forms: the final block must be one well-formed JSON object whose schema
+fields are exactly the documented ones. The only canonicalization is omitting a
+top-level `reason` that is null, empty or whitespace-only when the status does
+not require one; the persisted result is the strictly validated canonical form.
+A missing or empty `reason` for `not-applicable`, malformed JSON, a different
+aspect, unknown fields and every other schema violation remain `invalid-output`.
+A rejected attempt is retried (within `maxRetries`, same model) with the
+validator's short message appended to the prompt; the raw payload is not echoed.
 
 Each unsupported finding is rejected separately, with its one-based index and
 reason available in `report --full`. Valid neighbors survive. If every finding
@@ -31,13 +40,33 @@ when the accumulated `examinedPaths` cover every readable assessed path (binarie
 and gitlinks are not required). `scope-creep` not-applicable is the exception: its rubric
 decides applicability from the task's feature scope, not from files. Otherwise it starts a focused pass, in a fresh
 worker session, over only the unexamined paths and merges that pass's coverage
-and findings (an exact repeat is kept once). Passes continue while
-each one adds coverage, so the loop is bounded by the path count and
-the run deadline, not by a fixed pass limit. A pass without progress leaves the
-aspect incomplete, naming the unexamined paths. Report coverage shows `examined`
+and findings (an exact repeat is kept once). Every pass, also the first one of a
+large assignment, covers a bounded portion of the remaining paths. The bound is
+derived from the turn budget (half the turns, one path per read turn) and from
+an average text size per path, and a portion always holds at least one path;
+the rest of the repository stays readable context. A pass without new coverage
+halves its portion. A single path that still makes no progress is recorded as
+stuck, and the other portions continue; the aspect then ends incomplete naming
+that path. The loop is therefore bounded by the path count and the run
+deadline, not by a fixed pass limit. Report coverage shows `examined`
 as examined/assessed paths, or `unknown` when the worker did not say. It is the
 worker's declaration, not proof of reading; reports and exports label it
 `coverageBasis: worker-declared`.
+
+An incomplete result can also leave work open when declared coverage is full.
+Workers name it in `unresolved` (`scope`, `reason`, optional `paths`); an
+incomplete result without it gets an `unspecified` entry. Such a result stays
+incomplete, and coverage counts never turn it into a clean one. Established
+findings are kept. Open entries persist until a resolving pass, which `resume`
+runs once: it returns findings or no-findings to clear them, or `incomplete`
+with the entries that remain. A pass that fails before answering cannot clear
+them. An entry of scope `paths` whose named paths have all since been examined
+is dropped when passes merge. Each unresolved task records `unresolved.cause` and the exact pending
+`paths` in `run.json`, and report coverage shows `stopCause` and `pending`.
+Causes are kept apart: `deadline`, `cancelled`, `no-progress`, `invalid-output`,
+`timeout`, other runtime failure codes and `declared-unresolved`. State saved
+before these fields remains readable; its incomplete results with full coverage
+resume as a whole-aspect rerun.
 
 Assignment evidence is TOON inside a tag whose suffix is derived from the
 evidence digest, so embedded text cannot close the block. On the first pass, patches up to 60,000

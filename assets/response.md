@@ -11,6 +11,12 @@ Do not include Markdown fences inside the block.
 - `limitations`: an array of explicit limitations. Required and nonempty for
   `incomplete`; include applicable constructs you could not examine and why.
 - `reason`: required nonempty explanation for `not-applicable`.
+- `unresolved`: optional array. Use it with `incomplete` to name what stays open
+  besides unexamined paths, for example connected code or evidence you could not
+  check. Each entry has `scope` (`paths`, `context` or `evidence`), a concrete
+  nonempty `reason` and optionally the assessed `paths` it concerns. An
+  `incomplete` result that lists every assigned path as examined must say what
+  is unresolved here; do not claim a path as examined that you did not read.
 - `examinedPaths`: every assessed path whose change you actually read and
   judged for this aspect, preferably as the repository-relative paths from the
   supplied change. Always include it, also for `not-applicable`. A path whose
@@ -42,8 +48,13 @@ Each finding contains:
 Every finding field above is a string except `location`. `uncertainty` is an
 optional string, not an array or null; omit it when there is no uncertainty.
 `reason` is an optional nonempty string except that it is required for
-`not-applicable`; omit it otherwise. Do not emit null for optional fields.
-No additional fields are accepted. The supplied JSON Schema is authoritative.
+`not-applicable`; omit it otherwise. Do not emit null for optional fields. As
+a courtesy, the coordinator drops a `reason` that is null, empty or only
+whitespace unless the status is `not-applicable`, where it stays invalid. It
+never invents a reason, quote, location, status or coverage. No additional
+fields are accepted and unknown fields are never discarded. If a result block is
+rejected, the retry shows the validator's message; correct the block without
+inventing evidence. The supplied JSON Schema is authoritative.
 
 All prose is English. Evidence is source-only. No score, minimum finding count,
 authorship claim or claim of executed tests is permitted. A malformed result

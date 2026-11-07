@@ -26,6 +26,13 @@ export interface WorkerResult {
   limitations: string[];
   reason?: string;
   examinedPaths?: string[];
+  /** What an incomplete result leaves open besides unexamined paths. */
+  unresolved?: Unresolved[];
+}
+export interface Unresolved {
+  scope: "paths" | "context" | "evidence" | "unspecified";
+  reason: string;
+  paths?: string[];
 }
 export interface Rejection {
   index: number;
@@ -115,12 +122,26 @@ export function parseResult(
   } catch {
     throw new ResultError("Final result JSON is malformed.");
   }
+  omitEmptyOptionalReason(value);
   if (repository !== undefined) normalizeFindingPaths(value, repository);
   if (!validate(value))
     throw new ResultError(`Result schema: ${ajv.errorsText(validate.errors)}`);
   if (value.aspect !== aspect)
     throw new ResultError("Result aspect differs from the assignment.");
   return value;
+}
+
+/** `not-applicable` keeps an empty reason so validation still rejects it; no reason is invented. */
+function omitEmptyOptionalReason(value: unknown) {
+  if (typeof value !== "object" || value === null) return;
+  const result = value as { status?: unknown; reason?: unknown };
+  if (
+    "reason" in result &&
+    result.status !== "not-applicable" &&
+    (result.reason === null ||
+      (typeof result.reason === "string" && result.reason.trim() === ""))
+  )
+    delete result.reason;
 }
 
 function normalizeFindingPaths(value: unknown, repository: string) {
