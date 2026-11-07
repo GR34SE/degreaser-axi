@@ -237,7 +237,20 @@ function resolveTree(repository: string): string {
     // file as its own literal pathspec is quadratic and times out on monorepos.
     // An exclude pathspec would make `add` fail on an ignored .degreaser, so
     // root run state is removed from the temporary index afterwards.
-    indexGit(["add", "-A", "--", ":(top)"]);
+    // The exclude pathspec keeps unignored run state from being hashed into
+    // objects; it cannot be used when .degreaser is ignored (see above).
+    const stateIgnored =
+      git(repository, ["check-ignore", "-q", "--no-index", ".degreaser"], {
+        allowFailure: true,
+        index,
+      }) !== null;
+    indexGit([
+      "add",
+      "-A",
+      "--",
+      ":(top)",
+      ...(stateIgnored ? [] : [":(top,literal,exclude).degreaser"]),
+    ]);
     const statePaths = nulList(
       indexGit(["ls-files", "-z", "--", ".degreaser"]),
     );
@@ -319,6 +332,20 @@ export function resolveScope(
           "--",
           ...pathspecs,
         ]);
+  if (pathPatterns.length && !paths.length && scope !== "repository") {
+    const changed = requireGit(repository, [
+      ...diff,
+      "--name-only",
+      "-z",
+      "--",
+      ".",
+      ...pathspecs.slice(selection.length),
+    ]);
+    if (changed)
+      throw new InputError(
+        `No changed assessable file matches --path ${pathPatterns.join(", ")} in ${scope} scope (after exclusions); check for typos or run without --path. No review was started.`,
+      );
+  }
   const nonUtf8Set = new Set<string>();
   const patch = textPatch && omitNonUtf8Sections(textPatch, paths, nonUtf8Set);
   const excludedPaths = nulList(

@@ -643,7 +643,10 @@ test("scope resolution adds the tree with one recursive pathspec, not one per fi
   );
   const adds = readFileSync(log, "utf8").trim().split("\n");
   assert.equal(adds.length, 1, adds.join("\n"));
-  assert.match(adds[0] ?? "", / add -A -- :\(top\)$/);
+  assert.match(
+    adds[0] ?? "",
+    / add -A -- :\(top\)( :\(top,literal,exclude\)\.degreaser)?$/,
+  );
 });
 
 test("Git hooks, filesystem monitors and text converters cannot run during resolution", (t) => {
@@ -663,4 +666,49 @@ test("Git hooks, filesystem monitors and text converters cannot run during resol
   assert.match(input.patch ?? "", /\+new/);
   for (const marker of ["hook-ran", "monitor-ran", "textconv-ran"])
     assert.equal(existsSync(join(f.root, ".git", marker)), false, marker);
+});
+
+test("--path on a clean tree stays no-changes while a typo over real changes is rejected", (t) => {
+  const f = fixture(t);
+  f.write("src/a.ts", "old\n");
+  f.git("add", ".");
+  f.git("commit", "--no-gpg-sign", "-m", "Base");
+  const clean = prepareReview([...request, "--path", "src"], f.root);
+  assert.equal(clean.status, "no-changes");
+  f.write("src/a.ts", "new\n");
+  assert.throws(() => prepareReview([...request, "--path", "docs"], f.root), {
+    name: "InputError",
+    message: /--path docs/,
+  });
+});
+
+test("unignored .degreaser contents are never added to the temporary tree or objects", (t) => {
+  const f = fixture(t);
+  f.write(".gitignore", ".degreaserrc.json\n");
+  f.write("src/a.ts", "old\n");
+  f.git("add", ".");
+  f.git("commit", "--no-gpg-sign", "-m", "Base");
+  f.write("src/a.ts", "new\n");
+  const secret = "unique-run-state-marker-9f3a\n";
+  f.write(".degreaser/runs/x/patch.diff", secret);
+  const oid = spawnSync("git", ["hash-object", "--stdin"], {
+    cwd: f.root,
+    input: secret,
+    encoding: "utf8",
+  }).stdout.trim();
+  const r = prepareReview(request, f.root);
+  assert.deepEqual(
+    r.paths.map((p) => p.path),
+    ["src/a.ts"],
+  );
+  assert.equal(
+    f.git("ls-tree", "-r", "--name-only", r.tree, "--", ".degreaser"),
+    "",
+  );
+  const exists = spawnSync("git", ["cat-file", "-e", oid], { cwd: f.root });
+  assert.notEqual(
+    exists.status,
+    0,
+    "state file must not be written as an object",
+  );
 });
