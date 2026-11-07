@@ -526,3 +526,60 @@ test("setup hooks errors point to the full subcommand help", (t) => {
   assert.match(result.stdout, /degreaser-axi setup hooks --help/);
   assert.doesNotMatch(result.stdout, /degreaser-axi setup --help/);
 });
+
+test("receipt-less remove keeps the shared skill a linked Claude still reads", (t) => {
+  const f = setup(t);
+  const linked = f.run([
+    "setup",
+    "hooks",
+    "--harnesses",
+    "claude,codex",
+    "--skill-install",
+    "link",
+  ]);
+  assert.equal(linked.status, 0, linked.stdout + linked.stderr);
+  rmSync(join(f.root, ".degreaser"), { recursive: true });
+  const removal = f.maintenance("codex", "project", true);
+  assert.equal(removal.status, 0, removal.stdout + removal.stderr);
+  assert.ok(!installed(f.root, "project").codex);
+  assert.ok(installed(f.root, "project").claudeSkill);
+});
+
+test("user-scope removal keeps default harness configuration roots", (t) => {
+  const f = setup(t);
+  const {
+    CODEX_HOME: _codex,
+    CLAUDE_CONFIG_DIR: _claude,
+    PI_CODING_AGENT_DIR: _pi,
+    ...env
+  } = f.env;
+  for (const remove of [false, true]) {
+    const result = spawnSync(
+      process.execPath,
+      [
+        "--import",
+        loader,
+        cli,
+        "setup",
+        "hooks",
+        "--harnesses",
+        "codex,claude,pi,cursor",
+        "--installation-scope",
+        "user",
+        ...(remove ? ["--remove"] : []),
+      ],
+      { cwd: f.root, env, encoding: "utf8", timeout: 30_000 },
+    );
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+  }
+  assert.deepEqual(installed(f.home, "user"), {
+    codex: false,
+    claude: false,
+    pi: false,
+    cursor: false,
+    shared: false,
+    claudeSkill: false,
+  });
+  for (const root of [".codex", ".claude", ".pi/agent", ".cursor"])
+    assert.ok(existsSync(join(f.home, root)), root);
+});

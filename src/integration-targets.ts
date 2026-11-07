@@ -168,6 +168,7 @@ export function integrationTarget(
   if (agent === "pi")
     files.set(join(directory, "extensions/degreaser.ts"), piExtension());
   return {
+    directory,
     files,
     hookPath:
       agent === "pi"

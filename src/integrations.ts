@@ -298,13 +298,18 @@ export function prepareIntegrations(
   const shared = join(base, ".agents/skills/degreaser/SKILL.md");
   const sharedByOthers = (removing: Agent) =>
     AGENTS.some((other) => {
-      if (other === "claude" || other === removing || harnesses.includes(other))
-        return false;
+      if (other === removing || harnesses.includes(other)) return false;
       const { files: owned, hookPath } = integrationTarget(
         other,
         repository,
         scope,
       );
+      if (other === "claude") {
+        const dir = dirname([...owned.keys()][0] ?? "");
+        return (
+          readIntegrationLink(dir) === relative(dirname(dir), dirname(shared))
+        );
+      }
       return (
         (hookPath !== null &&
           (edits.read(hookPath) ?? "").includes(HOOK_MARKER)) ||
@@ -389,10 +394,12 @@ export function prepareIntegrations(
   const roots = [
     repository,
     homedir(),
-    process.env.CODEX_HOME,
-    process.env.CLAUDE_CONFIG_DIR,
-    process.env.PI_CODING_AGENT_DIR,
-  ].filter((root): root is string => Boolean(root));
+    ...(scope === "user"
+      ? AGENTS.map(
+          (agent) => integrationTarget(agent, repository, scope).directory,
+        )
+      : []),
+  ];
   return { results, files, apply: () => edits.apply(roots) };
 }
 

@@ -86,12 +86,29 @@ export async function doctor(cwd: string) {
     configured && profiles.some((p) => p.compatibility === "blocked");
   if (blocked) process.exitCode = 2;
   const integrations = inspectIntegrations(repository);
-  const repairs = integrations
-    .filter((entry) => entry.status === "outdated")
-    .map(
+  const repairs = (["project", "user"] as const).flatMap((scope) => {
+    const entries = integrations.filter((entry) => entry.scope === scope);
+    // A linked Claude skill is repaired together with the harnesses whose copy it links to.
+    const linked = entries.some(
       (entry) =>
-        `degreaser-axi setup hooks --harnesses ${entry.harness}${entry.scope === "user" ? " --installation-scope user" : ""}`,
+        entry.harness === "claude" &&
+        entry.status === "outdated" &&
+        entry.files.some((file) => !file.path.endsWith("SKILL.md")),
     );
+    const harnesses = entries
+      .filter(
+        (entry) =>
+          entry.status === "outdated" ||
+          (linked &&
+            entry.harness !== "claude" &&
+            entry.status === "installed"),
+      )
+      .map((entry) => entry.harness);
+    if (!harnesses.length) return [];
+    return [
+      `degreaser-axi setup hooks --harnesses ${harnesses.join(",")}${linked ? " --skill-install link" : ""}${scope === "user" ? " --installation-scope user" : ""}`,
+    ];
+  });
   return {
     ...(config
       ? configNotice(config)
