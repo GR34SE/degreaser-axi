@@ -71,16 +71,26 @@ test("CI selects checks without path filters and requires the static and macOS j
   }
   assert.equal(actions[0].with["persist-credentials"], false);
   assert.equal(plan.steps[0].with["fetch-depth"], 0);
-  const pnpm = actions.find((step: { uses: string }) =>
-    step.uses.startsWith("pnpm/action-setup@"),
-  );
-  const current = actions.at(-1);
-  assert.ok(steps.indexOf(pnpm) < steps.indexOf(current));
-  assert.equal(pnpm.with.run_install, false);
-  assert.equal(pnpm.with.version, undefined);
-  assert.equal(current.with.cache, "pnpm");
-  assert.equal(current.with["cache-dependency-path"], "pnpm-lock.yaml");
-  assert.match(current.with["node-version"], /^24\.\d+\.\d+$/);
+  // The pnpm installer executes node, which self-hosted runners need not
+  // provide, so the current Node is set up first in every pnpm job.
+  for (const job of [lint, macos]) {
+    const jobSteps: { uses?: string; with?: Record<string, unknown> }[] =
+      job.steps;
+    const pnpm = jobSteps.findIndex((step) =>
+      step.uses?.startsWith("pnpm/action-setup@"),
+    );
+    const current = jobSteps[pnpm - 1];
+    assert.ok(current);
+    assert.ok(current.uses?.startsWith("actions/setup-node@"));
+    assert.match(String(current.with?.["node-version"]), /^24\.\d+\.\d+$/);
+    assert.notEqual(current.with?.["node-version"], "24.0.0");
+    assert.equal(current.with?.["package-manager-cache"], false);
+    assert.deepEqual(jobSteps[pnpm]?.with, {
+      run_install: false,
+      cache: true,
+      cache_dependency_path: "pnpm-lock.yaml",
+    });
+  }
   assert.match(manifest.packageManager, /^pnpm@\d+\.\d+\.\d+$/);
   const minimum = steps.findIndex(
     (step: { with?: Record<string, string> }) =>
