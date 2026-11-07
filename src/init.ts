@@ -56,7 +56,12 @@ async function catalog(
   signal?: AbortSignal,
 ) {
   const candidates: Candidate[] = [];
-  const discovery: { agent: Agent; status: string; reason: string }[] = [];
+  const discovery: {
+    agent: Agent;
+    status: string;
+    reason: string;
+    notice?: string;
+  }[] = [];
   // Native probes share subscription resources; each joins before the next.
   for (const agent of selected) {
     try {
@@ -80,6 +85,7 @@ async function catalog(
         agent,
         status: "discovered",
         reason: "Native model metadata; no inference.",
+        ...(models.versionNotice ? { notice: models.versionNotice } : {}),
       });
     } catch (error) {
       if (signal?.aborted) throw error;

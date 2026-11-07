@@ -25,7 +25,7 @@ export async function discoverModels(
       ...(signal ? { signal } : {}),
     });
     if (!models) throw new Error("Missing model metadata.");
-    return models;
+    return { ...models, versionNotice: profile.versionNotice };
   } catch (error) {
     if (signal?.aborted) throw error;
     throw diagnoseFailure(

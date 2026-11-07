@@ -121,6 +121,7 @@ export async function review(args: string[], cwd: string) {
         "No change was reviewed. No reviewer was started; this is not a repository audit or a model quality verdict.",
     };
   const checked = new Set<string>();
+  const versionNotices = new Set<string>();
   for (const assignment of input.workers) {
     const key = JSON.stringify([assignment.agent, assignment.model]);
     if (checked.has(key)) continue;
@@ -129,6 +130,7 @@ export async function review(args: string[], cwd: string) {
       input.repository,
       Math.min(120_000, input.config.limits.workerTimeoutSeconds * 1000),
     );
+    if (models.versionNotice) versionNotices.add(models.versionNotice);
     assertSupportedModels(
       { assignments: [assignment] },
       models.availableModelIds.map((model) => ({
@@ -142,7 +144,13 @@ export async function review(args: string[], cwd: string) {
   process.stderr.write(
     `run: ${run.id}; workers: ${input.workers.length}; identities: ${[...new Set(input.workers.map((w) => `${w.agent}/${w.model}`))].join(",") || "coordinator-only"}; concurrency: ${input.config.concurrency ?? "all"}; deadline: ${new Date(run.deadline).toISOString()}\n`,
   );
-  return { ...(await waitFor(run, input.waitSeconds)), ...notice };
+  return {
+    ...(await waitFor(run, input.waitSeconds)),
+    ...notice,
+    ...(versionNotices.size
+      ? { nativeVersionNotice: [...versionNotices] }
+      : {}),
+  };
 }
 
 export async function resume(
