@@ -38,9 +38,9 @@ test("CI selects checks without path filters and requires the static and macOS j
   assert.deepEqual(check.needs, ["plan", "static", "macos"]);
   assert.equal(macos.needs, "plan");
   // Self-hosted labels come only from repository variables, never from the
-  // repository itself, and Dependabot updates always stay on hosted runners.
+  // repository itself, and fork PRs always stay on hosted runners.
   const route = (variable: string, hosted: string) =>
-    `\${{ github.actor != 'dependabot[bot]' && vars.${variable} || '${hosted}' }}`;
+    `\${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.${variable} || '${hosted}' }}`;
   assert.equal(lint["runs-on"], route("CI_LINUX_RUNNER", "ubuntu-24.04"));
   assert.equal(macos["runs-on"], route("CI_MACOS_RUNNER", "macos-15"));
   for (const job of [lint, macos]) {

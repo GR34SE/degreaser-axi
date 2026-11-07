@@ -76,8 +76,8 @@ Live tests require synthetic code, confirmed models and a fresh quota check, wit
 CI runs build, typecheck and lint in one Linux job, and runtime tests plus
 installed-package QA in one macOS job; keep each PR to one macOS job. Repository
 variables `CI_LINUX_RUNNER` / `CI_MACOS_RUNNER` may name self-hosted runner
-labels; unset, jobs use GitHub-hosted runners. Dependabot PRs always use
-GitHub-hosted runners because they run third-party updates. Never commit
+labels; unset, jobs use GitHub-hosted runners. Fork PRs always use
+GitHub-hosted runners. Never commit
 machine names, local paths or other private infrastructure details.
 CI selects documentation contracts only for PRs changing root `README.md` and/or
 `AGENTS.md`; static checks and current-Node installed-package QA still run.
