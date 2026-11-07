@@ -127,6 +127,7 @@ test("provider errors stay out of every run artifact while literal source eviden
           aspect: "low-value-comments",
           status: "findings",
           limitations: [],
+          examinedPaths: ["source.ts"],
           findings: [
             {
               location: {
@@ -167,9 +168,13 @@ test("provider errors stay out of every run artifact while literal source eviden
     const text = readFileSync(join(file.parentPath, file.name), "utf8");
     assert.ok(!text.includes(secret), file.name);
     assert.ok(
-      ["state.json", "run.json", "review.json", "patch.json"].includes(
-        file.name,
-      ),
+      [
+        "state.json",
+        "run.json",
+        "review.json",
+        "patch.json",
+        "patch.diff",
+      ].includes(file.name),
       file.name,
     );
   }

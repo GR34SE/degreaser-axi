@@ -18,14 +18,28 @@ is rejected, the aspect becomes incomplete, not no-findings. This checks literal
 support, not whether the recommendation is correct. The caller makes that decision.
 
 Workers also list the assessed paths they examined. Paths outside the review are
-dropped, and a no-findings result that examined none of them becomes incomplete.
-Report coverage shows `examined` as examined/assessed paths, or `unknown` when
-the worker did not say. It is the worker's declaration, not proof of reading.
+dropped, and so is a path with a rejected finding, so a later pass judges it
+again. A pass whose worker lifecycle failed contributes no coverage and ends the
+aspect's passes. Rejection counts accumulate across passes. The coordinator certifies findings, no-findings or not-applicable only
+when the accumulated `examinedPaths` cover every readable assessed path (binaries
+and gitlinks are not required). `scope-creep` not-applicable is the exception: its rubric
+decides applicability from the task's feature scope, not from files. Otherwise it starts a focused pass, in a fresh
+worker session, over only the unexamined paths and merges that pass's coverage
+and findings (an exact repeat is kept once). Passes continue while
+each one adds coverage, so the loop is bounded by the path count and
+the run deadline, not by a fixed pass limit. A pass without progress leaves the
+aspect incomplete, naming the unexamined paths. Report coverage shows `examined`
+as examined/assessed paths, or `unknown` when the worker did not say. It is the
+worker's declaration, not proof of reading.
 
-Small patches are JSON-escaped inline. Patches over 60,000 encoded bytes are
-stored as an escaped JSON string in `input/patch.json`; decoding produces the
-identical Git patch. Scope and prompt hashes bind the assignment. Angle brackets
-and ampersands in untrusted data cannot terminate the assignment delimiter.
+Assignment evidence is TOON inside a tag whose suffix is derived from the
+evidence digest, so embedded text cannot close the block. Patches up to 60,000
+bytes are inline in a separate digest-tagged block. Larger patches are written
+as a raw unified diff to `input/patch.diff`, and each assessed path carries
+`patchLines`, its section's line range there, so workers read the change in
+slices instead of one oversized read. `input/patch.json` keeps the exact patch
+as a JSON string for resume integrity. Prompt hashes bind the assignment;
+focused continuation text is appended per pass and is not part of that identity.
 
 The storage format keeps each run's task statuses, attempts and validated
 results together in one atomically replaced `run.json`. The separately immutable
@@ -59,6 +73,7 @@ Schemas use JSON Schema draft-07, with no type coercion or unknown-field removal
 | `runs/<id>/run.json` | `run-v1.json`, requires `schemaVersion: 1`; tasks, owner heartbeat, attempts and embedded results |
 | `runs/<id>/input/review.json` | `input-v1.json`, requires `schemaVersion: 1`; immutable scope, task and selected execution identities |
 | `runs/<id>/input/patch.json` | `patch-v1.json`; JSON string or null, version inherited from `input-v1`; must equal the input's patch |
+| `runs/<id>/input/patch.diff` | Raw copy of the same patch for worker slice reads; absent when the patch is null; not read back by the coordinator |
 | Embedded aspect result | `result-v1.json`, referenced by `run-v1`; no separate file or version field |
 
 Malformed JSON, invalid structure, unsupported versions and inconsistent
@@ -227,8 +242,9 @@ concurrency, wait and absolute deadline. Only explicit `--deadline <seconds>`
 starts a new budget. Expired original budgets are not silently renewed.
 
 Resolved findings/no-findings/not-applicable tasks are never replayed. Pending,
-interrupted, failed, cancelled and incomplete tasks get fresh attempts. A usable
-new result replaces the current incomplete result; attempt records retain earlier
+interrupted, failed, cancelled and incomplete tasks get fresh attempts. An incomplete
+result with unexamined paths resumes as a focused pass over those paths and
+merges into the current result; otherwise a usable new result replaces it; attempt records retain earlier
 validated evidence, rejection reasons, limitations, session identities and known
 usage. A failed replacement does not erase the previous incomplete evidence.
 Full reports expose this history. A completed unchanged resume is a no-op.

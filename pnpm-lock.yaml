@@ -175,6 +175,9 @@ importers:
       '@clack/prompts':
         specifier: 1.8.1
         version: 1.8.1
+      '@toon-format/toon':
+        specifier: 2.3.1
+        version: 2.3.1
       acpx:
         specifier: 0.21.1
         version: 0.21.1

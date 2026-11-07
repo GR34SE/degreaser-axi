@@ -10,6 +10,7 @@ const clean = {
   status: "no-findings",
   findings: [],
   limitations: [],
+  examinedPaths: ["source.ts"],
 };
 const cleanBlock = `<degreaser-result>${JSON.stringify(clean)}</degreaser-result>`;
 const atLimit = cleanBlock + "x".repeat(1_048_576 - cleanBlock.length);
@@ -493,7 +494,9 @@ for (const useful of [false, true]) {
     const f = queueFixture(t, {
       concurrency: 1,
       maxRetries,
-      limits: { workerTimeoutSeconds: 2, runTimeoutSeconds: 6 },
+      // The budget must still hold a timed-out attempt plus its retry after a
+      // slow hosted runner's cold missed-reuse start.
+      limits: { workerTimeoutSeconds: 2, runTimeoutSeconds: 8 },
     });
     f.setPlan({
       workers: {
@@ -514,7 +517,8 @@ for (const useful of [false, true]) {
     assert.equal(state.status, useful ? "partial" : "failed");
     assert.equal(state.executions?.at(-1)?.stopReason, "deadline");
     assert.equal(state.deadline, originalDeadline);
-    assert.ok(Date.now() - start < 12000, "Errors cannot reset the run budget");
+    // Ten 2-second retries would exceed this if errors reset the run budget.
+    assert.ok(Date.now() - start < 14000, "Errors cannot reset the run budget");
     if (useful) {
       const completed = state.tasks[0];
       assert.equal(completed?.assignment.aspect, "missed-reuse");

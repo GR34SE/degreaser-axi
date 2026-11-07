@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { mergePass, progressed, uncovered } from "./coverage.ts";
 import { assertFresh } from "./freshness.ts";
 import { nativeProfile } from "./native-profile.ts";
 import {
@@ -9,8 +10,8 @@ import {
   cleanInterruptedOwner,
   replaceOwnerLock,
 } from "./ownership.ts";
-import { assemblePrompt } from "./prompt.ts";
-import { ingestResult, ResultError } from "./results.ts";
+import { assemblePrompt, continuationSection } from "./prompt.ts";
+import { ingestResult, ResultError, type WorkerResult } from "./results.ts";
 import {
   loadInput,
   loadRun,
@@ -161,13 +162,59 @@ export async function ownRun(
       const prompt = assemblePrompt(
         input,
         task.assignment.aspect,
-        join(dir, "input", "patch.json"),
+        join(dir, "input", "patch.diff"),
       );
       if (prompt.promptHash !== task.promptHash)
         throw new StateError(
           "input-changed",
           `Prompt identity for ${task.assignment.aspect} differs from ${join(dir, "run.json")}. Start a new review with the current package.`,
         );
+      // Resume continues coverage from the persisted partial result.
+      let accumulated =
+        task.result?.status === "incomplete" &&
+        uncovered(input, task.result.examinedPaths ?? []).length
+          ? task.result
+          : null;
+      for (;;) {
+        const missing = accumulated
+          ? uncovered(input, accumulated.examinedPaths ?? [])
+          : null;
+        const text = missing
+          ? `${prompt.text}\n\n${continuationSection(missing, accumulated?.examinedPaths?.length ?? 0)}`
+          : prompt.text;
+        const pass = await runPass(task, text, accumulated, started);
+        if (!pass) {
+          if (accumulated) {
+            task.result = accumulated;
+            if (task.status === "failed") task.status = "incomplete";
+          }
+          break;
+        }
+        const advanced = progressed(accumulated, pass);
+        accumulated = pass;
+        // Each further pass must add coverage, so the loop is bounded by the path count.
+        if (
+          pass.status !== "incomplete" ||
+          !advanced ||
+          stopped() ||
+          task.attempts.at(-1)?.failure ||
+          !uncovered(input, pass.examinedPaths ?? []).length
+        )
+          break;
+      }
+      if (task.status === "cancelled") {
+        task.limitations.push(`Unexamined aspect: ${stopReason}.`);
+        persist();
+      }
+    }
+    /** One assignment pass with bounded retries; returns the merged result or null. */
+    async function runPass(
+      task: RunTask,
+      text: string,
+      accumulated: WorkerResult | null,
+      started: () => void,
+    ): Promise<WorkerResult | null> {
+      let merged: WorkerResult | null = null;
       for (let attempt = 0; attempt <= input.config.maxRetries; attempt++) {
         if (stopped()) {
           task.status = "cancelled";
@@ -208,7 +255,7 @@ export async function ownRun(
           const outcome = await executeWorker(
             {
               cwd: repository,
-              prompt: prompt.text,
+              prompt: text,
               maxTurns: input.config.limits.maxTurns,
               timeoutMs: Math.max(1, attemptDeadline - Date.now()),
               signal: abort.signal,
@@ -265,10 +312,13 @@ export async function ownRun(
                 task.assignment.aspect,
                 input,
               );
-              task.result = validated.result;
+              const pass = validated.result;
               receivedResult = true;
-              task.rejections = validated.rejections;
-              task.status = validated.result.status;
+              task.rejections = [
+                ...(accumulated ? task.rejections : []),
+                ...validated.rejections,
+              ];
+              record.rejections = structuredClone(validated.rejections);
               if (
                 !cleanupFailed &&
                 !runStopped &&
@@ -276,12 +326,22 @@ export async function ownRun(
               )
                 record.failure = null;
               else {
-                task.result.status = "incomplete";
-                task.result.limitations.push(
+                pass.status = "incomplete";
+                pass.examinedPaths = [];
+                pass.limitations.push(
                   `Worker lifecycle did not finish successfully: ${record.failure}.`,
                 );
-                task.status = "incomplete";
               }
+              record.result = structuredClone(pass);
+              const earlierApplicable = task.attempts.some(
+                (a) =>
+                  a !== record &&
+                  a.result &&
+                  a.result.status !== "not-applicable",
+              );
+              merged = mergePass(input, accumulated, pass, earlierApplicable);
+              task.result = merged;
+              task.status = merged.status;
             } catch (error) {
               if (!record.failure) throw error;
               task.status = stopped() ? "cancelled" : "failed";
@@ -312,10 +372,8 @@ export async function ownRun(
         }
         if (task.status === "failed" && stopped()) task.status = "cancelled";
         record.endedAt = Date.now();
-        record.result = receivedResult ? structuredClone(task.result) : null;
-        record.rejections = receivedResult
-          ? structuredClone(task.rejections)
-          : [];
+        if (!receivedResult) record.result = null;
+        if (!receivedResult) record.rejections = [];
         record.limitations = [...task.limitations];
         persist();
         if (
@@ -327,10 +385,7 @@ export async function ownRun(
         )
           break;
       }
-      if (task.status === "cancelled") {
-        task.limitations.push(`Unexamined aspect: ${stopReason}.`);
-        persist();
-      }
+      return merged;
     }
     const pending = run.tasks.filter((t) => !resolved(t));
     if (pending.length) {
