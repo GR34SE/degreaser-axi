@@ -72,12 +72,15 @@ export function ingestResult(
   text: string,
   aspect: AspectId,
   input: ReviewInput,
+  established: readonly Finding[] = [],
 ) {
   const result = parseResult(text, aspect);
+  const known = new Set(established.map((f) => JSON.stringify(f)));
   const rejections: Rejection[] = [];
   const blobs = new Map<string, string | null>();
   const unjudged: string[] = [];
   result.findings = result.findings.filter((finding, index) => {
+    if (known.has(JSON.stringify(finding))) return false;
     const { path, side, startLine, endLine } = finding.location;
     const entry = input.paths.find((p) =>
       side === "old" ? p.oldPath === path : p.path === path,
@@ -124,6 +127,12 @@ export function ingestResult(
     }
     return !reason;
   });
+  if (
+    result.status === "findings" &&
+    !result.findings.length &&
+    !rejections.length
+  )
+    result.status = "no-findings";
   if (result.examinedPaths) {
     const assessed = new Set(
       input.paths.flatMap((p) => [p.path, p.oldPath].filter(Boolean)),

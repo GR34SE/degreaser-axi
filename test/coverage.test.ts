@@ -55,6 +55,23 @@ test("an incomplete pass continues with a focused pass over only unexamined path
   assert.equal(f.state().status, "completed");
 });
 
+test("a focused pass may repeat an accepted finding without rejection", (t) => {
+  const accepted = {
+    ...finding,
+    location: { ...finding.location, path: "a.ts" },
+    quote: "export const a = 1;",
+  };
+  const f = setup(t, [
+    pass("incomplete", ["a.ts", "source.ts"], { findings: [accepted] }),
+    pass("findings", ["b.ts"], { findings: [accepted] }),
+  ]);
+  const task = run(f);
+  assert.equal(task.status, "findings");
+  assert.deepEqual(task.result.findings, [accepted]);
+  assert.deepEqual(task.rejections, []);
+  assert.equal(f.state().status, "completed");
+});
+
 test("a clean claim without full coverage is not certified until the rest is examined", (t) => {
   const f = setup(t, [
     pass("not-applicable", [], { reason: "No comments." }),

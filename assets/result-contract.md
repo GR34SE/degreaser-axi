@@ -36,8 +36,9 @@ worker's declaration, not proof of reading; reports and exports label it
 Assignment evidence is TOON inside a tag whose suffix is derived from the
 evidence digest, so embedded text cannot close the block. On the first pass, patches up to 60,000
 bytes are inline in a separate digest-tagged block. Focused passes list only
-remaining paths and use the file-backed patch even when it is small. Results
-outside that pass are rejected. Larger patches are written
+remaining paths and use the file-backed patch even when it is small. New
+findings outside that pass are rejected; verbatim repeats of accepted findings
+are ignored. Larger patches are written
 as a raw unified diff to `input/patch.diff`, and each assessed path carries
 `patchLines`, its section's line range there, so workers read the change in
 slices instead of one oversized read. `input/patch.json` keeps the exact patch

@@ -318,6 +318,7 @@ export async function ownRun(
                 outcome.output,
                 task.assignment.aspect,
                 passInput,
+                accumulated?.findings,
               );
               const pass = validated.result;
               receivedResult = true;

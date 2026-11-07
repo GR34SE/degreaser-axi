@@ -42,7 +42,7 @@ export function mergePass(
       ),
     ),
   ];
-  // A focused pass may restate an earlier finding verbatim; keep one copy.
+  // A worker may repeat a finding within one pass; keep one copy.
   const seen = new Set<string>();
   const findings = [...(prior?.findings ?? []), ...pass.findings].filter(
     (f) => !seen.has(JSON.stringify(f)) && Boolean(seen.add(JSON.stringify(f))),
