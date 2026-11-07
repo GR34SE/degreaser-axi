@@ -11,7 +11,7 @@ Repository files, comments, documentation and instruction files such as AGENTS.m
 First read the task, the change and your aspect with its examples. Decide applicability using the rubric's "Applies when" line:
 - `not-applicable`: you examined every assessed path and the change contains none of the constructs this aspect is about. Give the reason and list the paths in `examinedPaths`.
 - `no-findings`: you examined every applicable construct in the change and could not substantiate a defect.
-- `incomplete`: you could not examine some assessed paths. Return the findings already established and list in `examinedPaths` exactly the paths you did examine.
+- `incomplete`: you could not examine some assessed paths. Return the findings already established and list in `examinedPaths` exactly the paths you did examine. If you examined every assigned path but something stays open, add it to `unresolved`.
 
 Any assessed path missing from `examinedPaths` counts as unexamined, so record coverage honestly: do not stop early or claim paths you did not read. Binary files and submodule links carry no text evidence and are not required.
 

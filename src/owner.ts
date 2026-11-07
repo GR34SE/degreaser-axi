@@ -1,5 +1,13 @@
 import { join } from "node:path";
-import { mergePass, progressed, uncovered } from "./coverage.ts";
+import {
+  mergePass,
+  nextLimit,
+  pathSizes,
+  portionBounds,
+  progressed,
+  takePortion,
+  uncovered,
+} from "./coverage.ts";
 import { assertFresh } from "./freshness.ts";
 import { nativeProfile } from "./native-profile.ts";
 import {
@@ -11,7 +19,11 @@ import {
   needsCleanup,
   replaceOwnerLock,
 } from "./ownership.ts";
-import { assemblePrompt, continuationSection } from "./prompt.ts";
+import {
+  assemblePrompt,
+  continuationSection,
+  obligationSection,
+} from "./prompt.ts";
 import { ingestResult, ResultError, type WorkerResult } from "./results.ts";
 import {
   loadInput,
@@ -184,26 +196,64 @@ export async function ownRun(
           "input-changed",
           `Prompt identity for ${task.assignment.aspect} differs from ${join(dir, "run.json")}. Start a new review with the current package.`,
         );
-      // Resume continues coverage from the persisted partial result.
-      let accumulated =
+      // Resume continues from the persisted partial result: unexamined paths,
+      // or obligations left open after full declared coverage.
+      const resumed =
         task.result?.status === "incomplete" &&
-        uncovered(input, task.result.examinedPaths ?? []).length
-          ? task.result
-          : null;
+        (uncovered(input, task.result.examinedPaths ?? []).length > 0 ||
+          (task.result.unresolved?.length ?? 0) > 0);
+      let accumulated = resumed ? (task.result ?? null) : null;
+      const bounds = portionBounds(input.config.limits.maxTurns);
+      let limit = bounds.paths;
+      // Paths that made no progress even alone; later portions skip them.
+      const stuck = new Set<string>();
+      let obligationsTried = false;
+      // Each pass adds coverage, halves its portion or sets one path aside,
+      // so the loop is bounded by the path count.
       for (;;) {
-        const missing = accumulated
-          ? uncovered(input, accumulated.examinedPaths ?? [])
-          : null;
-        const passInput = missing
-          ? {
+        const examined = accumulated?.examinedPaths ?? [];
+        const remaining = uncovered(input, examined);
+        const eligible = remaining.filter((p) => !stuck.has(p));
+        const open = accumulated?.unresolved ?? [];
+        let text: string;
+        let passInput = input;
+        let portion: string[] = [];
+        const resolving =
+          !remaining.length && resumed && open.length > 0 && !obligationsTried;
+        if (eligible.length) {
+          portion = takePortion(eligible, sizesOf(), limit, bounds.bytes);
+          if (!accumulated && portion.length === eligible.length) {
+            text = prompt.text;
+          } else {
+            const focus = new Set(portion);
+            passInput = {
               ...input,
-              paths: input.paths.filter((p) => missing.includes(p.path)),
-            }
-          : input;
-        const text = missing
-          ? `${assemblePrompt(passInput, task.assignment.aspect, join(dir, "input", "patch.diff"), 0).text}\n\n${continuationSection(missing, accumulated?.examinedPaths?.length ?? 0)}`
-          : prompt.text;
-        const pass = await runPass(task, text, passInput, accumulated, started);
+              paths: input.paths.filter((p) => focus.has(p.path)),
+            };
+            text = `${assemblePrompt(input, task.assignment.aspect, join(dir, "input", "patch.diff"), 0, focus).text}\n\n${continuationSection(portion, examined.length, remaining.length - portion.length)}`;
+          }
+        } else if (resolving) {
+          const named = new Set(
+            open
+              .flatMap((u) => u.paths ?? [])
+              .filter((p) => input.paths.some((i) => i.path === p)),
+          );
+          const focus = named.size ? named : undefined;
+          if (focus)
+            passInput = {
+              ...input,
+              paths: input.paths.filter((p) => focus.has(p.path)),
+            };
+          text = `${assemblePrompt(input, task.assignment.aspect, join(dir, "input", "patch.diff"), 0, focus).text}\n\n${obligationSection(open, examined.length)}`;
+        } else break;
+        const pass = await runPass(
+          task,
+          text,
+          passInput,
+          accumulated,
+          started,
+          resolving,
+        );
         if (!pass) {
           if (accumulated) {
             task.result = accumulated;
@@ -213,20 +263,46 @@ export async function ownRun(
         }
         const advanced = progressed(accumulated, pass);
         accumulated = pass;
-        // Each further pass must add coverage, so the loop is bounded by the path count.
+        if (resolving) obligationsTried = true;
         if (
           pass.status !== "incomplete" ||
-          !advanced ||
           stopped() ||
-          task.attempts.at(-1)?.failure ||
-          !uncovered(input, pass.examinedPaths ?? []).length
+          task.attempts.at(-1)?.failure
         )
           break;
+        if (!advanced && portion.length) {
+          const next = nextLimit(portion.length);
+          if (next) limit = next;
+          else if (portion[0] !== undefined) stuck.add(portion[0]);
+        }
       }
+      recordUnresolved(task, stuck);
       if (task.status === "cancelled") {
         task.limitations.push(`Unexamined aspect: ${stopReason}.`);
         persist();
       }
+    }
+    let sizes: Map<string, number> | undefined;
+    const sizesOf = () => (sizes ??= pathSizes(input));
+    /** Exact pending work and why the aspect stopped; the stop cause stays distinct. */
+    function recordUnresolved(task: RunTask, stuck: ReadonlySet<string>) {
+      if (resolved(task)) {
+        delete task.unresolved;
+        return;
+      }
+      const paths = uncovered(input, task.result?.examinedPaths ?? []);
+      task.unresolved = {
+        cause:
+          task.attempts.at(-1)?.failure ||
+          (stuck.size ? "no-progress" : "declared-unresolved"),
+        paths,
+        ...(stuck.size ? { stuck: [...stuck] } : {}),
+      };
+      if (stuck.size)
+        task.limitations.push(
+          `No progress on ${stuck.size} assessed path(s) even alone: ${[...stuck].slice(0, 5).join(", ")}${stuck.size > 5 ? ", ..." : ""}.`,
+        );
+      persist();
     }
     /** One assignment pass with bounded retries; returns the merged result or null. */
     async function runPass(
@@ -235,6 +311,7 @@ export async function ownRun(
       passInput: typeof input,
       accumulated: WorkerResult | null,
       started: () => void,
+      resolving = false,
     ): Promise<WorkerResult | null> {
       let merged: WorkerResult | null = null;
       for (let attempt = 0; attempt <= input.config.maxRetries; attempt++) {
@@ -363,7 +440,13 @@ export async function ownRun(
                   a.result &&
                   a.result.status !== "not-applicable",
               );
-              merged = mergePass(input, accumulated, pass, earlierApplicable);
+              merged = mergePass(
+                input,
+                accumulated,
+                pass,
+                earlierApplicable,
+                resolving,
+              );
               task.result = merged;
               task.status = merged.status;
             } catch (error) {

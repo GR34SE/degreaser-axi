@@ -26,6 +26,13 @@ export interface WorkerResult {
   limitations: string[];
   reason?: string;
   examinedPaths?: string[];
+  /** What an incomplete result leaves open besides unexamined paths. */
+  unresolved?: Unresolved[];
+}
+export interface Unresolved {
+  scope: "paths" | "context" | "evidence" | "unspecified";
+  reason: string;
+  paths?: string[];
 }
 export interface Rejection {
   index: number;

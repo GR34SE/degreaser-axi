@@ -43,6 +43,8 @@ export interface RunTask {
     usage?: Record<string, number> | null;
   }[];
   limitations: string[];
+  /** Why and where an unresolved task stopped; exact pending paths survive for resume. */
+  unresolved?: { cause: string; paths: string[]; stuck?: string[] };
   /** Latest attempt only, never a total; prior measurements stay in attempts. */
   usage: Record<string, number> | null;
 }

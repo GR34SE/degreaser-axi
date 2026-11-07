@@ -128,6 +128,24 @@ function coverage(
       .filter((l) => l !== reason && !harness.has(l))
       .map((text) => preview(text, full)),
     rejected: task.rejections.length,
+    ...(task.unresolved && !resolved(task)
+      ? {
+          // The stop cause stays separate from the reason text: a deadline,
+          // no progress, invalid output and a runtime failure need different recovery.
+          stopCause: task.unresolved.cause,
+          pending: task.unresolved.paths.length,
+          ...(task.unresolved.stuck?.length
+            ? { stuck: task.unresolved.stuck }
+            : {}),
+          ...(task.result?.unresolved?.length
+            ? {
+                unresolved: task.result.unresolved.map(
+                  (u) => `${u.scope}: ${preview(u.reason, full)}`,
+                ),
+              }
+            : {}),
+        }
+      : {}),
     ...(task.status === "running" && task.attempts.at(-1)?.lastActivityAt
       ? {
           lastActivity: `${Math.round((Date.now() - (task.attempts.at(-1)?.lastActivityAt ?? 0)) / 1000)}s ago`,
