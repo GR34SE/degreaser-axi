@@ -49,9 +49,13 @@ const connection = new AgentSideConnection(
         authMethods: [],
       };
     },
-    async newSession() {
+    async newSession(params) {
       const sessionId = randomUUID();
-      record({ method: "new", sessionId });
+      record({
+        method: "new",
+        sessionId,
+        system: params?._meta?.systemPrompt ?? null,
+      });
       return {
         sessionId,
         configOptions: configOptions(),
@@ -70,7 +74,11 @@ const connection = new AgentSideConnection(
       return { configOptions: configOptions() };
     },
     async prompt(params) {
-      record({ method: "prompt", model: current });
+      record({
+        method: "prompt",
+        model: current,
+        text: params.prompt?.map((part) => part.text ?? "").join(""),
+      });
       if (scenario === "rate-limit")
         throw new RequestError(
           -32000,

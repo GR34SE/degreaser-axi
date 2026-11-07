@@ -13,7 +13,7 @@
 **Not here (another reviewer):**
 - Code executed exclusively by a test runner, including tests, test helpers and fixtures: low-value-tests.
 
-Sources / inspiration: S05. Teaching excerpts; context states omitted setup. These have not been executed as programs or model evaluations.
+Teaching excerpts; context states omitted setup. These have not been executed as programs or model evaluations.
 
 ## verification-theater-B1 · REPORT
 

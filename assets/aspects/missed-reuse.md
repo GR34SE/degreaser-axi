@@ -15,7 +15,7 @@
 - A single expression or loop replaceable by a language or standard-library construct such as map, Set or join: unidiomatic-code.
 - Nothing is duplicated; the change merely departs from an established repository pattern in format, channel or naming: convention-drift.
 
-Sources / inspiration: S04 S24. Teaching excerpts; context states omitted setup. These have not been executed as programs or model evaluations.
+Teaching excerpts; context states omitted setup. These have not been executed as programs or model evaluations.
 
 ## missed-reuse-B1 · REPORT
 

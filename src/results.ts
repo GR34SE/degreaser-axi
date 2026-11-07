@@ -47,8 +47,62 @@ const validate = ajv.compile<WorkerResult>(
   ),
 );
 
-/** Input is exclusively assistant text collected by the public runtime boundary. */
-export function parseResult(text: string, aspect: AspectId): WorkerResult {
+/** Workers may cite absolute or ./-prefixed paths; only the repository-relative form matters. */
+const repositoryRelative = (repository: string, path: string) => {
+  const root = `${repository}/`;
+  return (path.startsWith(root) ? path.slice(root.length) : path).replace(
+    /^(\.\/)+/,
+    "",
+  );
+};
+
+const lineEndings = (text: string) => text.replaceAll("\r\n", "\n");
+const trimLines = (text: string) =>
+  text
+    .split("\n")
+    .map((line) => line.trimEnd())
+    .join("\n");
+
+/**
+ * A quote matches the cited lines literally after CRLF and trailing-space
+ * normalization. A quote copied from the patch with one diff marker per line
+ * (`+`/space for new, `-`/space for old) also matches once every non-empty line
+ * carries a marker consistent with its side. Anything else must be in the file.
+ */
+function quoteMatches(
+  source: string,
+  quote: string,
+  side: "old" | "new",
+): boolean {
+  const haystack = trimLines(lineEndings(source));
+  const found = (needle: string) =>
+    (needle.replace(/\s/g, "").length >= 3 ||
+      (needle.trim() !== "" && needle.trim() === haystack.trim())) &&
+    haystack.includes(needle);
+  if (found(trimLines(lineEndings(quote)).replace(/^\n+|\n+$/g, "")))
+    return true;
+  const lines = lineEndings(quote)
+    .replace(/^\n+|\n+$/g, "")
+    .split("\n");
+  const marker = side === "old" ? /^[- ]/ : /^[+ ]/;
+  const filled = lines.filter((line) => line.trim() !== "");
+  if (!filled.length || !filled.every((line) => marker.test(line)))
+    return false;
+  const stripped = trimLines(
+    lines.map((line) => (marker.test(line) ? line.slice(1) : line)).join("\n"),
+  );
+  return found(stripped);
+}
+
+/**
+ * Input is exclusively assistant text collected by the public runtime boundary.
+ * With `repository`, finding paths are normalized before schema validation.
+ */
+export function parseResult(
+  text: string,
+  aspect: AspectId,
+  repository?: string,
+): WorkerResult {
   const open = "<degreaser-result>",
     close = "</degreaser-result>";
   const start = text.lastIndexOf(open);
@@ -61,11 +115,22 @@ export function parseResult(text: string, aspect: AspectId): WorkerResult {
   } catch {
     throw new ResultError("Final result JSON is malformed.");
   }
+  if (repository !== undefined) normalizeFindingPaths(value, repository);
   if (!validate(value))
     throw new ResultError(`Result schema: ${ajv.errorsText(validate.errors)}`);
   if (value.aspect !== aspect)
     throw new ResultError("Result aspect differs from the assignment.");
   return value;
+}
+
+function normalizeFindingPaths(value: unknown, repository: string) {
+  const findings = (value as { findings?: unknown })?.findings;
+  if (!Array.isArray(findings)) return;
+  for (const finding of findings) {
+    const location = finding?.location;
+    if (typeof location?.path === "string")
+      location.path = repositoryRelative(repository, location.path);
+  }
 }
 
 export function ingestResult(
@@ -74,7 +139,7 @@ export function ingestResult(
   input: ReviewInput,
   established: readonly Finding[] = [],
 ) {
-  const result = parseResult(text, aspect);
+  const result = parseResult(text, aspect, input.repository);
   const known = new Set(established.map((f) => JSON.stringify(f)));
   const rejections: Rejection[] = [];
   const blobs = new Map<string, string | null>();
@@ -113,10 +178,11 @@ export function ingestResult(
         if (endLine < startLine || endLine > lines.length)
           reason = "range-out-of-bounds";
         else if (
-          !lines
-            .slice(startLine - 1, endLine)
-            .join("")
-            .includes(finding.quote)
+          !quoteMatches(
+            lines.slice(startLine - 1, endLine).join(""),
+            finding.quote,
+            side,
+          )
         )
           reason = "quote-mismatch";
       }
@@ -137,12 +203,12 @@ export function ingestResult(
     const assessed = new Set(
       input.paths.flatMap((p) => [p.path, p.oldPath].filter(Boolean)),
     );
-    // Workers may cite absolute or ./-prefixed paths; only membership matters.
-    const root = `${input.repository}/`;
-    const relative = (p: string) =>
-      (p.startsWith(root) ? p.slice(root.length) : p).replace(/^(\.\/)+/, "");
     result.examinedPaths = [
-      ...new Set(result.examinedPaths.map(relative)),
+      ...new Set(
+        result.examinedPaths.map((p) =>
+          repositoryRelative(input.repository, p),
+        ),
+      ),
     ].filter((p) => assessed.has(p) && !unjudged.includes(p));
     if (result.status === "no-findings" && !result.examinedPaths.length) {
       result.status = "incomplete";

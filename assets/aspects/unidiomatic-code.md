@@ -14,7 +14,7 @@
 - An existing repository, dependency or framework component with its own contract: missed-reuse.
 - Custom general-purpose infrastructure such as a standard parser or evicting cache: reinvented-infrastructure.
 
-Sources / inspiration: User requirements. Teaching excerpts; context states omitted setup. These have not been executed as programs or model evaluations.
+Teaching excerpts; context states omitted setup. These have not been executed as programs or model evaluations.
 
 ## unidiomatic-code-B1 · REPORT
 

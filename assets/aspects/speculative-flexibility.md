@@ -15,7 +15,7 @@
 - Variants are used but have conflicting rules and accumulating mutual exclusions: wrong-abstraction.
 - An unrequested user-facing product feature such as a format, endpoint or permission: scope-creep.
 
-Sources / inspiration: S04 S05. Teaching excerpts; context states omitted setup. These have not been executed as programs or model evaluations.
+Teaching excerpts; context states omitted setup. These have not been executed as programs or model evaluations.
 
 ## speculative-flexibility-B1 · REPORT
 

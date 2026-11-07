@@ -14,7 +14,7 @@
 - The change reimplements an existing mechanism, such as custom retry beside a retrying client: missed-reuse.
 - Increasing coupling or adding responsibilities to an overloaded module: structural-erosion.
 
-Sources / inspiration: S01 S04. Teaching excerpts; context states omitted setup. These have not been executed as programs or model evaluations.
+Teaching excerpts; context states omitted setup. These have not been executed as programs or model evaluations.
 
 ## convention-drift-B1 · REPORT
 

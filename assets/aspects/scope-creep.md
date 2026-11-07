@@ -14,7 +14,7 @@
 - Required code that is not connected to the user path: incomplete-integration.
 - An internal option or parameter without a consumer within the requested feature: speculative-flexibility.
 
-Sources / inspiration: User requirements. Teaching excerpts; context states omitted setup. These have not been executed as programs or model evaluations.
+Teaching excerpts; context states omitted setup. These have not been executed as programs or model evaluations.
 
 ## scope-creep-B1 · REPORT
 

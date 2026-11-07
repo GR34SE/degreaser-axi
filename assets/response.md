@@ -24,7 +24,12 @@ Each finding contains:
 - `location`: repository-relative `path`, `side` (`old` for the base, `new` for
   the resolved review tree), positive `startLine` and `endLine` in that coordinate
   space. End must not precede start.
-- `quote`: an exact excerpt of the cited source lines, not a paraphrase.
+- `quote`: an exact excerpt of the cited source lines, not a paraphrase, with
+  at least three non-whitespace characters. Copy source text without diff
+  markers. Line endings and trailing spaces are ignored; if you copy patch lines
+  with their `+`/`-`/space prefix on every line, the prefix is stripped for the
+  side you cite. The path may be absolute or `./`-prefixed inside the repository
+  and is normalized; paths outside it are invalid.
 - `title`: the specific defect, not a generic slop label.
 - `evidence`: its connection to the change (in an audit, the assessed code) and
   relevant source locations.

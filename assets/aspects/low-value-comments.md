@@ -13,7 +13,7 @@
 **Not here (another reviewer):**
 - Comments suppressing type checking or lint rules, such as @ts-ignore, # type: ignore or eslint-disable: contract-bypass.
 
-Sources / inspiration: S01. Teaching excerpts; context states omitted setup. These have not been executed as programs or model evaluations.
+Teaching excerpts; context states omitted setup. These have not been executed as programs or model evaluations.
 
 ## low-value-comments-B1 · REPORT
 

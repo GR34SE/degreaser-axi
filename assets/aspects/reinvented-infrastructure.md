@@ -14,7 +14,7 @@
 - An equivalent already exists in the repository, installed dependencies, framework or platform: missed-reuse.
 - A single expression replaceable by a language or standard-library construct: unidiomatic-code.
 
-Sources / inspiration: User requirements. Teaching excerpts; context states omitted setup. These have not been executed as programs or model evaluations.
+Teaching excerpts; context states omitted setup. These have not been executed as programs or model evaluations.
 
 ## reinvented-infrastructure-B1 · REPORT
 
