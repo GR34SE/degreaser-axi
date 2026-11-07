@@ -45,7 +45,70 @@ If the review returns `running`, follow its `degreaser-axi wait <run-id>` comman
 
 Reviews read source; they do not run tests or apply fixes. Review context goes to your selected model provider, uses its quota, and is saved locally in ignored `.degreaser/` files. All 16 reviewers run by default; use `--aspects` to select fewer or `--concurrency` to limit simultaneous calls.
 
-See `degreaser-axi --help` for commands and options, or `degreaser-axi doctor` for setup diagnostics. Details: [review aspects](https://github.com/GR34SE/degreaser-axi/blob/main/assets/catalog.md), [configuration and scopes](https://github.com/GR34SE/degreaser-axi/blob/main/assets/input-contract.md), [results and limitations](https://github.com/GR34SE/degreaser-axi/blob/main/assets/result-contract.md), [worker restrictions](https://github.com/GR34SE/degreaser-axi/blob/main/assets/native-profiles.md).
+See `degreaser-axi --help` for commands and options, or `degreaser-axi doctor` for setup diagnostics. Details: [configuration and scopes](https://github.com/GR34SE/degreaser-axi/blob/main/assets/input-contract.md), [results and limitations](https://github.com/GR34SE/degreaser-axi/blob/main/assets/result-contract.md), [worker restrictions](https://github.com/GR34SE/degreaser-axi/blob/main/assets/native-profiles.md).
+
+## Review aspects
+
+All 16 built-in aspects are enabled by default. Each reviewer checks one question:
+
+| Aspect | Review question |
+| --- | --- |
+| `missed-reuse` | Does the repo or an existing dependency already solve this? |
+| `unnecessary-layers` | Does this wrapper, service or factory add useful behavior or a boundary? |
+| `speculative-flexibility` | Do these options and extension points serve a current requirement? |
+| `masked-errors` | Does a fallback turn failure into apparent success? |
+| `unjustified-defense` | Does this check protect a real boundary or possible state? |
+| `low-value-comments` | Does the comment explain something the code cannot? |
+| `convention-drift` | Does this introduce another way to do the same thing without a reason? |
+| `scope-creep` | Did the change add features or refactoring outside the task? |
+| `contract-bypass` | Does a cast, suppression or default hide a real mismatch? |
+| `low-value-tests` | Would this test detect broken behavior, or just confirm its own mock? |
+| `incomplete-integration` | Is the new code connected to the real user path? |
+| `wrong-abstraction` | Does a shared mechanism combine cases with conflicting rules? |
+| `reinvented-infrastructure` | Does a handwritten cache, parser or similar mechanism miss required semantics? |
+| `unidiomatic-code` | Can a native construct remove unnecessary logic without changing behavior? |
+| `structural-erosion` | Does this change add responsibilities and branching to an overloaded unit? |
+| `verification-theater` | Does a runtime or tooling check prove the property it claims to verify? |
+
+A wrapper, comment or validation check is not automatically a problem. Reviewers must establish a concrete consequence and check reasons to keep the code. See the [catalog and aspect boundaries](https://github.com/GR34SE/degreaser-axi/blob/main/assets/catalog.md) for details.
+
+For a one-run subset of enabled aspects:
+
+```sh
+degreaser-axi review --scope worktree --task "Add CSV import" --aspects missed-reuse,low-value-tests
+```
+
+## Configuration
+
+`init` writes `.degreaserrc.json` at the Git root. Keep the exact `agent` and `model` you confirmed there; the Codex model below is an example, not a guarantee of availability.
+
+```json
+{
+  "schemaVersion": 1,
+  "agent": "codex",
+  "model": "gpt-6-luna",
+  "concurrency": 4,
+  "maxRetries": 1,
+  "limits": {
+    "workerTimeoutSeconds": 300,
+    "workerIdleSeconds": 120,
+    "maxTurns": 40,
+    "runTimeoutSeconds": 900
+  },
+  "aspects": {
+    "low-value-comments": true,
+    "scope-creep": false
+  },
+  "exclude": ["vendor", "src/generated"]
+}
+```
+
+- `concurrency: 4` caps simultaneous reviewers; the default `null` leaves them uncapped.
+- `aspects` accepts `true` (enabled), `false` (disabled), or `{ "model": "<exact-model-id>" }` to override the model for one aspect. Omitted aspects stay enabled. Changing its agent also requires an explicit compatible model.
+- `maxRetries` counts extra attempts. The limits above are defaults; `maxTurns` is enforced natively only by Claude and is advisory for other workers.
+- `exclude` adds literal repository-relative files or directory prefixes, not globs. It narrows assessed coverage, not worker read access.
+
+`degreaser-axi config sync` fills missing settings with installed defaults without changing explicit choices. See the [configuration contract](https://github.com/GR34SE/degreaser-axi/blob/main/assets/input-contract.md) and [JSON schema](https://github.com/GR34SE/degreaser-axi/blob/main/assets/schemas/config-v1.json) for the full format and bounds.
 
 ## License
 
