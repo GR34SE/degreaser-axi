@@ -95,11 +95,15 @@ async function catalog(
       });
     }
   }
-  const recommendation =
+  return { candidates, discovery, recommendation: recommend(candidates) };
+}
+
+function recommend(candidates: Identity[]) {
+  return (
     [0, 1, 2]
       .map((rank) => candidates.find((c) => recommendationRank(c) === rank))
-      .find(Boolean) ?? null;
-  return { candidates, discovery, recommendation };
+      .find(Boolean) ?? null
+  );
 }
 
 /** Claude Haiku first, then Codex Luna, then any other cheap model. */
@@ -190,12 +194,9 @@ export async function init(
     (!agent || candidate.agent === agent) &&
     (!model || candidate.model === model);
   const compatible = choices.candidates.filter(matchesFlags);
+  const best = recommend(compatible) ?? compatible[0];
   const prefill =
-    identity ??
-    [previous, choices.recommendation, ...compatible].find(
-      (c) => c && matchesFlags(c),
-    ) ??
-    null;
+    identity ?? (previous && matchesFlags(previous) ? previous : best) ?? null;
   const missing = [
     ...(!agent || !model ? ["model"] : []),
     ...(!harnesses ? ["harnesses"] : []),
@@ -204,12 +205,7 @@ export async function init(
     process.exitCode = 2;
     const shellQuote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
     const example =
-      compatible.find((c) => prefill && sameIdentity(c, prefill)) ??
-      compatible.find(
-        (c) =>
-          choices.recommendation && sameIdentity(c, choices.recommendation),
-      ) ??
-      compatible[0];
+      compatible.find((c) => prefill && sameIdentity(c, prefill)) ?? best;
     const commands = (example ? [example] : []).flatMap((c) =>
       (harnesses ? [harnesses.join(",")] : agents).map(
         (target) =>

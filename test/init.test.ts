@@ -187,6 +187,20 @@ for (const existing of [false, true]) {
   });
 }
 
+test("non-TTY agent-only flags prefill that agent's best-ranked model", (t) => {
+  const f = setup(t);
+  const result = f.run(["--agent", "codex"]);
+  assert.equal(result.status, 2, result.stdout);
+  assert.match(
+    result.stdout,
+    /prefill:\n {2}agent: codex\n {2}model: gpt-6-luna/,
+  );
+  assert.match(
+    result.stdout,
+    /degreaser-axi init --agent codex --model 'gpt-6-luna'/,
+  );
+});
+
 test("explicit selection persists exact identity and preserves RC controls, then review uses it", (t) => {
   const f = setup(t, true);
   const controls = {
