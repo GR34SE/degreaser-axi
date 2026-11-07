@@ -188,8 +188,8 @@ importers:
         specifier: 0.1.13
         version: 0.1.13
       pi-acp:
-        specifier: 0.0.33
-        version: 0.0.33
+        specifier: 0.0.34
+        version: 0.0.34
     devDependencies:
       '@biomejs/biome':
         specifier: 2.6.3
@@ -1197,8 +1197,8 @@ packages:
   path-to-regexp@8.4.2:
     resolution: {integrity: sha512-qRcuIdP69NPm4qbACK+aDogI5CBDMi1jKe0ry5rSQJz8JVLsC7jV8XpiJjGRLLol3N+R5ihGYcrPLTno6pAdBA==}
 
-  pi-acp@0.0.33:
-    resolution: {integrity: sha512-vX9kY1tK14E72G4dBAx+RGCk/k7XPjTHls6dLUxA8WSkBav6B6JHuSBv3eusp50LCR/GTRsR2kIKsG0Z5jANzw==}
+  pi-acp@0.0.34:
+    resolution: {integrity: sha512-MrCp37UbpUzkTkzTIMJQf1RYrT+kr4fgGDGFoLmBN26UupuCZp0XxVIY+7XYsMo3yDnzDeZUJ0jPyM3Si6Bkkg==}
     engines: {node: '>=20'}
     hasBin: true
 
@@ -2193,9 +2193,10 @@ snapshots:
 
   path-to-regexp@8.4.2: {}
 
-  pi-acp@0.0.33:
+  pi-acp@0.0.34:
     dependencies:
       '@agentclientprotocol/sdk': 0.26.0(zod@3.25.76)
+      cross-spawn: 7.0.6
       zod: 3.25.76
 
   pkce-challenge@5.0.1: {}
