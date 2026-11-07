@@ -515,6 +515,39 @@ test("receipt-less remove conflicts on an edited hook that keeps the marker", (t
   );
 });
 
+test("receipt-less remove takes hooks another install wrote with a different executable", (t) => {
+  const f = setup(t);
+  assert.equal(f.maintenance("codex,claude,cursor").status, 0);
+  rmSync(join(f.root, ".degreaser"), { recursive: true });
+  for (const path of [
+    ".codex/hooks.json",
+    ".claude/settings.json",
+    ".cursor/hooks.json",
+  ]) {
+    const file = join(f.root, path);
+    const settings = JSON.parse(readFileSync(file, "utf8"));
+    const rewrite = (command: string) =>
+      command.replace(
+        /then .+ startup-context/,
+        "then '/elsewhere/node' '/elsewhere/degreaser-axi.js' startup-context",
+      );
+    for (const group of settings.hooks.SessionStart ??
+      settings.hooks.sessionStart) {
+      if (group.command) group.command = rewrite(group.command);
+      for (const hook of group.hooks ?? [])
+        hook.command = rewrite(hook.command);
+    }
+    writeFileSync(file, JSON.stringify(settings));
+  }
+  const removal = f.maintenance("codex,claude,cursor", "project", true);
+  assert.equal(removal.status, 0, removal.stdout + removal.stderr);
+  const left = installed(f.root, "project");
+  assert.deepEqual(
+    [left.codex, left.claude, left.cursor, left.shared],
+    [false, false, false, false],
+  );
+});
+
 test("user-scope setup works outside a Git repository", (t) => {
   const f = setup(t);
   const outside = join(f.home, "not-a-repo");

@@ -27,6 +27,7 @@ import {
   integrationTarget,
   isMarked,
   skillInstallChoice,
+  withCurrentExecutable,
 } from "./integration-targets.ts";
 import { assertNotWorker } from "./native-environment.ts";
 import { hash } from "./prompt.ts";
@@ -136,7 +137,7 @@ function updateHook(
   if (previous && previous.path !== path) conflict(path);
   const marked = groups.filter((group) => isMarked(format, group));
   // Without a receipt (fresh clone, new worktree), our marked entry is ours;
-  // removal additionally requires it to be exactly the entry this version writes.
+  // removal additionally requires it to be the entry this version writes, from any install.
   const generated = cursor
     ? { command: format.command }
     : (
@@ -148,7 +149,15 @@ function updateHook(
   const matches = previous
     ? groups.filter((group) => isDeepStrictEqual(group, previous.group))
     : marked.length === 1 &&
-        (!remove || isDeepStrictEqual(marked[0], generated))
+        (!remove ||
+          isDeepStrictEqual(
+            JSON.parse(JSON.stringify(marked[0]), (key, value) =>
+              key === "command" && typeof value === "string"
+                ? withCurrentExecutable(value)
+                : value,
+            ),
+            generated,
+          ))
       ? marked
       : [];
   if (matches.length > 1 || marked.some((group) => !matches.includes(group)))
