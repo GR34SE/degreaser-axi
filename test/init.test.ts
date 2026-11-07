@@ -170,6 +170,7 @@ for (const existing of [false, true]) {
       assert.match(result.stdout, /codex,gpt-6-luna/);
       assert.match(result.stdout, /claude,claude-haiku-4-5-20251001/);
       assert.match(result.stdout, /pi,openai\/gpt-6-luna/);
+      assert.match(result.stdout, /cursor,composer-2\.5-fast/);
       assert.match(result.stdout, /degreaser-axi init --agent/);
       assert.equal(result.stderr, "");
       assert.deepEqual(f.unchanged(), before);

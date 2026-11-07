@@ -172,6 +172,15 @@ export async function executeWorker(
       outcome.failure = "model-unavailable";
       return outcome;
     }
+    if (profile.agent === "cursor") {
+      try {
+        await runtime.setMode({ handle, mode: "ask" });
+      } catch {
+        outcome.limitations.push(
+          "Cursor session mode was not confirmed; argv requests ask mode and writes are denied.",
+        );
+      }
+    }
     if (profile.agent !== "pi")
       await runtime.setModel({ handle, model: profile.model });
     const selected = await runtime.getStatus({ handle });

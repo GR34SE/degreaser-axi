@@ -20,6 +20,7 @@ const catalog = {
   codex: ["gpt-6-luna", "exact-codex"],
   claude: ["claude-haiku-4-5-20251001"],
   pi: ["openai/gpt-6-luna"],
+  cursor: ["composer-2.5-fast"],
 };
 const admitted = existsSync(".degreaser/state.json");
 const reviewing = process.env.SYNTHETIC_PURPOSE === "review";

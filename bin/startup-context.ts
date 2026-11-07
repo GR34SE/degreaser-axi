@@ -1,3 +1,5 @@
+import { isAbsolute } from "node:path";
+
 async function inputCwd(): Promise<string> {
   return new Promise((resolve) => {
     let input = "";
@@ -8,15 +10,18 @@ async function inputCwd(): Promise<string> {
       clearTimeout(timer);
       process.stdin.pause();
       try {
-        const value: unknown = JSON.parse(input);
-        if (
-          typeof value === "object" &&
-          value !== null &&
-          "cwd" in value &&
-          typeof value.cwd === "string" &&
-          value.cwd
-        ) {
-          resolve(value.cwd);
+        const value = JSON.parse(input) as {
+          cwd?: unknown;
+          workspace_roots?: unknown;
+        } | null;
+        const cwd = [
+          value?.cwd,
+          ...(Array.isArray(value?.workspace_roots)
+            ? value.workspace_roots
+            : []),
+        ].find((dir) => typeof dir === "string" && isAbsolute(dir));
+        if (typeof cwd === "string") {
+          resolve(cwd);
           return;
         }
       } catch {
@@ -41,18 +46,21 @@ async function inputCwd(): Promise<string> {
 if (!process.env.DEGREASER_WORKER) {
   try {
     const plain = process.argv.includes("--plain");
+    const cursor = process.argv.includes("--cursor");
     const cwd = plain ? process.cwd() : await inputCwd();
     const { startupContext } = await import("../src/startup-context.ts");
     const context = startupContext(cwd);
     if (context) {
       const output = plain
         ? context
-        : JSON.stringify({
-            hookSpecificOutput: {
-              hookEventName: "SessionStart",
-              additionalContext: context,
-            },
-          });
+        : cursor
+          ? JSON.stringify({ additional_context: context })
+          : JSON.stringify({
+              hookSpecificOutput: {
+                hookEventName: "SessionStart",
+                additionalContext: context,
+              },
+            });
       if (output.length <= 1499) process.stdout.write(`${output}\n`);
     }
   } catch {

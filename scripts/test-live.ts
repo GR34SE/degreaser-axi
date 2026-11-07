@@ -1,4 +1,5 @@
 import { parseArgs } from "node:util";
+import type { Agent } from "../src/config.ts";
 
 const { values } = parseArgs({
   options: {
@@ -11,7 +12,7 @@ const { values } = parseArgs({
 });
 if (values.help) {
   console.log(
-    "pnpm test:live --run --case <native-worker|review|init|models|caller|caller-permissions|fleet> --agent <codex|claude|pi> --model <exact-id>\nOpt-in subscription-backed synthetic-file and public review pilots. Init exercises decisions before the same real review; models reads native metadata without inference. Caller tests project startup, skill discovery and personally waiting through terminal before continuation. Caller-permissions tests authorized/restricted Codex callers only. Fleet runs all default aspects uncapped for Codex or Claude, checks fresh quota and monitors actual host pressure with owned cancellation. Build and check quota first. Other scenarios are not implemented.",
+    "pnpm test:live --run --case <native-worker|review|init|models|caller|caller-permissions|fleet> --agent <codex|claude|pi|cursor> --model <exact-id>\nOpt-in subscription-backed synthetic-file and public review pilots. Init exercises decisions before the same real review; models reads native metadata without inference. Caller tests project startup, skill discovery and personally waiting through terminal before continuation. Caller-permissions tests authorized/restricted Codex callers only. Fleet runs all default aspects uncapped for Codex or Claude, checks fresh quota and monitors actual host pressure with owned cancellation. Cursor supports native-worker, models, review and init. Build and check quota first. Other scenarios are not implemented.",
   );
 } else if (
   values.run &&
@@ -25,8 +26,15 @@ if (values.help) {
   values.agent &&
   values.model
 ) {
-  if (!["codex", "claude", "pi"].includes(values.agent))
+  if (!["codex", "claude", "pi", "cursor"].includes(values.agent))
     throw new Error("Unsupported live harness.");
+  if (
+    values.agent === "cursor" &&
+    (values.case === "caller" ||
+      values.case === "caller-permissions" ||
+      values.case === "fleet")
+  )
+    throw new Error("Cursor live caller/fleet pilots are not implemented.");
   if (values.case === "fleet") {
     if (values.agent !== "codex" && values.agent !== "claude")
       throw new Error("Fleet pilot supports Codex and Claude only.");
@@ -34,7 +42,7 @@ if (values.help) {
     await liveFleet(values.agent, values.model);
   } else if (values.case === "caller") {
     const { liveCaller } = await import("./live-caller.ts");
-    await liveCaller(values.agent as "codex" | "claude" | "pi", values.model);
+    await liveCaller(values.agent as Exclude<Agent, "cursor">, values.model);
   } else if (values.case === "caller-permissions") {
     if (values.agent !== "codex")
       throw new Error("Caller permission pilot supports Codex only.");
@@ -44,17 +52,14 @@ if (values.help) {
     await liveCallerPermissions(values.model);
   } else if (values.case === "native-worker") {
     const { liveNativeWorker } = await import("./live-native.ts");
-    await liveNativeWorker(
-      values.agent as "codex" | "claude" | "pi",
-      values.model,
-    );
+    await liveNativeWorker(values.agent as Agent, values.model);
   } else if (values.case === "models") {
     const { liveModels } = await import("./live-models.ts");
-    await liveModels(values.agent as "codex" | "claude" | "pi", values.model);
+    await liveModels(values.agent as Agent, values.model);
   } else {
     const { liveReview } = await import("./live-review.ts");
     await liveReview(
-      values.agent as "codex" | "claude" | "pi",
+      values.agent as Agent,
       values.model,
       values.case === "init",
     );

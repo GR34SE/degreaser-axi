@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { delimiter, isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolvePortableHookCommand } from "axi-sdk-js";
-import type { Agent } from "./config.ts";
+import { AGENTS, type Agent, isAgent } from "./config.ts";
 import { InputError } from "./input-error.ts";
 
 export type InstallationScope = "project" | "user";
@@ -14,14 +14,9 @@ export function installationChoices(values: Record<string, unknown>): {
   const harnesses = String(values.harnesses ?? "")
     .split(",")
     .map((v) => v.trim());
-  if (
-    !harnesses.every((v): v is Agent =>
-      ["codex", "claude", "pi"].includes(v),
-    ) ||
-    new Set(harnesses).size !== harnesses.length
-  )
+  if (!harnesses.every(isAgent) || new Set(harnesses).size !== harnesses.length)
     throw new InputError(
-      "--harnesses requires a nonempty, duplicate-free selection of codex,claude,pi.",
+      `--harnesses requires a nonempty, duplicate-free selection of ${AGENTS.join(",")}.`,
     );
   const scope = values["installation-scope"] ?? "project";
   if (scope !== "project" && scope !== "user")
@@ -63,6 +58,44 @@ const executable = portable === bin ? [process.execPath, bin] : [portable];
 export const HOOK_MARKER = "degreaser-startup-v1";
 const command = `if [ -z "\${DEGREASER_WORKER:-}" ]; then ${executable.map(quote).join(" ")} startup-context 2>/dev/null || :; fi # ${HOOK_MARKER}`;
 export const hookSpec = { marker: HOOK_MARKER, command, timeoutSeconds: 2 };
+const cursorCommand = `if [ -z "\${DEGREASER_WORKER:-}" ]; then ${executable.map(quote).join(" ")} startup-context --cursor 2>/dev/null || :; fi # ${HOOK_MARKER}`;
+
+export interface HookFormat {
+  event: string;
+  /** The managed startup command for this harness. */
+  command: string;
+  version?: number;
+  /** Commands in a hook group, or null when the group is malformed. */
+  commands(group: unknown): unknown[] | null;
+}
+export function hookFormat(agent: Agent): HookFormat {
+  if (agent === "cursor")
+    return {
+      event: "sessionStart",
+      command: cursorCommand,
+      version: 1,
+      commands: (group) =>
+        group &&
+        typeof group === "object" &&
+        typeof (group as { command?: unknown }).command === "string"
+          ? [(group as { command: string }).command]
+          : null,
+    };
+  return {
+    event: "SessionStart",
+    command,
+    commands: (group) => {
+      const hooks = (group as { hooks?: unknown } | null)?.hooks;
+      return group && typeof group === "object" && Array.isArray(hooks)
+        ? hooks.map((hook: { command?: unknown } | null) => hook?.command)
+        : null;
+    },
+  };
+}
+export const isMarked = (format: HookFormat, group: unknown) =>
+  (format.commands(group) ?? []).some(
+    (command) => typeof command === "string" && command.includes(HOOK_MARKER),
+  );
 
 function piExtension(): string {
   return `// Degreaser-owned startup integration. Repair with degreaser-axi setup hooks.
@@ -97,6 +130,7 @@ export function integrationTarget(
           codex: process.env.CODEX_HOME,
           claude: process.env.CLAUDE_CONFIG_DIR,
           pi: process.env.PI_CODING_AGENT_DIR,
+          cursor: undefined,
         }[agent]
       : undefined;
   if (configuredRoot && !isAbsolute(configuredRoot))
@@ -126,12 +160,14 @@ export function integrationTarget(
     hookPath:
       agent === "pi"
         ? null
-        : join(directory, agent === "codex" ? "hooks.json" : "settings.json"),
+        : join(directory, agent === "claude" ? "settings.json" : "hooks.json"),
     activation:
       agent === "codex"
         ? "Restart Codex; approve project and hook trust in the host. Hooks must be enabled by host policy (default on in 0.165.0). No trust, features or permissions were changed."
         : agent === "claude"
           ? "Start a new Claude session; project trust and host hook policy still apply. Installed files do not prove context delivery."
-          : "Reload Pi or start a new session; approve project resources through the host if required. Installed files do not prove context delivery.",
+          : agent === "cursor"
+            ? "Start a new Cursor agent chat; project trust still applies. Installed files do not prove context delivery."
+            : "Reload Pi or start a new session; approve project resources through the host if required. Installed files do not prove context delivery.",
   };
 }

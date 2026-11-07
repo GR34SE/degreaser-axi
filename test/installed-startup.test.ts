@@ -41,7 +41,7 @@ test("installed hooks and Pi extension are bounded, local, worker-disabled and r
   const setup = (cli: string) => {
     const result = spawnSync(
       process.execPath,
-      [cli, "setup", "hooks", "--harnesses", "codex,claude,pi"],
+      [cli, "setup", "hooks", "--harnesses", "codex,claude,pi,cursor"],
       { cwd: f.root, env, encoding: "utf8", timeout: 10_000 },
     );
     assert.equal(result.status, 0, result.stdout + result.stderr);
@@ -51,7 +51,11 @@ test("installed hooks and Pi extension are bounded, local, worker-disabled and r
     spawnSync("/bin/sh", ["-c", command], {
       cwd: home,
       env: { ...env, ...extra },
-      input: JSON.stringify({ cwd: f.root }),
+      input: JSON.stringify(
+        command.includes("--cursor")
+          ? { workspace_roots: [f.root] }
+          : { cwd: f.root },
+      ),
       encoding: "utf8",
       timeout: 5000,
     });
@@ -64,7 +68,21 @@ test("installed hooks and Pi extension are bounded, local, worker-disabled and r
       return hook.command as string;
     },
   );
+  const cursorSettings = JSON.parse(
+    readFileSync(join(f.root, ".cursor/hooks.json"), "utf8"),
+  );
+  assert.equal(cursorSettings.version, 1);
+  assert.deepEqual(Object.keys(cursorSettings.hooks), ["sessionStart"]);
+  const cursorCommand = cursorSettings.hooks.sessionStart[0].command as string;
+  assert.match(cursorCommand, /--cursor/);
   const index = readFileSync(join(f.root, ".git/index"));
+  const cursorHook = shell(cursorCommand);
+  assert.equal(cursorHook.status, 0, cursorHook.stderr);
+  assert.match(
+    JSON.parse(cursorHook.stdout).additional_context,
+    /No local run yet/,
+  );
+  assert.equal(shell(cursorCommand, { DEGREASER_WORKER: "1" }).stdout, "");
   for (const command of commands) {
     const result = shell(command);
     assert.equal(result.status, 0, result.stderr);

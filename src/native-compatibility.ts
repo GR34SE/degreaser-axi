@@ -5,12 +5,16 @@ export const SUPPORTED_NATIVE_VERSIONS: Record<Agent, string> = {
   codex: "0.165.0",
   claude: "2.1.317",
   pi: "1.4.0",
+  cursor: "2026.11.05-86047df",
 };
 
 export function assertNativeVersion(agent: Agent, observed: string): string {
   const supported = SUPPORTED_NATIVE_VERSIONS[agent];
   // Only a version token is safe diagnostic data, never arbitrary process output.
-  const version = /^\d{1,6}\.\d{1,6}\.\d{1,6}$/.test(observed)
+  const version = (agent === "cursor"
+    ? /^20\d{2}\.\d{1,2}\.\d{1,2}-[0-9a-f]{7,40}$/i
+    : /^\d{1,6}\.\d{1,6}\.\d{1,6}$/
+  ).test(observed)
     ? observed
     : "unrecognized";
   if (version !== supported)

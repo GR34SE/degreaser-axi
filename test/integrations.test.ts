@@ -25,7 +25,7 @@ const cli = fileURLToPath(
 const loader = fileURLToPath(
   new URL("./fixtures/public-runtime.mjs", import.meta.url),
 );
-const targets = ["codex", "claude", "pi"];
+const targets = ["codex", "claude", "pi", "cursor"];
 const faults = fileURLToPath(
   new URL("./fixtures/integration-fault.mjs", import.meta.url),
 );
@@ -88,6 +88,7 @@ function installed(base: string, scope: string) {
           : ".pi/extensions/degreaser.ts",
       ),
     ),
+    cursor: existsSync(join(base, ".cursor/hooks.json")),
     shared: existsSync(join(base, ".agents/skills/degreaser/SKILL.md")),
     claudeSkill: existsSync(join(base, ".claude/skills/degreaser/SKILL.md")),
   };
@@ -180,7 +181,7 @@ function snapshot(root: string) {
   );
 }
 for (const scope of ["project", "user"]) {
-  for (let bits = 1; bits < 8; bits++) {
+  for (let bits = 1; bits < 16; bits++) {
     const selected = targets.filter((_, i) => bits & (1 << i));
     test(`init installs only ${selected.join(",")} at ${scope} scope, repeat is duplicate-free`, (t) => {
       const f = setup(t);
@@ -195,7 +196,11 @@ for (const scope of ["project", "user"]) {
           codex: selected.includes("codex"),
           claude: selected.includes("claude"),
           pi: selected.includes("pi"),
-          shared: selected.includes("codex") || selected.includes("pi"),
+          cursor: selected.includes("cursor"),
+          shared:
+            selected.includes("codex") ||
+            selected.includes("pi") ||
+            selected.includes("cursor"),
           claudeSkill: selected.includes("claude"),
         },
       );
@@ -208,6 +213,7 @@ for (const scope of ["project", "user"]) {
           codex: false,
           claude: false,
           pi: false,
+          cursor: false,
           shared: false,
           claudeSkill: false,
         },
@@ -354,7 +360,7 @@ test("foreign files, malformed native config and symlink ancestors are never ove
 
 test("reinstall without the local receipt adopts identical files and the marked hook", (t) => {
   const f = setup(t);
-  assert.equal(f.maintenance("codex,claude,pi").status, 0);
+  assert.equal(f.maintenance("codex,claude,pi,cursor").status, 0);
   // The rebuilt receipt may differ (an adopted hook file was not created by us).
   const files = () => {
     const { "/.degreaser/integrations.json": _receipt, ...rest } = snapshot(
@@ -364,7 +370,7 @@ test("reinstall without the local receipt adopts identical files and the marked 
   };
   const installed = files();
   rmSync(join(f.root, ".degreaser/integrations.json"));
-  const again = f.maintenance("codex,claude,pi");
+  const again = f.maintenance("codex,claude,pi,cursor");
   assert.equal(again.status, 0, again.stdout);
   assert.deepEqual(files(), installed);
   f.write(".agents/skills/degreaser/SKILL.md", "older Degreaser skill");
