@@ -15,6 +15,9 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
+const manifest: { version: string; packageManager: string } = JSON.parse(
+  await readFile(join(root, "package.json"), "utf8"),
+);
 const { values } = parseArgs({
   options: {
     "pack-destination": { type: "string" },
@@ -63,6 +66,7 @@ try {
     assert.ok(
       entry === "package/package.json" ||
         entry === "package/README.md" ||
+        entry === "package/LICENSE" ||
         entry.startsWith("package/dist/"),
       `Unexpected package entry: ${entry}`,
     );
@@ -96,7 +100,7 @@ try {
       JSON.stringify({
         private: true,
         type: "module",
-        packageManager: "pnpm@12.14.0",
+        packageManager: manifest.packageManager,
       }),
     );
     await cp(
@@ -105,6 +109,15 @@ try {
     );
     run("pnpm", ["add", "--ignore-scripts", tarball], installDir, runtime);
     const installed = join(installDir, "node_modules/degreaser-axi");
+    assert.equal(
+      JSON.parse(await readFile(join(installed, "package.json"), "utf8"))
+        .license,
+      "MIT",
+    );
+    assert.match(
+      await readFile(join(installed, "LICENSE"), "utf8"),
+      /^MIT License\n\nCopyright \(c\) 2026 Degreaser contributors\n/,
+    );
     const readme = join(installed, "README.md");
     const documentation = await readFile(readme, "utf8");
     for (const [, target] of documentation.matchAll(
@@ -125,14 +138,17 @@ try {
       const installedBin = join(installDir, "node_modules/.bin", name);
       assert.equal(
         run(installedBin, ["--version"], installDir, runtime),
-        "0.1.0\n",
+        `${manifest.version}\n`,
       );
       assert.match(
         run(installedBin, ["review", "--help"], installDir, runtime),
         /--task-file/,
       );
     }
-    assert.equal(run(runtime, [bin, "--version"], installDir), "0.1.0\n");
+    assert.equal(
+      run(runtime, [bin, "--version"], installDir),
+      `${manifest.version}\n`,
+    );
     assert.match(
       run(runtime, [bin, "review", "--help"], installDir),
       /--task-file/,

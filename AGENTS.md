@@ -4,7 +4,7 @@
 
 Degreaser is a local CLI for coding agents to review their work for unjustified complexity, broken contracts and misleading verification. The caller supplies the task and change scope; Degreaser sends each enabled review aspect to a fresh, isolated, read-only worker through acpx. Workers return source evidence. The caller evaluates the findings and makes edits. Degreaser does not fix code or detect AI authorship.
 
-Implemented package: ESM TypeScript, macOS, Node 24+, Codex/Claude Code/Pi/Cursor workers and onboarding. `package.json` remains private; npm publication is not authorized. Planned support is not shipped support. Public product text, CLI output, prompts and skills are English.
+Implemented package: ESM TypeScript, macOS, Node 24+, Codex/Claude Code/Pi/Cursor workers and onboarding. The package is prepared for public v1 distribution. Actual npm publication is not yet authorized: leave `NPM_PUBLISH_ENABLED` unset or false until the owner explicitly enables it. Local npm login is not a publication gate because CI uses OIDC. Planned support is not shipped support. Public product text, CLI output, prompts and skills are English.
 
 ### Behavior to preserve
 
@@ -57,7 +57,7 @@ For product intent, start from `specs/README.md` and `specs/pending/degreaser.md
 - Choose the smallest complete change. Keep strict NodeNext/erasable TypeScript, exact dependency and pnpm pins, disabled lifecycle scripts and existing package-age policy. Never weaken global security settings or automatically approve dependency skills.
 - For behavior changes, first demonstrate a meaningful failing case. Prefer public CLI/process boundaries and real disposable Git repositories with independent expectations. Synthetic adapters test orchestration, not model quality or native compatibility. Source assertions cannot prove model interpretation.
 - For **changes limited to `.md` files, skip `no-mistakes`**. Review the diff, referenced paths, commands and consistency with source/contracts; run only checks relevant to changed content. Markdown prompts, rubrics and generated product guidance still require their applicable validation. Do not run the full code pipeline merely because prose changed. This supersedes older blanket requirements in specs/skill indexes, but preserves required CI and branch protection.
-- For code delivery, use the required review skills below, relevant product checks and `no-mistakes --no-publish-intent` before final delivery. One delivery owner manages push/PR/CI/merge; intermediate workers do not start competing pipelines. Complete authorized delivery through PR, green required checks and merge to `main`; do not ask again for authorization already granted. No npm publication; retain `private: true` until separately authorized.
+- For code delivery, use the required review skills below, relevant product checks and `no-mistakes --no-publish-intent` before final delivery. One delivery owner manages push/PR/CI/merge; intermediate workers do not start competing pipelines. Complete authorized delivery through PR, green required checks and merge to `main`; do not ask again for authorization already granted. Preparing the public package does not authorize publishing it or enabling `NPM_PUBLISH_ENABLED`.
 
 | Command | When / what it verifies |
 | --- | --- |
@@ -85,6 +85,29 @@ and installed-package QA on minimum Node 24.0.0 plus pinned current Node 24.
 PRs defer only minimum-runtime acceptance. `pnpm check` and release preparation
 retain both runtimes by default. CI caches the pnpm store by lockfile and builds
 once per lane. Release output: external/ignored, existing parent, new destination; review notes before sharing.
+
+### Dependency and release automation
+
+Renovate is the sole dependency updater; do not restore Dependabot version
+updates. Preserve exact pins, disabled lifecycle scripts and the seven-day
+minimum release age. Stable patch/minor updates and digest pins may auto-merge
+after required CI; major updates and every update to an npm package whose
+current version is 0.x require compatibility work. Keep `@types/node` on the supported Node 24 major.
+
+Release Please owns versions, `CHANGELOG.md`, tags and release PRs. Runtime
+dependency updates use `fix(deps)` (patch); development and CI updates use
+`chore(deps)` (no standalone product release). Features and breaking changes
+retain normal SemVer. Do not hand-increment versions or write a release engine.
+Use its `extra-files` updater for the annotated `src/version.ts`.
+
+The release workflow is disabled unless `RELEASE_AUTOMATION_ENABLED=true`.
+Actual npm publication additionally requires `NPM_PUBLISH_ENABLED=true` and
+the npm Trusted Publisher setup. Never enable either on the owner's behalf
+without explicit authorization. Keep publication in `release.yml`, publish the
+tested tarball without repacking, and finalize GitHub Releases only after npm
+succeeds. See [.github/RELEASING.md](.github/RELEASING.md) for activation and
+recovery. `--no-publish-intent` hides private task intent in PR text; it does not
+disable npm publication.
 
 ## Task-specific skills and references
 
