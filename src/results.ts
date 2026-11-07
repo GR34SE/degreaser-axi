@@ -75,10 +75,12 @@ function quoteMatches(
   side: "old" | "new",
 ): boolean {
   const haystack = trimLines(lineEndings(source));
-  const needle = trimLines(lineEndings(quote)).replace(/^\n+|\n+$/g, "");
-  const meaningful = needle.replace(/\s/g, "").length;
-  if (meaningful < 3 && needle.trim() !== haystack.trim()) return false;
-  if (haystack.includes(needle)) return true;
+  const found = (needle: string) =>
+    (needle.replace(/\s/g, "").length >= 3 ||
+      (needle.trim() !== "" && needle.trim() === haystack.trim())) &&
+    haystack.includes(needle);
+  if (found(trimLines(lineEndings(quote)).replace(/^\n+|\n+$/g, "")))
+    return true;
   const lines = lineEndings(quote)
     .replace(/^\n+|\n+$/g, "")
     .split("\n");
@@ -89,7 +91,7 @@ function quoteMatches(
   const stripped = trimLines(
     lines.map((line) => (marker.test(line) ? line.slice(1) : line)).join("\n"),
   );
-  return stripped.trim() !== "" && haystack.includes(stripped);
+  return found(stripped);
 }
 
 /**

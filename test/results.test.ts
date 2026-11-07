@@ -349,6 +349,8 @@ test("quotes tolerate CRLF, copied diff markers and repo-path spellings but neve
   );
   const rejected = [
     finding("crlf.ts", "new", "c", 1, 3),
+    finding("crlf.ts", "new", "+3;", 2),
+    finding("crlf.ts", "new", "+;\n+r", 2, 3),
     finding("crlf.ts", "new", "-const B = 3;", 2),
     finding("crlf.ts", "new", "+const a = 1;\nconst B = 3;", 1, 2),
     finding("crlf.ts", "new", "+const B = 2;", 2),
