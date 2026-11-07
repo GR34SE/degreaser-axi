@@ -1,7 +1,13 @@
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { loadConfig, missingConfigFields, resolveConfig } from "./config.ts";
+import {
+  loadConfig,
+  missingConfigFields,
+  type ProjectConfig,
+  resolveConfig,
+} from "./config.ts";
+import { InputError } from "./input-error.ts";
 import { loadRun, StateError } from "./storage.ts";
 
 export function startupContext(cwd: string): string {
@@ -27,11 +33,17 @@ export function startupContext(cwd: string): string {
   if (git.status !== 0) return "";
   const root = git.stdout.trimEnd();
   const intro = "Degreaser reviews code changes with focused reviewers.";
-  if (!existsSync(join(root, ".degreaserrc.json"))) {
-    return `${intro}\nNot configured in this repository; run degreaser-axi init.`;
+  // User-wide hooks run in every repository; unconfigured ones stay silent.
+  if (!existsSync(join(root, ".degreaserrc.json"))) return "";
+  let config: ProjectConfig;
+  try {
+    config = loadConfig(root);
+    resolveConfig(config);
+  } catch (error) {
+    if (error instanceof InputError)
+      return "Degreaser config invalid; run degreaser-axi doctor";
+    throw error;
   }
-  const config = loadConfig(root);
-  resolveConfig(config);
   const model = Array.from(config.model.slice(0, 200), (character) => {
     const code = character.codePointAt(0) ?? 0;
     return code < 32 || code === 127 ? " " : character;
