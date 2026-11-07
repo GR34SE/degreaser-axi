@@ -39,7 +39,7 @@ Startup integrations call the installed executable, so keep this linked checkout
 
 Run the rest **inside the Git repository you want to review**. Init writes `.degreaserrc.json`, installs the selected integrations, and adds `/.degreaser/` to the root `.gitignore` without touching the index. `--aspects low-value-comments` is a cheap first review.
 
-Claude, Pi and Cursor must already be on PATH. The Codex worker ships with this package. Cursor workers use the native `cursor-agent acp` / `agent acp` server, not a separate ACP adapter package. `degreaser-axi doctor` prints the native versions this install accepts: Codex exactly as bundled; Claude and Pi at the verified version or newer in the same major; Cursor at the verified release date or later. Newer-than-verified versions run with an "unverified newer version" notice. See [native worker restrictions and limits](https://github.com/GR34SE/degreaser-axi/blob/main/assets/native-profiles.md), or `dist/assets/native-profiles.md` in a built checkout or installed package.
+Claude, Pi and Cursor must already be on PATH. The Codex worker ships with this package. Cursor workers use the native `cursor-agent acp` / `agent acp` server, not a separate ACP adapter package. `degreaser-axi doctor` prints the native versions this install accepts: Codex exactly as bundled; Claude and Pi at the verified version or newer in the same major; Cursor at the verified release date or later. Accepted versions other than the verified one run with an "unverified newer version" notice. See [native worker restrictions and limits](https://github.com/GR34SE/degreaser-axi/blob/main/assets/native-profiles.md), or `dist/assets/native-profiles.md` in a built checkout or installed package.
 
 ```sh
 degreaser-axi init

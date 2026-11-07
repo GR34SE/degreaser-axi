@@ -25,8 +25,9 @@ See [input-contract.md](input-contract.md) for refusal semantics.
 
 Native versions are checked before dispatch. Codex is bundled and must match
 exactly. Claude and Pi accept the verified version or newer within the same
-major; Cursor accepts the verified release date or later. A newer-than-verified
-version is allowed but reported as an unverified-newer-version notice in
+major; Cursor accepts the verified release date or later. Any other accepted
+version (including another Cursor build on the verified date) is allowed but
+reported as an unverified-newer-version notice in
 `doctor`, `init` discovery and `review`; older versions and other majors are
 refused. Claude and Pi must already be installed and
 authenticated; Cursor uses `cursor-agent` or `agent` on PATH. Executables resolve from absolute PATH entries, not a developer's
