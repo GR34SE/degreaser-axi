@@ -17,7 +17,7 @@ const model = process.env.SYNTHETIC_MODEL;
 const agent = process.env.SYNTHETIC_AGENT;
 // Independent finite catalog, never derived from the requested model.
 const catalog = {
-  codex: ["gpt-6-luna", "exact-codex"],
+  codex: ["exact-codex", "gpt-6-luna"],
   claude: ["claude-haiku-4-5-20251001"],
   pi: ["openai/gpt-6-luna"],
   cursor: ["composer-2.5-fast"],

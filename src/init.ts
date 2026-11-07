@@ -95,17 +95,31 @@ async function catalog(
       });
     }
   }
-  const recommendation = candidates.find((c) => cheapModel(c.model)) ?? null;
-  return { candidates, discovery, recommendation };
+  return { candidates, discovery, recommendation: recommend(candidates) };
 }
 
-function cheapModel(model: string) {
-  if (!model.includes("-")) return false;
-  if (/(?:^|[-/])(haiku|mini|composer)(?:-|$)/i.test(model)) return true;
-  if (/(?:^|[-/])luna(?:-|$)/i.test(model) && !/high/i.test(model)) return true;
+function recommend(candidates: Identity[]) {
+  return (
+    [0, 1, 2]
+      .map((rank) => candidates.find((c) => recommendationRank(c) === rank))
+      .find(Boolean) ?? null
+  );
+}
+
+/** Claude Haiku first, then Codex Luna, then any other cheap model. */
+function recommendationRank({ agent, model }: Identity) {
+  if (!model.includes("-")) return undefined;
+  const haiku = /(?:^|[-/])haiku(?:-|$)/i.test(model);
+  const luna = /(?:^|[-/])luna(?:-|$)/i.test(model) && !/high/i.test(model);
+  if (agent === "claude" && haiku) return 0;
+  if (agent === "codex" && luna) return 1;
+  if (haiku || luna || /(?:^|[-/])(mini|composer)(?:-|$)/i.test(model))
+    return 2;
   return /(?:^|[-/])(?:cursor-)?grok-[\d.]+-low(?:-fast)?(?:$|[^\w])/i.test(
     model,
-  );
+  )
+    ? 2
+    : undefined;
 }
 
 function sameIdentity(left: Identity, right: Identity) {
@@ -180,12 +194,9 @@ export async function init(
     (!agent || candidate.agent === agent) &&
     (!model || candidate.model === model);
   const compatible = choices.candidates.filter(matchesFlags);
+  const best = recommend(compatible) ?? compatible[0];
   const prefill =
-    identity ??
-    [previous, choices.recommendation, ...compatible].find(
-      (c) => c && matchesFlags(c),
-    ) ??
-    null;
+    identity ?? (previous && matchesFlags(previous) ? previous : best) ?? null;
   const missing = [
     ...(!agent || !model ? ["model"] : []),
     ...(!harnesses ? ["harnesses"] : []),
@@ -194,12 +205,7 @@ export async function init(
     process.exitCode = 2;
     const shellQuote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
     const example =
-      compatible.find((c) => prefill && sameIdentity(c, prefill)) ??
-      compatible.find(
-        (c) =>
-          choices.recommendation && sameIdentity(c, choices.recommendation),
-      ) ??
-      compatible[0];
+      compatible.find((c) => prefill && sameIdentity(c, prefill)) ?? best;
     const commands = (example ? [example] : []).flatMap((c) =>
       (harnesses ? [harnesses.join(",")] : agents).map(
         (target) =>
