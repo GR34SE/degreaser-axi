@@ -139,6 +139,7 @@ const connection = new AgentSideConnection(
       const attempt = previous.filter(
         (event) => event.aspect === aspect,
       ).length;
+      // Attempt overrides cover prompt faults; startup and close faults are session-wide.
       const step = settings.attempts?.[attempt] ?? settings;
       if (plan.nestedCli) {
         const { latestRunId } = JSON.parse(

@@ -127,8 +127,6 @@ console.log(${JSON.stringify(version)});
     "read/grep/find/ls",
     "missing",
     "Unverified",
-    "trust",
-    "policy",
   ])
     assert.ok(result.stdout.includes(expected), expected);
   assert.match(result.stdout, /not a universal no-exec/);

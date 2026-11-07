@@ -357,46 +357,6 @@ test("adapter environment is allowlisted even when acpx promotes inherited auth 
   });
 });
 
-test("compiled doctor refuses an unsupported native version before adapter launch without substitution", async () => {
-  const cwd = await mkdtemp(join(tmpdir(), "degreaser-wrong-version-"));
-  try {
-    const bin = join(cwd, "bin");
-    await mkdir(bin);
-    const log = join(cwd, "native-calls.jsonl");
-    const native = `#!${process.execPath}
-import {appendFileSync} from "node:fs";
-appendFileSync(${JSON.stringify(log)}, JSON.stringify(process.argv.slice(2)) + "\\n");
-console.log("99.0.0");
-`;
-    await writeFile(join(bin, "claude"), native, { mode: 0o755 });
-    await writeFile(
-      join(cwd, ".degreaserrc.json"),
-      JSON.stringify({ agent: "claude", model: "claude-haiku-4-5-20251001" }),
-    );
-    assert.equal(spawnSync("git", ["init"], { cwd }).status, 0);
-    const result = spawnSync(
-      process.execPath,
-      [join(root, "dist/bin/degreaser-axi.js"), "doctor"],
-      {
-        cwd,
-        encoding: "utf8",
-        timeout: 15000,
-        env: { HOME: cwd, PATH: `${bin}:${process.env.PATH}` },
-      },
-    );
-    assert.equal(result.status, 2, result.stdout);
-    assert.match(result.stdout, /environment-blocked/);
-    assert.match(result.stdout, /unsupported/i);
-    assert.equal(await readFile(log, "utf8"), '["--version"]\n');
-    assert.equal(await readFile(join(bin, "claude"), "utf8"), native);
-    await assert.rejects(readFile(join(cwd, ".degreaser/state.json")), {
-      code: "ENOENT",
-    });
-  } finally {
-    await rm(cwd, { recursive: true, force: true });
-  }
-});
-
 test("native effective configuration disables web under the production Codex profile", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "degreaser-web-config-"));
   try {

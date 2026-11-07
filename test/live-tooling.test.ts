@@ -1,7 +1,37 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+
+test("metadata pilot refuses unreadable settings before native discovery", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "degreaser-settings-read-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  mkdirSync(join(root, "settings.json"));
+  const result = spawnSync(
+    process.execPath,
+    [
+      fileURLToPath(new URL("../scripts/test-live.ts", import.meta.url)),
+      "--run",
+      "--case",
+      "models",
+      "--agent",
+      "pi",
+      "--model",
+      "synthetic/model",
+    ],
+    {
+      env: { PATH: "", PI_CODING_AGENT_DIR: root },
+      encoding: "utf8",
+      timeout: 5_000,
+    },
+  );
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /EISDIR/);
+  assert.equal(result.stdout, "");
+});
 
 test("live scaffold never reports unimplemented scenarios as passing", () => {
   const script = fileURLToPath(

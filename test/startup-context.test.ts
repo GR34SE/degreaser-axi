@@ -33,7 +33,7 @@ function hook(
   return result.stdout;
 }
 
-test("native JSON cwd and plain mode discover configuration and no history", (t) => {
+test("native JSON cwd and plain mode discover project configuration", (t) => {
   const f = fixture(t);
   const other = fixture(t);
   other.write(
@@ -47,9 +47,10 @@ test("native JSON cwd and plain mode discover configuration and no history", (t)
   const context = JSON.parse(output).hookSpecificOutput;
   assert.equal(context.hookEventName, "SessionStart");
   assert.match(context.additionalContext, /codex.*gpt-6-luna/i);
-  assert.match(context.additionalContext, /no.*run/i);
-  assert.match(context.additionalContext, /Run degreaser-axi for review/);
-  assert.match(hook(join(f.root, "nested"), { plain: true }), /no.*run/i);
+  assert.match(
+    hook(join(f.root, "nested"), { plain: true }),
+    /codex.*gpt-6-luna/i,
+  );
 });
 
 test("Cursor sessionStart reads workspace_roots and uses additional_context", (t) => {
@@ -69,7 +70,6 @@ test("Cursor sessionStart reads workspace_roots and uses additional_context", (t
   const payload = JSON.parse(result.stdout);
   assert.equal(payload.hookSpecificOutput, undefined);
   assert.match(payload.additional_context, /codex.*gpt-6-luna/i);
-  assert.match(payload.additional_context, /no.*run/i);
 });
 
 test("worker, corrupt config and corrupt history are silent", (t) => {

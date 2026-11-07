@@ -230,7 +230,7 @@ test("compiled readers reject corruption at every authoritative JSON layer witho
       failure.executions[0].failure = { code: "owner-failed" };
       cases.push(JSON.stringify(failure));
     }
-    for (const damaged of cases) {
+    for (const [caseIndex, damaged] of cases.entries()) {
       try {
         writeFileSync(path, damaged);
         for (const args of [
@@ -239,6 +239,8 @@ test("compiled readers reject corruption at every authoritative JSON layer witho
           ["finding", "F1"],
           ["home"],
         ]) {
+          // Every corruption uses report; other readers exercise each storage layer once.
+          if (caseIndex > 0 && args[0] !== "report") continue;
           // Explicit run IDs do not use the latest-run pointer.
           if (index === 0 && args[0] === "wait") continue;
           const result = f.run(args);

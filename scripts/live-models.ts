@@ -12,13 +12,18 @@ export async function liveModels(agent: Agent, model: string) {
     await import(
       new URL("../dist/src/model-discovery.js", import.meta.url).href
     );
-  const cwd = await mkdtemp(join(tmpdir(), "degreaser-live-models-"));
   const piSettings = join(
     process.env.PI_CODING_AGENT_DIR ?? join(homedir(), ".pi/agent"),
     "settings.json",
   );
-  const before =
-    agent === "pi" ? await readFile(piSettings).catch(() => null) : null;
+  const readSettings = () =>
+    readFile(piSettings).catch((error: unknown) => {
+      if (error instanceof Error && "code" in error && error.code === "ENOENT")
+        return null;
+      throw error;
+    });
+  const before = agent === "pi" ? await readSettings() : null;
+  const cwd = await mkdtemp(join(tmpdir(), "degreaser-live-models-"));
   try {
     const models = await discoverModels({ agent, model }, cwd, 30_000);
     assert.ok(
@@ -125,7 +130,7 @@ export async function liveModels(agent: Agent, model: string) {
     await rm(cwd, { recursive: true, force: true });
     if (agent === "pi")
       assert.deepEqual(
-        await readFile(piSettings).catch(() => null),
+        await readSettings(),
         before,
         "Pi defaults must remain unchanged.",
       );
