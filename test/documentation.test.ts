@@ -8,7 +8,6 @@ import { validateConfig } from "../src/config.ts";
 import { queueFixture } from "./queue-fixture.ts";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
-const readme = readFileSync(resolve(root, "README.md"), "utf8");
 
 test("public documentation links resolve for source readers without a build", () => {
   const tracked = spawnSync("git", ["ls-files", "-z"], {
@@ -45,8 +44,16 @@ test("public documentation links resolve for source readers without a build", ()
   }
 });
 
-test("README configuration and neutral report excerpt match the public CLI", (t) => {
-  const example = /```json\n([\s\S]+?)\n```/.exec(readme)?.[1];
+test("public contract configuration and report examples match the public CLI", (t) => {
+  const inputContract = readFileSync(
+    resolve(root, "assets/input-contract.md"),
+    "utf8",
+  );
+  const resultContract = readFileSync(
+    resolve(root, "assets/result-contract.md"),
+    "utf8",
+  );
+  const example = /```json\n([\s\S]+?)\n```/.exec(inputContract)?.[1];
   assert.ok(example);
   validateConfig(JSON.parse(example));
   const f = queueFixture(t);
@@ -79,7 +86,7 @@ test("README configuration and neutral report excerpt match the public CLI", (t)
   assert.equal(f.finish().status, 0);
   const report = f.run(["report"]);
   assert.equal(report.status, 0);
-  const excerpt = /```text\n([\s\S]+?)\n```/.exec(readme)?.[1];
+  const excerpt = /```text\n([\s\S]+?)\n```/.exec(resultContract)?.[1];
   assert.ok(excerpt);
   assert.ok(report.stdout.includes(excerpt), report.stdout);
   const finding = f.run(["finding", "F1"]);
