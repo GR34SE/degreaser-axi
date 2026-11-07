@@ -95,17 +95,27 @@ async function catalog(
       });
     }
   }
-  const recommendation = candidates.find((c) => cheapModel(c.model)) ?? null;
+  const recommendation =
+    [0, 1, 2]
+      .map((rank) => candidates.find((c) => recommendationRank(c) === rank))
+      .find(Boolean) ?? null;
   return { candidates, discovery, recommendation };
 }
 
-function cheapModel(model: string) {
-  if (!model.includes("-")) return false;
-  if (/(?:^|[-/])(haiku|mini|composer)(?:-|$)/i.test(model)) return true;
-  if (/(?:^|[-/])luna(?:-|$)/i.test(model) && !/high/i.test(model)) return true;
+/** Claude Haiku first, then Codex Luna, then any other cheap model. */
+function recommendationRank({ agent, model }: Identity) {
+  if (!model.includes("-")) return undefined;
+  const haiku = /(?:^|[-/])haiku(?:-|$)/i.test(model);
+  const luna = /(?:^|[-/])luna(?:-|$)/i.test(model) && !/high/i.test(model);
+  if (agent === "claude" && haiku) return 0;
+  if (agent === "codex" && luna) return 1;
+  if (haiku || luna || /(?:^|[-/])(mini|composer)(?:-|$)/i.test(model))
+    return 2;
   return /(?:^|[-/])(?:cursor-)?grok-[\d.]+-low(?:-fast)?(?:$|[^\w])/i.test(
     model,
-  );
+  )
+    ? 2
+    : undefined;
 }
 
 function sameIdentity(left: Identity, right: Identity) {

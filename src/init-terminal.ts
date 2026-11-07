@@ -141,7 +141,15 @@ export async function configureTerminal(
       !options.model || options.previous?.model === options.model
         ? options.previous
         : undefined;
-    const defaultAgent = options.agent ?? previous?.agent ?? detected[0];
+    // Claude (Haiku) is the preferred worker, then Codex (Luna), then the rest.
+    // An exact --model may belong to any agent, so it keeps detection order.
+    const preferred = options.model
+      ? undefined
+      : (["claude", "codex"] as const).find((value) =>
+          detected.includes(value),
+        );
+    const defaultAgent =
+      options.agent ?? previous?.agent ?? preferred ?? detected[0];
     if (!defaultAgent)
       throw new StateError("environment-blocked", "No review agent available.");
     const available = options.agent

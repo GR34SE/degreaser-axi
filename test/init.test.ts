@@ -171,6 +171,10 @@ for (const existing of [false, true]) {
       assert.match(result.stdout, /claude,claude-haiku-4-5-20251001/);
       assert.match(result.stdout, /pi,openai\/gpt-6-luna/);
       assert.match(result.stdout, /cursor,composer-2\.5-fast/);
+      assert.match(
+        result.stdout,
+        /recommendation:\n {2}agent: claude\n {2}model: claude-haiku-4-5-20251001/,
+      );
       assert.match(result.stdout, /degreaser-axi init --agent/);
       assert.equal(result.stderr, "");
       assert.deepEqual(f.unchanged(), before);
@@ -296,7 +300,7 @@ const acceptAgent: [string, string] = ["agent should run the reviews?", "\r"];
 const acceptModel: [string, string] = ["Search models", "\r"];
 const install: [string, string] = ["Proceed with installation?", "\r"];
 
-test("TTY uses multiselect and a prefilled pair without probing unselected agents", (t) => {
+test("TTY prefills Claude Haiku over Codex without probing unselected agents", (t) => {
   const f = setup(t);
   const result = f.run(
     [],
@@ -310,8 +314,9 @@ test("TTY uses multiselect and a prefilled pair without probing unselected agent
     ],
   );
   assert.equal(result.status, 0, result.stdout);
-  assert.equal(f.config().model, "gpt-6-luna");
-  assert.match(result.stdout, /Loading Codex models/);
+  assert.equal(f.config().agent, "claude");
+  assert.equal(f.config().model, "claude-haiku-4-5-20251001");
+  assert.match(result.stdout, /Loading Claude Code models/);
   assert.match(result.stdout, /Claude Code +\/degreaser review my changes/);
   assert.match(result.stdout, /Pi +\/skill:degreaser review my changes/);
   assert.doesNotMatch(result.stdout, /\$degreaser|doctor/);
@@ -321,7 +326,7 @@ test("TTY uses multiselect and a prefilled pair without probing unselected agent
   );
   assert.ok(!existsSync(join(f.root, ".codex/hooks.json")));
   assert.ok(existsSync(join(f.root, ".claude/skills/degreaser/SKILL.md")));
-  assert.deepEqual([...new Set(f.events().map((e) => e.agent))], ["codex"]);
+  assert.deepEqual([...new Set(f.events().map((e) => e.agent))], ["claude"]);
 });
 
 test("TTY can change harness and search an exact model, then retains it on reinit", (t) => {
@@ -332,23 +337,23 @@ test("TTY can change harness and search an exact model, then retains it on reini
       integrations,
       project,
       skill,
-      [acceptAgent[0], "\x1b[B\r"],
-      [acceptModel[0], "haiku\r"],
+      [acceptAgent[0], "\x1b[A\r"],
+      [acceptModel[0], "exact\r"],
       install,
     ],
   );
   assert.equal(changed.status, 0, changed.stdout);
   assert.match(changed.stdout, /Codex +\$degreaser review my changes/);
   assert.match(changed.stdout, /Codex asks you to trust the project/);
-  assert.equal(f.config().agent, "claude");
-  assert.equal(f.config().model, "claude-haiku-4-5-20251001");
+  assert.equal(f.config().agent, "codex");
+  assert.equal(f.config().model, "exact-codex");
   const again = f.run(
     [],
     [integrations, project, skill, acceptAgent, acceptModel, install],
   );
   assert.equal(again.status, 0, again.stdout);
-  assert.match(again.stdout, /claude-haiku-4-5-20251001 \(current/);
-  assert.equal(f.config().agent, "claude");
+  assert.match(again.stdout, /exact-codex \(current/);
+  assert.equal(f.config().agent, "codex");
 });
 
 test("TTY cancellation before discovery or before installation writes nothing", (t) => {
@@ -411,17 +416,17 @@ test("TTY Ctrl+C during discovery stops its adapter and leaves files untouched",
     assert.throws(() => process.kill(pid, 0), { code: "ESRCH" });
 });
 
-test("TTY defaults to Claude Haiku when Codex is absent", (t) => {
+test("TTY falls back to Codex Luna when Claude is absent", (t) => {
   const f = setup(t);
-  rmSync(join(f.bin, "codex"));
+  rmSync(join(f.bin, "claude"));
   const result = f.run(
     [],
-    [integrations, project, skill, acceptAgent, acceptModel, install],
+    [integrations, project, acceptAgent, acceptModel, install],
   );
   assert.equal(result.status, 0, result.stdout);
-  assert.equal(f.config().agent, "claude");
-  assert.equal(f.config().model, "claude-haiku-4-5-20251001");
-  assert.deepEqual([...new Set(f.events().map((e) => e.agent))], ["claude"]);
+  assert.equal(f.config().agent, "codex");
+  assert.equal(f.config().model, "gpt-6-luna");
+  assert.deepEqual([...new Set(f.events().map((e) => e.agent))], ["codex"]);
 });
 
 test("TTY discovery failure leaves configuration untouched", (t) => {
@@ -431,7 +436,7 @@ test("TTY discovery failure leaves configuration untouched", (t) => {
   const result = f.run([], [integrations, project, skill, acceptAgent]);
   assert.equal(result.status, 2, result.stdout);
   assert.match(result.stdout, /environment-blocked/);
-  assert.match(result.stdout, /Codex is unavailable: /);
+  assert.match(result.stdout, /Claude Code is unavailable: /);
   assert.doesNotMatch(result.stdout, /Log in to it/);
   assert.doesNotMatch(result.stdout, /private diagnostic/);
   assert.deepEqual(f.unchanged(), before);
@@ -523,8 +528,8 @@ test("a displayed next command is runnable only after explicit user selection", 
   assert.equal(result.status, 0, result.stdout);
   assert.deepEqual(f.config(), {
     schemaVersion: 1,
-    agent: "codex",
-    model: "gpt-6-luna",
+    agent: "claude",
+    model: "claude-haiku-4-5-20251001",
     ...defaultSettings,
   });
 });

@@ -51,7 +51,7 @@ degreaser-axi report
 
 In a terminal, Space selects agents and Enter confirms. Init detects Codex, Claude Code, Pi and Cursor on PATH without starting them, then asks Project or Global. Pick the review agent, then press Enter on the highlighted model or type to search that agent's catalog. Only the selected review agent's catalog is loaded. If your previous model is no longer offered, init says so before you choose another.
 
-Every init, including reinit, needs you to confirm or change the model. An existing RC prefills the last choice. Without a terminal, missing decisions return `decision-required` (exit 2) with exact candidates and example commands, and write nothing. After the user chooses, pass `--agent`, `--model` and `--harnesses`. The existing RC is not consent for a later invocation.
+Every init, including reinit, needs you to confirm or change the model. An existing RC prefills the last choice. Otherwise init recommends a small model from the catalogs your harnesses advertise at that moment: Claude Haiku first, then Codex Luna, then another small model. A newer Haiku or Luna is matched by name, with no Degreaser update. Without a terminal, missing decisions return `decision-required` (exit 2) with exact candidates and example commands, and write nothing. After the user chooses, pass `--agent`, `--model` and `--harnesses`. The existing RC is not consent for a later invocation.
 
 `--agent` is the reviewer harness; `--harnesses` are caller integrations. Pick only the ones you use.
 
