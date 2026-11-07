@@ -11,6 +11,12 @@ Do not include Markdown fences inside the block.
 - `limitations`: an array of explicit limitations. Required and nonempty for
   `incomplete`; include applicable constructs you could not examine and why.
 - `reason`: required nonempty explanation for `not-applicable`.
+- `unresolved`: optional array. Use it with `incomplete` to name what stays open
+  besides unexamined paths, for example connected code or evidence you could not
+  check. Each entry has `scope` (`paths`, `context` or `evidence`), a concrete
+  nonempty `reason` and optionally the assessed `paths` it concerns. An
+  `incomplete` result that lists every assigned path as examined must say what
+  is unresolved here; do not claim a path as examined that you did not read.
 - `examinedPaths`: every assessed path whose change you actually read and
   judged for this aspect, preferably as the repository-relative paths from the
   supplied change. Always include it, also for `not-applicable`. A path whose
