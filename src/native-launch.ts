@@ -27,16 +27,26 @@ export function replaceOptions(
   return output;
 }
 
+export function replaceCurrentProcess(
+  executable: string,
+  argv: readonly string[],
+): never {
+  // Node's process.execve is the POSIX binding on Linux and macOS.
+  if (!process.execve)
+    throw new Error(
+      "Native process replacement requires Node 24 on Linux or macOS.",
+    );
+  process.execve(executable, [...argv], process.env);
+  throw new Error("Native process replacement failed.");
+}
+
 export function launchNative(args: string[]): never {
   assertSubscriptionEnvironment(process.env);
   const executable = process.env.DEGREASER_NATIVE_EXECUTABLE;
   if (!executable || !isAbsolute(executable))
     throw new Error("Missing verified native executable.");
   // Replacing this launcher keeps the adapter's process ownership and signals intact.
-  if (!process.execve)
-    throw new Error("Native process replacement requires macOS and Node 24.");
-  process.execve(executable, [executable, ...args], process.env);
-  throw new Error("Native process replacement failed.");
+  replaceCurrentProcess(executable, [executable, ...args]);
 }
 
 export function selectedModel(): string {

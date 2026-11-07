@@ -2,6 +2,7 @@
 import { execFileSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { assertSubscriptionEnvironment } from "../src/native-environment.ts";
+import { replaceCurrentProcess } from "../src/native-launch.ts";
 import { codexConfig } from "../src/native-profile.ts";
 
 try {
@@ -54,13 +55,12 @@ try {
     );
   }
   args.push("-c", `mcp_servers={ ${disabled.join(", ")} }`);
-  if (!process.execve)
-    throw new Error("Native process replacement requires macOS and Node 24.");
-  process.execve(
+  replaceCurrentProcess(process.execPath, [
     process.execPath,
-    [process.execPath, native, ...args, ...process.argv.slice(2)],
-    process.env,
-  );
+    native,
+    ...args,
+    ...process.argv.slice(2),
+  ]);
 } catch {
   console.error(
     "Codex worker profile could not launch. Check bundled native compatibility and subscription policy.",

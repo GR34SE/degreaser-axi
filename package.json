@@ -20,7 +20,8 @@
     "node": ">=24.0.0"
   },
   "os": [
-    "darwin"
+    "darwin",
+    "linux"
   ],
   "packageManager": "pnpm@12.14.0",
   "bin": {

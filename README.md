@@ -8,7 +8,7 @@ Code review for coding agents. Degreaser checks for unnecessary complexity, brok
 
 ## Install
 
-Requires macOS, Node 24+, Git, pnpm, and a logged-in Codex, Claude Code, Pi or Cursor. Claude Code, Pi and Cursor must be on PATH; the Codex worker is bundled.
+Requires Linux or macOS, Node 24+, Git, pnpm, and a logged-in Codex, Claude Code, Pi or Cursor. Linux needs a procps-compatible `/bin/ps` (minimal images such as Debian slim need the `procps` package). Claude Code, Pi and Cursor must be on PATH; the Codex worker is bundled.
 
 The package is not published to npm yet. Build and link a checkout:
 
