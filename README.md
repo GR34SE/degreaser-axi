@@ -35,7 +35,7 @@ pnpm link --global
 degreaser-axi --version
 ```
 
-Startup integrations call the installed executable, so keep this linked checkout at a stable path. `degreaser` is an alias of `degreaser-axi`. The examples use `degreaser-axi`. Registry installation and the skill's `npx` fallback require a future npm release; they are not available from this private package.
+Startup integrations call the installed executable, so keep this linked checkout at a stable path. `degreaser` is an alias of `degreaser-axi`. The examples use `degreaser-axi`. Registry installation and the skill's `npx` fallback require a future npm release; nothing has been published to npm yet.
 
 Run the rest **inside the Git repository you want to review**. Init writes `.degreaserrc.json`, installs the selected integrations, and adds `/.degreaser/` to the root `.gitignore` without touching the index. `--aspects low-value-comments` is a cheap first review.
 
@@ -308,3 +308,7 @@ This runs deterministic tests, type checking, lint/format, build and a separate 
 The GitHub Actions workflow runs this gate on macOS for pushes to main, nightly and on manual dispatch. Pull requests check the installed package on current Node 24 only, and run just the documentation tests when they change nothing but `README.md` or `AGENTS.md`. The check is named `macOS deterministic`; live model tests are not part of it. Local checks do not establish a hosted CI pass.
 
 `pnpm qa` runs just the isolated init → review → report → partial failure → same-run resume scenario. Its external adapter and faults are synthetic; the compiled CLI, Git, owner and saved results are real. Live model reviews are separate and consume your selected subscription quota.
+
+## License
+
+[MIT](LICENSE)

@@ -1,8 +1,20 @@
 {
   "name": "degreaser-axi",
-  "version": "0.1.0",
-  "private": true,
+  "version": "1.0.0",
+  "private": false,
   "description": "Focused source-only code review for coding agents",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GR34SE/degreaser-axi.git"
+  },
+  "homepage": "https://github.com/GR34SE/degreaser-axi#readme",
+  "bugs": {
+    "url": "https://github.com/GR34SE/degreaser-axi/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "engines": {
     "node": ">=24.0.0"
@@ -45,8 +57,10 @@
     "pi-acp": "0.0.33"
   },
   "devDependencies": {
+    "@actions/expressions": "0.3.61",
     "@biomejs/biome": "2.6.3",
     "@types/node": "24.19.2",
+    "release-please": "17.3.0",
     "typescript": "7.0.2",
     "yaml": "2.9.1"
   }

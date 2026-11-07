@@ -1,0 +1,20 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "bootstrap-sha": "9af9e787bd5988b18baa03328d1c81b6c23cb25c",
+  "packages": {
+    ".": {
+      "release-type": "node",
+      "package-name": "degreaser-axi",
+      "initial-version": "1.0.0",
+      "include-component-in-tag": false,
+      "draft": true,
+      "force-tag-creation": true,
+      "extra-files": [
+        {
+          "type": "generic",
+          "path": "src/version.ts"
+        }
+      ]
+    }
+  }
+}
