@@ -881,7 +881,7 @@ test("public --path rejects unsafe or unmatched patterns before creating a run",
   assert.deepEqual(f.events(), []);
 });
 
-test("public --path narrows worktree changes and unmatched changes are no-changes", (t) => {
+test("public --path narrows worktree changes and an unmatched pattern is rejected, not no-changes", (t) => {
   const f = setup(t);
   f.write("landing/app.ts", "old\n");
   f.write("api/server.ts", "old\n");
@@ -897,8 +897,8 @@ test("public --path narrows worktree changes and unmatched changes are no-change
   );
   assert.doesNotMatch(f.input().patch, /new api/);
   rmSync(join(f.root, ".degreaser"), { recursive: true });
-  const empty = f.run([...args, "--path", "docs"]);
-  assert.equal(empty.status, 0, empty.stdout);
-  assert.match(empty.stdout, /status: no-changes/);
+  const typo = f.run([...args, "--path", "docs", "--path", "landng"]);
+  assert.equal(typo.status, 2, typo.stdout);
+  assert.match(typo.stdout + typo.stderr, /--path docs, landng/);
   assert.ok(!existsSync(join(f.root, ".degreaser")));
 });

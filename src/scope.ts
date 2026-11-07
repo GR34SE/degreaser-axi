@@ -8,7 +8,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { git, requireGit } from "./git.ts";
+import { git, isUtf8, requireGit, requireGitBytes } from "./git.ts";
 import { InputError } from "./input-error.ts";
 
 export type Scope = "worktree" | "branch" | "repository";
@@ -54,7 +54,11 @@ const nulList = (value: string) => value.split("\0").filter(Boolean);
 const excluded = (path: string, extra: string[]) =>
   path === ".degreaser" ||
   path.startsWith(".degreaser/") ||
-  path.split("/").some((part) => generated.includes(part)) ||
+  // Directory components only: `scripts/build` or `dist.go` files stay assessable.
+  path
+    .split("/")
+    .slice(0, -1)
+    .some((part) => generated.includes(part)) ||
   extra.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
 
 function parseRaw(raw: string): ScopePath[] {
@@ -103,6 +107,66 @@ function binaryPaths(numstat: string): Set<string> {
     if (record.slice(0, first) === "-") paths.add(path);
   }
   return paths;
+}
+
+const fileType = (mode: string | null) =>
+  mode === null ? null : Number.parseInt(mode, 8) & 0o170000;
+
+/**
+ * Owner of each patch section, in order. Git emits patch sections in `--raw`
+ * order, except that a change between file, symlink and gitlink types is
+ * written as a deletion section followed by a creation section.
+ */
+export function patchSectionOwners(paths: ScopePath[]): ScopePath[] {
+  return paths.flatMap((path) =>
+    path.oldMode !== null &&
+    path.newMode !== null &&
+    fileType(path.oldMode) !== fileType(path.newMode)
+      ? [path, path]
+      : [path],
+  );
+}
+
+/**
+ * A section whose bytes are not valid UTF-8 (a Latin-1 file, on either side)
+ * is replaced by Git's own binary stub and its path is marked binary, so
+ * coverage, evidence checks and reports treat it like any binary file.
+ */
+function omitNonUtf8Sections(
+  patch: Buffer,
+  paths: ScopePath[],
+  omitted: Set<string>,
+): string {
+  if (isUtf8(patch)) return patch.toString("utf8");
+  const marker = Buffer.from("diff --git ");
+  const starts: number[] = [];
+  for (let at = patch.indexOf(marker); at !== -1; ) {
+    if (at === 0 || patch[at - 1] === 0x0a) starts.push(at);
+    at = patch.indexOf(marker, at + 1);
+  }
+  const owners = patchSectionOwners(paths);
+  if (starts.length !== owners.length || starts[0] !== 0)
+    throw new InputError(
+      "Git patch sections do not match the changed paths; no run was started.",
+    );
+  return starts
+    .map((start, i) => {
+      const section = patch.subarray(start, starts[i + 1] ?? patch.length);
+      if (isUtf8(section)) return section.toString("utf8");
+      const path = owners[i];
+      if (!path) throw new InputError("Git patch section has no path record.");
+      path.binary = true;
+      omitted.add(path.path);
+      const lines = section.toString("latin1").split("\n");
+      const label = (prefix: string) =>
+        lines.find((line) => line.startsWith(prefix))?.slice(prefix.length);
+      const head = lines.slice(
+        0,
+        lines.findIndex((line) => line.startsWith("--- ")),
+      );
+      return `${head.join("\n")}\nBinary files ${label("--- ")} and ${label("+++ ")} differ\n`;
+    })
+    .join("");
 }
 
 function resolveBase(
@@ -187,6 +251,23 @@ function resolveTree(repository: string): string {
     } else {
       indexGit(["read-tree", "--empty"]);
     }
+    // One recursive pathspec: Git matches pathspecs per file, so listing every
+    // file as its own literal pathspec is quadratic and times out on monorepos.
+    // Unignored run state is excluded so it is never hashed into objects; Git
+    // rejects that exclude for an ignored .degreaser, which `add -A` skips
+    // anyway. Removing run state from the temporary index is a safety net.
+    const stateIgnored =
+      git(repository, ["check-ignore", "-q", "--no-index", ".degreaser"], {
+        allowFailure: true,
+        index,
+      }) !== null;
+    indexGit([
+      "add",
+      "-A",
+      "--",
+      ":(top)",
+      ...(stateIgnored ? [] : [":(top,literal,exclude).degreaser"]),
+    ]);
     const statePaths = nulList(
       indexGit(["ls-files", "-z", "--", ".degreaser"]),
     );
@@ -194,26 +275,6 @@ function resolveTree(repository: string): string {
       indexGit(["update-index", "--force-remove", "-z", "--stdin"], {
         input: `${statePaths.join("\0")}\0`,
       });
-    const candidates = [
-      ...new Set(
-        nulList(
-          indexGit([
-            "ls-files",
-            "--cached",
-            "--others",
-            "--exclude-standard",
-            "-z",
-          ]),
-        ),
-      ),
-    ].filter(
-      (path) => path !== ".degreaser" && !path.startsWith(".degreaser/"),
-    );
-    if (candidates.length) {
-      indexGit(["add", "-A", "--pathspec-from-file=-", "--pathspec-file-nul"], {
-        input: `${candidates.map((path) => `:(top,literal)${path}`).join("\0")}\0`,
-      });
-    }
     return indexGit(["write-tree"]).trim();
   } finally {
     rmSync(temporary, { recursive: true, force: true });
@@ -251,10 +312,7 @@ export function resolveScope(
   const pathspecs = [
     ...selection,
     ":(top,literal,exclude).degreaser",
-    ...generated.flatMap((name) => [
-      `:(top,glob,exclude)**/${name}`,
-      `:(top,glob,exclude)**/${name}/**`,
-    ]),
+    ...generated.map((name) => `:(top,glob,exclude)**/${name}/**`),
     ...extraExclusions.map((path) => `:(top,literal,exclude)${path}`),
   ];
   // An empty tree enumerates audit metadata; no audit change patch is emitted.
@@ -281,20 +339,36 @@ export function resolveScope(
     path.binary = binarySet.has(path.path);
     if (base === null) path.status = "audit";
   }
-  const patch =
+  const textPatch =
     base === null
       ? null
-      : requireGit(repository, [
+      : requireGitBytes(repository, [
           ...diff,
           "--patch",
           "--unified=3",
           "--",
           ...pathspecs,
         ]);
+  if (pathPatterns.length && !paths.length && scope !== "repository") {
+    const changed = requireGit(repository, [
+      ...diff,
+      "--name-only",
+      "-z",
+      "--",
+      ".",
+      ...pathspecs.slice(selection.length),
+    ]);
+    if (changed)
+      throw new InputError(
+        `No changed assessable file matches --path ${pathPatterns.join(", ")} in ${scope} scope (after exclusions); check for typos or run without --path. No review was started.`,
+      );
+  }
+  const nonUtf8Set = new Set<string>();
+  const patch = textPatch && omitNonUtf8Sections(textPatch, paths, nonUtf8Set);
   const excludedPaths = nulList(
     requireGit(repository, [...diff, "--name-only", "-z", "--", ...selection]),
   ).filter((path) => excluded(path, extraExclusions));
-  paths.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+  // Paths stay in Git's emission order, which is also the patch section order.
   const limitations: Limitation[] = [
     {
       code: "git-object-writes",
@@ -309,7 +383,7 @@ export function resolveScope(
     {
       code: "coverage",
       message:
-        "Only supplied paths are assessed. Excluded or other files may be read as context without becoming reviewed coverage. Built-ins exclude root .degreaser and node_modules/dist/build/coverage directories at any depth.",
+        "Only supplied paths are assessed. Excluded or other files may be read as context without becoming reviewed coverage. Built-ins exclude root .degreaser and node_modules/dist/build/coverage directories at any depth (files with those names stay assessable).",
       paths: excludedPaths,
     },
     ...(pathPatterns.length
@@ -321,13 +395,23 @@ export function resolveScope(
         ]
       : []),
   ];
-  const binaries = paths.filter((path) => path.binary).map((path) => path.path);
+  const binaries = paths
+    .filter((path) => path.binary && !nonUtf8Set.has(path.path))
+    .map((path) => path.path);
   if (binaries.length)
     limitations.push({
       code: "binary",
       message:
         "Binary file contents are omitted from the text patch; their contents are not assessed.",
       paths: binaries,
+    });
+  const nonUtf8 = [...nonUtf8Set].sort();
+  if (nonUtf8.length)
+    limitations.push({
+      code: "non-utf8",
+      message:
+        "Text contents that are not valid UTF-8 are omitted from the patch and treated like binary files; they are not assessed.",
+      paths: nonUtf8,
     });
   const gitlinks = paths
     .filter((path) => path.oldMode === "160000" || path.newMode === "160000")

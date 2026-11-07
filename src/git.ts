@@ -3,11 +3,11 @@ import { diagnoseFailure } from "./diagnostics.ts";
 import { InputError } from "./input-error.ts";
 import { workerFailure } from "./worker-failure.ts";
 
-export function git(
+function gitBytes(
   repository: string,
   args: string[],
   options: { index?: string; input?: string; allowFailure?: boolean } = {},
-): string | null {
+): Buffer | null {
   const env = Object.fromEntries(
     Object.entries(process.env).filter(([key]) => !key.startsWith("GIT_")),
   );
@@ -39,13 +39,7 @@ export function git(
     },
   );
   if (!result.error && result.status === 0) {
-    try {
-      return new TextDecoder("utf-8", { fatal: true }).decode(result.stdout);
-    } catch {
-      throw new InputError(
-        "Git input contains non-UTF-8 paths or text. Refusing to persist lossy replacement characters; no run was started.",
-      );
-    }
+    return result.stdout;
   }
   const failure =
     result.error ?? new Error(result.stderr?.toString("utf8") ?? "");
@@ -56,6 +50,37 @@ export function git(
   throw new InputError(
     `Git ${args[0]} failed while resolving review input. Check repository state, available history, filters and filesystem access; no run was started.`,
   );
+}
+
+export const isUtf8 = (bytes: Uint8Array) => {
+  try {
+    new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/** Strict UTF-8: path names and metadata must never persist replacement characters. */
+export function git(
+  repository: string,
+  args: string[],
+  options: { index?: string; input?: string; allowFailure?: boolean } = {},
+): string | null {
+  const bytes = gitBytes(repository, args, options);
+  if (bytes === null) return null;
+  if (!isUtf8(bytes))
+    throw new InputError(
+      "Git input contains non-UTF-8 paths or metadata. Refusing to persist lossy replacement characters; no run was started.",
+    );
+  return bytes.toString("utf8");
+}
+
+/** Raw bytes, for patch text whose non-UTF-8 sections are omitted per file. */
+export function requireGitBytes(repository: string, args: string[]): Buffer {
+  const result = gitBytes(repository, args);
+  if (result === null) throw new Error("Unexpected optional Git failure");
+  return result;
 }
 
 export function requireGit(
