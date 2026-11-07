@@ -35,26 +35,22 @@ const defaultSettings = {
     runTimeoutSeconds: 900,
   },
   aspects: {
-    enable: [
-      "missed-reuse",
-      "unnecessary-layers",
-      "speculative-flexibility",
-      "masked-errors",
-      "unjustified-defense",
-      "low-value-comments",
-      "convention-drift",
-      "scope-creep",
-      "contract-bypass",
-      "low-value-tests",
-      "incomplete-integration",
-      "wrong-abstraction",
-      "reinvented-infrastructure",
-      "unidiomatic-code",
-      "structural-erosion",
-      "verification-theater",
-    ],
-    disable: [],
-    overrides: {},
+    "missed-reuse": true,
+    "unnecessary-layers": true,
+    "speculative-flexibility": true,
+    "masked-errors": true,
+    "unjustified-defense": true,
+    "low-value-comments": true,
+    "convention-drift": true,
+    "scope-creep": true,
+    "contract-bypass": true,
+    "low-value-tests": true,
+    "incomplete-integration": true,
+    "wrong-abstraction": true,
+    "reinvented-infrastructure": true,
+    "unidiomatic-code": true,
+    "structural-erosion": true,
+    "verification-theater": true,
   },
   exclude: [],
 };
@@ -191,7 +187,7 @@ test("explicit selection persists exact identity and preserves RC controls, then
   const controls = {
     concurrency: 2,
     maxRetries: 0,
-    aspects: { disable: ["scope-creep"] },
+    aspects: { "scope-creep": false },
   };
   f.write(
     ".degreaserrc.json",
@@ -217,13 +213,7 @@ test("explicit selection persists exact identity and preserves RC controls, then
       model: "claude-haiku-4-5-20251001",
       ...defaultSettings,
       ...controls,
-      aspects: {
-        ...defaultSettings.aspects,
-        ...controls.aspects,
-        enable: defaultSettings.aspects.enable.filter(
-          (id) => id !== "scope-creep",
-        ),
-      },
+      aspects: { ...defaultSettings.aspects, ...controls.aspects },
     });
   }
   assert.deepEqual(readFileSync(join(f.root, ".git/index")), index);

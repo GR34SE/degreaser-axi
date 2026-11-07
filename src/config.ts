@@ -37,16 +37,14 @@ export interface Limits {
   maxTurns: number;
   runTimeoutSeconds: number;
 }
+/** true: on with the default identity; false: off; object: on with this identity. */
+export type AspectSetting = boolean | { agent?: Agent; model: string };
 export interface ProjectConfig extends Identity {
   schemaVersion?: 1;
   concurrency?: number | null;
   maxRetries?: number;
   limits?: Partial<Limits>;
-  aspects?: {
-    enable?: AspectId[];
-    disable?: AspectId[];
-    overrides?: Partial<Record<AspectId, { agent?: Agent; model: string }>>;
-  };
+  aspects?: Partial<Record<AspectId, AspectSetting>>;
   exclude?: string[];
 }
 export interface EffectiveConfig {
@@ -101,7 +99,18 @@ export function loadConfig(repository: string): ProjectConfig {
   return validateConfig(data);
 }
 
+const LEGACY_ASPECT_KEYS = ["enable", "disable", "overrides"];
+
 export function validateConfig(data: unknown): ProjectConfig {
+  const aspects = (data as { aspects?: unknown } | null)?.aspects;
+  if (
+    aspects &&
+    typeof aspects === "object" &&
+    LEGACY_ASPECT_KEYS.some((key) => Object.hasOwn(aspects, key))
+  )
+    throw new InputError(
+      '.degreaserrc.json: aspects.enable/disable/overrides were replaced by one entry per aspect, e.g. "aspects": { "scope-creep": false, "low-value-comments": { "model": "<exact-id>" } }. Omitted aspects are on.',
+    );
   if (!validate(data)) {
     const details = validate.errors
       ?.map((error) => `${error.schemaPath} ${error.message}`)
@@ -126,13 +135,12 @@ export function completeConfig(data: unknown) {
       runTimeoutSeconds: 900,
       ...rc.limits,
     },
-    aspects: {
-      enable:
-        rc.aspects?.enable ??
-        ASPECT_IDS.filter((id) => !rc.aspects?.disable?.includes(id)),
-      disable: rc.aspects?.disable ?? [],
-      overrides: rc.aspects?.overrides ?? {},
-    },
+    aspects: Object.fromEntries(
+      ASPECT_IDS.map((id): [AspectId, AspectSetting] => [
+        id,
+        rc.aspects?.[id] ?? true,
+      ]),
+    ) as Record<AspectId, AspectSetting>,
     exclude: rc.exclude ?? [],
   };
 }
@@ -176,11 +184,11 @@ export function resolveConfig(
   controls: ReviewControls = {},
 ): EffectiveConfig {
   const rc = completeConfig(data);
-  const disabled = new Set(rc.aspects.disable);
-  if (rc.aspects.enable.some((id) => disabled.has(id))) {
-    throw new InputError("An aspect cannot appear in both enable and disable.");
-  }
-  const enabled = ASPECT_IDS.filter((id) => !disabled.has(id));
+  const enabled = ASPECT_IDS.filter((id) => rc.aspects[id] !== false);
+  const override = (id: AspectId) => {
+    const setting = rc.aspects[id];
+    return typeof setting === "object" ? setting : undefined;
+  };
   if (enabled.length === 0 || controls.aspects?.length === 0)
     throw new InputError("The effective aspect selection is empty.");
   if (controls.aspects) {
@@ -205,10 +213,9 @@ export function resolveConfig(
   }
   // Validate even unused overrides: a narrow invocation must not hide a broken RC.
   for (const id of ASPECT_IDS) {
-    const override = rc.aspects.overrides[id];
     if (
-      (override?.agent ?? rc.agent) === "pi" &&
-      !/^[^/\s]+\/\S+$/.test(override?.model ?? rc.model)
+      (override(id)?.agent ?? rc.agent) === "pi" &&
+      !/^[^/\s]+\/\S+$/.test(override(id)?.model ?? rc.model)
     ) {
       throw new InputError(`${id}: Pi requires a provider-qualified model ID.`);
     }
@@ -218,8 +225,8 @@ export function resolveConfig(
       .filter((id) => !controls.aspects || controls.aspects.includes(id))
       .map((aspect) => ({
         aspect,
-        agent: rc.aspects.overrides[aspect]?.agent ?? rc.agent,
-        model: rc.aspects.overrides[aspect]?.model ?? rc.model,
+        agent: override(aspect)?.agent ?? rc.agent,
+        model: override(aspect)?.model ?? rc.model,
       })),
     concurrency: controls.concurrency ?? rc.concurrency,
     maxRetries: rc.maxRetries,

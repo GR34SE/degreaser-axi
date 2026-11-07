@@ -53,7 +53,7 @@ test("invalid configuration reports schema constraints without echoing unknown k
   const f = fixture(t);
   for (const extra of [
     { [secret]: secret },
-    { aspects: { overrides: { [secret]: { model: secret } } } },
+    { aspects: { [secret]: { model: secret } } },
   ]) {
     f.write(
       ".degreaserrc.json",
