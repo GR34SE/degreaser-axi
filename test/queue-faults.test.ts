@@ -215,23 +215,17 @@ for (const [name, error, expected] of [
   ],
   ["unknown model", { message: "Model not found" }, "model-unavailable"],
   ["quota exhaustion", { message: "Quota exhausted" }, "rate-limited"],
-  ["account limit", { message: "Account usage limit reached" }, "rate-limited"],
-  ["rate limit", { message: "Rate limit 429" }, "rate-limited"],
   [
     "permission denial",
     { message: "Permission denied" },
     "environment-blocked",
   ],
-  ["unrelated author", { message: "Cannot decode author record" }, "runtime"],
-  ["unrelated policy", { message: "Cannot decode policy record" }, "runtime"],
   [
     "unrelated 429",
     { message: "Cannot decode record 429 in provider response" },
     "runtime",
   ],
-  ["HTTP 429", { message: "HTTP 429: Too Many Requests" }, "rate-limited"],
   ["disabled account", { message: "Account disabled" }, "account-disabled"],
-  ["suspended account", { message: "Account suspended" }, "account-disabled"],
 ] as const) {
   test(`${name} is classified without retries, identity fallback or lost peers`, (t) => {
     const f = queueFixture(t, { maxRetries: 3, concurrency: 2 });

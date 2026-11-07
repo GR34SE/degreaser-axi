@@ -1,10 +1,9 @@
 import assert from "node:assert/strict";
-import { once } from "node:events";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
 import test from "node:test";
-import { alive, queueFixture, until } from "./queue-fixture.ts";
+import { alive, capture, queueFixture, until } from "./queue-fixture.ts";
 
 const { decode } = createRequire(import.meta.resolve("axi-sdk-js"))(
   "@toon-format/toon",
@@ -337,14 +336,7 @@ test("a killed owner exposes interrupted and racing resumes admit only one nonov
     persisted,
   );
   f.setPlan({ worker: { resultGate: f.gate("replacement") } });
-  const capture = async (child: ReturnType<typeof f.launch>) => {
-    let stdout = "";
-    child.stdout.on("data", (data) => {
-      stdout += data;
-    });
-    const [code] = await once(child, "close");
-    return { code, stdout };
-  };
+
   const results = await Promise.all(
     [1, 2].map(() => capture(f.launch(["resume", old.id, "--wait", "1"]))),
   );

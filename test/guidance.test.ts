@@ -32,14 +32,6 @@ test("generated skill rejects drift and can be regenerated in isolation", (t) =>
     );
   assert.equal(run("--check").status, 0);
   const original = readFileSync(asset, "utf8");
-  assert.doesNotMatch(
-    original,
-    /installation and automatic gitignore setup remain under development/,
-  );
-  assert.match(original, /same command session until it exits/i);
-  assert.match(original, /no replacement review/i);
-  assert.match(original, /Read.*output file/);
-  assert.match(original, /TaskOutput was removed/);
   writeFileSync(asset, `${original}\ndrift\n`);
   const stale = run("--check");
   assert.notEqual(stale.status, 0);

@@ -29,6 +29,10 @@ test("structured runtime causes take precedence over loose messages", () => {
       "model-unavailable",
     ],
     [{ status: 429, message: "Login failed" }, "rate-limited"],
+    [{ message: "Account usage limit reached" }, "rate-limited"],
+    [{ message: "Rate limit 429" }, "rate-limited"],
+    [{ message: "Cannot decode author record" }, "runtime"],
+    [{ message: "Cannot decode policy record" }, "runtime"],
     [
       { code: "INSUFFICIENT_QUOTA", message: "Opaque provider response" },
       "rate-limited",

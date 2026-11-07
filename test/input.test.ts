@@ -3,10 +3,8 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
-import { Ajv } from "ajv";
 import { assertSupportedModels, resolveConfig } from "../src/config.ts";
 import { prepareReview } from "../src/input.ts";
-import { validateReviewInput } from "../src/input-schema.ts";
 import { fixture } from "./git-fixture.ts";
 
 const all = [
@@ -108,13 +106,6 @@ test("a parent's RC is not a configuration source for a nested repository", (t) 
 });
 
 test("strict public RC schema rejects unknown fields and bounded invalid values without coercion", () => {
-  const schema = JSON.parse(
-    readFileSync(
-      new URL("../assets/schemas/config-v1.json", import.meta.url),
-      "utf8",
-    ),
-  );
-  const validate = new Ajv({ strict: true }).compile(schema);
   const invalid: unknown[] = [
     {},
     { agent: "codex" },
@@ -159,14 +150,16 @@ test("strict public RC schema rejects unknown fields and bounded invalid values 
     ].map((path) => ({ ...identity, exclude: [path] })),
   ];
   for (const value of invalid) {
-    assert.equal(validate(value), false, JSON.stringify(value));
     assert.throws(() => resolveConfig(value), { name: "InputError" });
   }
-  assert.equal(
-    validate({ ...identity, schemaVersion: 1, concurrency: 32, maxRetries: 0 }),
-    true,
-  );
-  assert.equal(validate({ agent: "cursor", model: "composer-2.5-fast" }), true);
+  const bounded = resolveConfig({
+    ...identity,
+    schemaVersion: 1,
+    concurrency: 32,
+    maxRetries: 0,
+  });
+  assert.equal(bounded.concurrency, 32);
+  assert.equal(bounded.maxRetries, 0);
   assert.deepEqual(
     resolveConfig({
       agent: "cursor",
@@ -279,25 +272,4 @@ test("selection narrows all sixteen defaults without re-enabling disabled aspect
       ),
     /not available/,
   );
-});
-
-test("resolved input round-trips through its shipped versioned schema without inventing an audit patch", (t) => {
-  const f = fixture(t);
-  f.write("source", "source evidence\n");
-  for (const scope of ["worktree", "branch", "repository"]) {
-    const request = ["--scope", scope, "--task", "Review source"];
-    if (scope === "branch") request.push("--base", "main");
-    const resolved = prepareReview(request, f.root);
-    const saved = JSON.parse(JSON.stringify(resolved));
-    assert.deepEqual(validateReviewInput(saved), resolved);
-    for (const invalid of [
-      { ...saved, schemaVersion: 2 },
-      { ...saved, tree: "missing" },
-      { ...saved, scope: "implicit" },
-      { ...saved, unknown: true },
-      { ...saved, paths: [{ ...saved.paths[0], path: "../outside" }] },
-      { ...saved, patch: scope === "repository" ? "invented diff" : null },
-    ])
-      assert.throws(() => validateReviewInput(invalid), { name: "InputError" });
-  }
 });

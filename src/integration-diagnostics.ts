@@ -1,8 +1,10 @@
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { AGENTS, type Agent } from "./config.ts";
 import {
+  IntegrationConflict,
+  parseObject,
   readIntegrationFile,
   readIntegrationLink,
 } from "./integration-files.ts";
@@ -47,27 +49,31 @@ function inspectFile(
   receipt: Receipt | undefined,
   reliable: boolean,
 ): Component {
-  const linked = receipt?.files[dirname(path)];
+  const linkPath = dirname(path);
+  const linked = receipt?.files[linkPath];
+  const reportedPath = linked ? linkPath : path;
+  let contentPath = path;
   if (linked) {
     // A Claude skill installed as a symlink to the shared .agents copy.
-    let target: string | null = null;
+    let target: string | null;
     try {
-      target = readIntegrationLink(dirname(path));
-    } catch {
-      // A non-link entry at the directory is a modification.
+      target = readIntegrationLink(linkPath);
+    } catch (error) {
+      return {
+        path: reportedPath,
+        status:
+          error instanceof IntegrationConflict ? "modified" : "unverified",
+      };
     }
-    return {
-      path: dirname(path),
-      status:
-        target === null
-          ? "missing"
-          : hash(`symlink:${target}`) === linked.hash
-            ? "installed"
-            : "modified",
-    };
+    if (target === null) return { path: reportedPath, status: "missing" };
+    if (!linked.owners.includes(agent))
+      return { path: reportedPath, status: "unmanaged" };
+    if (hash(`symlink:${target}`) !== linked.hash)
+      return { path: reportedPath, status: "modified" };
+    contentPath = resolve(dirname(linkPath), target, "SKILL.md");
   }
-  const { text, readable } = read(path);
-  const owned = receipt?.files[path];
+  const { text, readable } = read(contentPath);
+  const owned = receipt?.files[contentPath];
   let status: Status;
   if (!readable || !reliable) status = "unverified";
   else if (text === null) status = "missing";
@@ -75,7 +81,7 @@ function inspectFile(
   else if (hash(text) !== owned.hash || hash(expected) !== owned.hash)
     status = "modified";
   else status = "installed";
-  return { path, status };
+  return { path: reportedPath, status };
 }
 
 function inspectHook(
@@ -88,10 +94,7 @@ function inspectHook(
   if (!readable || !reliable) return { hook: { path, status: "unverified" } };
   if (text === null) return { hook: { path, status: "missing" } };
   try {
-    const settings: unknown = JSON.parse(text);
-    if (!settings || typeof settings !== "object" || Array.isArray(settings))
-      throw new Error("Invalid settings");
-    const value = settings as Record<string, unknown>;
+    const value = parseObject(text, path);
     const hooks = value.hooks;
     if (
       hooks !== undefined &&

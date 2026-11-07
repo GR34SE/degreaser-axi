@@ -12,7 +12,6 @@ import { isolatedCommand } from "./native-environment.ts";
 import type { NativeProfile } from "./native-profile.ts";
 import { type WorkerFailure, workerFailure } from "./worker-failure.ts";
 
-export type { WorkerFailure } from "./worker-failure.ts";
 export interface WorkerRequest {
   cwd: string;
   /** Assembled assignment, task/scope and response contract. Never ambient caller history. */

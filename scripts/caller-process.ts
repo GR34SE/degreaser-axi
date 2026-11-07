@@ -14,16 +14,17 @@ export function callerProcess(
   args: string[],
   cwd: string,
   observe: (event: Record<string, unknown>) => void,
+  environment: NodeJS.ProcessEnv = {
+    ...callerEnvironment,
+    CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1",
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1",
+    ENABLE_CLAUDEAI_MCP_SERVERS: "false",
+    PI_TELEMETRY: "0",
+  },
 ) {
   const child = spawn(command, args, {
     cwd,
-    env: {
-      ...callerEnvironment,
-      CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1",
-      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1",
-      ENABLE_CLAUDEAI_MCP_SERVERS: "false",
-      PI_TELEMETRY: "0",
-    },
+    env: environment,
     detached: true,
     stdio: ["pipe", "pipe", "pipe"],
   });

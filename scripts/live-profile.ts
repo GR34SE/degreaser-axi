@@ -1,7 +1,34 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { readFile } from "node:fs/promises";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { NativeProfile } from "../src/native-profile.ts";
+
+export function readPiSettings() {
+  const path = join(
+    process.env.PI_CODING_AGENT_DIR ?? join(homedir(), ".pi", "agent"),
+    "settings.json",
+  );
+  return readFile(path).catch((error: unknown) => {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT")
+      return null;
+    throw error;
+  });
+}
+
+// Claude's documented family aliases track releases; explicit IDs remain exact.
+// https://code.claude.com/docs/en/model-config#model-aliases
+export function assertClaudeModel(requested: string, observed: unknown) {
+  assert.ok(
+    observed === requested ||
+      (["haiku", "sonnet", "opus"].includes(requested) &&
+        typeof observed === "string" &&
+        observed.startsWith(`claude-${requested}-`)),
+    "Native Claude model differs from the selected ID or family alias.",
+  );
+}
 
 /** Native diagnostics under the same packaged launcher/environment, not adapter replacements. */
 export function inspectNativeProfile(
@@ -104,13 +131,14 @@ export function inspectNativeProfile(
     assert.deepEqual([...init.tools].sort(), ["Glob", "Grep", "Read"]);
     assert.equal(init.skills.length, 0);
     assert.equal(init.mcp_servers.length, 0);
-    assert.equal(init.model, profile.model);
+    assertClaudeModel(profile.model, init.model);
     return {
       nativeSessionId: init.session_id,
       tools: init.tools,
       skills: 0,
       mcpServers: 0,
       model: init.model,
+      requestedModel: profile.model,
       readNonceVerified: true,
     };
   }

@@ -37,6 +37,10 @@ export async function doctor(cwd: string) {
       profiles.push({
         ...description,
         compatibility: "verified-version",
+        versionSource:
+          agent === "codex"
+            ? "installed-package-manifest"
+            : "native-executable",
         nativeVersion: profile.nativeVersion,
         adapterVersion: profile.adapterVersion,
       });

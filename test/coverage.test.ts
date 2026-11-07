@@ -50,6 +50,25 @@ test("an incomplete pass continues with a focused pass over only unexamined path
   assert.doesNotMatch(first, /Focused coverage continuation/);
   const focus = second.slice(second.indexOf("# Focused coverage continuation"));
   assert.match(focus, /paths\[1\]: b\.ts/);
+  assert.doesNotMatch(second, /a\.ts|source\.ts|<degreaser-patch-/);
+  assert.match(second, /patchLines/);
+  assert.equal(f.state().status, "completed");
+});
+
+test("a focused pass may repeat an accepted finding without rejection", (t) => {
+  const accepted = {
+    ...finding,
+    location: { ...finding.location, path: "a.ts" },
+    quote: "export const a = 1;",
+  };
+  const f = setup(t, [
+    pass("incomplete", ["a.ts", "source.ts"], { findings: [accepted] }),
+    pass("findings", ["b.ts"], { findings: [accepted] }),
+  ]);
+  const task = run(f);
+  assert.equal(task.status, "findings");
+  assert.deepEqual(task.result.findings, [accepted]);
+  assert.deepEqual(task.rejections, []);
   assert.equal(f.state().status, "completed");
 });
 
@@ -68,12 +87,22 @@ test("a clean claim without full coverage is not certified until the rest is exa
 test("a pass without new coverage stops the loop and names the unexamined paths", (t) => {
   const f = setup(t, [
     pass("incomplete", ["a.ts"]),
-    pass("incomplete", ["a.ts"]),
+    pass("incomplete", ["a.ts"], {
+      findings: [
+        {
+          ...finding,
+          location: { ...finding.location, path: "a.ts" },
+          quote: "export const a = 1;",
+        },
+      ],
+    }),
     pass("no-findings", ["b.ts", "source.ts"]),
   ]);
   const task = run(f);
   assert.equal(task.status, "incomplete");
   assert.equal(task.attempts.length, 2);
+  assert.equal(task.result.findings.length, 0);
+  assert.equal(task.rejections[0]?.reason, "path-not-assessed");
   assert.match(
     task.result.limitations.join(" "),
     /Unexamined assessed paths \(2\): b\.ts, source\.ts\./,

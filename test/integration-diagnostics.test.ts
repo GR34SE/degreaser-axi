@@ -3,12 +3,14 @@ import {
   existsSync,
   mkdtempSync,
   readFileSync,
+  readlinkSync,
   realpathSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { inspectIntegrations } from "../src/integration-diagnostics.ts";
 import { prepareIntegrations } from "../src/integrations.ts";
@@ -148,7 +150,7 @@ test("configured roots and invalid receipts do not produce false ownership", () 
   }
 });
 
-test("a linked Claude skill outlives codex removal and inspects as installed", (t) => {
+test("linked Claude skills retain ownership and diagnose changed or missing links and contents", (t) => {
   const root = mkdtempSync(join(realpathSync(tmpdir()), "degreaser-link-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const shared = join(root, ".agents/skills/degreaser/SKILL.md");
@@ -158,10 +160,35 @@ test("a linked Claude skill outlives codex removal and inspects as installed", (
   }).apply();
   prepareIntegrations(root, ["codex"], "project", { remove: true }).apply();
   assert.equal(readFileSync(linked, "utf8"), readFileSync(shared, "utf8"));
-  const claude = inspectIntegrations(root).find(
-    (r) => r.harness === "claude" && r.scope === "project",
-  );
-  assert.equal(claude?.files[0]?.status, "installed");
+  const status = () =>
+    inspectIntegrations(root).find(
+      (r) => r.harness === "claude" && r.scope === "project",
+    )?.files[0]?.status;
+  assert.equal(status(), "installed");
+  const content = readFileSync(shared, "utf8");
+  writeFileSync(shared, "user content");
+  assert.equal(status(), "modified");
+  assert.equal(readFileSync(shared, "utf8"), "user content");
+  rmSync(shared);
+  assert.equal(status(), "missing");
+  writeFileSync(shared, content);
+  const directory = dirname(linked);
+  const target = readlinkSync(directory);
+  rmSync(directory);
+  writeFileSync(directory, "foreign file");
+  assert.equal(status(), "modified");
+  assert.equal(readFileSync(directory, "utf8"), "foreign file");
+  rmSync(directory);
+  assert.equal(status(), "missing");
+  symlinkSync(target, directory);
+  const receiptPath = join(root, ".degreaser/integrations.json");
+  const receiptBytes = readFileSync(receiptPath);
+  const receipt = JSON.parse(receiptBytes.toString());
+  receipt.files[directory].owners = ["codex"];
+  writeFileSync(receiptPath, JSON.stringify(receipt));
+  assert.equal(status(), "unmanaged");
+  writeFileSync(receiptPath, receiptBytes);
+  assert.equal(status(), "installed");
   prepareIntegrations(root, ["claude"], "project", { remove: true }).apply();
   assert.equal(existsSync(shared), false);
 });

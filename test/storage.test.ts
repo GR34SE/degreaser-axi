@@ -5,6 +5,7 @@ import test from "node:test";
 import { prepareReview } from "../src/input.ts";
 import {
   createRun,
+  loadInput,
   loadRun,
   type Run,
   type RunTask,
@@ -160,8 +161,16 @@ test("invalid input writes fail by filename before allocating a run or replacing
   const run = createRun(input);
   const latest = join(f.root, ".degreaser/state.json");
   const previous = readFileSync(latest);
+  assert.deepEqual(loadInput(run), input);
   for (const invalid of [
     { ...input, schemaVersion: 99 },
+    { ...input, tree: "missing" },
+    { ...input, scope: "implicit" },
+    { ...input, unknown: true },
+    { ...input, paths: [{ ...input.paths[0], path: "../outside" }] },
+    { ...input, patch: null },
+    { ...input, scope: "branch", baseRef: null },
+    { ...input, scope: "repository", base: null, patch: "invented diff" },
     { ...input, config: { ...input.config, maxRetries: "1" } },
     {
       ...input,
@@ -197,18 +206,22 @@ test("compiled readers reject corruption at every authoritative JSON layer witho
     join(directory, "run.json"),
     join(directory, "input/review.json"),
     join(directory, "input/patch.json"),
+    join(directory, "input/patch.diff"),
   ];
   const siblingPath = join(root, "runs", sibling.id, "run.json");
   const siblingBytes = readFileSync(siblingPath);
   const events = f.events();
   for (const [index, path] of files.entries()) {
     const original = readFileSync(path);
-    const value = JSON.parse(original.toString());
-    const cases = [
-      "{",
-      JSON.stringify({ unexpected: true }),
-      JSON.stringify({ ...value, schemaVersion: 99 }),
-    ];
+    const rawPatch = path.endsWith("patch.diff");
+    const value = rawPatch ? null : JSON.parse(original.toString());
+    const cases = rawPatch
+      ? ["truncated patch\n"]
+      : [
+          "{",
+          JSON.stringify({ unexpected: true }),
+          JSON.stringify({ ...value, schemaVersion: 99 }),
+        ];
     if (path.endsWith("/run.json")) {
       const invalid = structuredClone(value);
       invalid.tasks[0].result.limitations = 42;
@@ -217,7 +230,7 @@ test("compiled readers reject corruption at every authoritative JSON layer witho
       failure.executions[0].failure = { code: "owner-failed" };
       cases.push(JSON.stringify(failure));
     }
-    for (const damaged of cases) {
+    for (const [caseIndex, damaged] of cases.entries()) {
       try {
         writeFileSync(path, damaged);
         for (const args of [
@@ -226,6 +239,8 @@ test("compiled readers reject corruption at every authoritative JSON layer witho
           ["finding", "F1"],
           ["home"],
         ]) {
+          // Other readers cover both JSON parsing and schema validation at each layer.
+          if (caseIndex > 1 && args[0] !== "report") continue;
           // Explicit run IDs do not use the latest-run pointer.
           if (index === 0 && args[0] === "wait") continue;
           const result = f.run(args);

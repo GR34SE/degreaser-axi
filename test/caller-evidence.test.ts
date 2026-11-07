@@ -244,3 +244,42 @@ test("Codex code-mode JSON unwraps output and correlates numeric session polling
   assert.equal(trace.events[3]?.status, "completed");
   assert.equal(trace.events[3]?.exit, 0);
 });
+
+test("skill receipt follows its identity, independently of guidance wording", () => {
+  for (const [command, output, loaded] of [
+    [
+      "cat .agents/skills/degreaser/SKILL.md",
+      "---\nname: degreaser\ndescription: Review code\n---\nDo not edit code while a review runs.",
+      true,
+    ],
+    [
+      "cat .agents/skills/degreaser/SKILL.md",
+      "---\nname: degreaser\ndescription: Review code\n---\nRevised instructions.",
+      true,
+    ],
+    [
+      "cat .agents/skills/other/SKILL.md",
+      "---\nname: other\n---\nDo not edit code while a run is active",
+      false,
+    ],
+    [
+      "degreaser-axi --help",
+      "Read the skill: name: degreaser\nDo not edit code while a run is active",
+      false,
+    ],
+    ["cat .agents/skills/degreaser/SKILL.md", "cat: no such file", false],
+  ] as const) {
+    const trace = new CallerEvidence("codex", "model");
+    for (const item of [
+      {
+        type: "function_call",
+        name: "exec_command",
+        call_id: "read",
+        arguments: JSON.stringify({ cmd: command }),
+      },
+      { type: "function_call_output", call_id: "read", output },
+    ])
+      trace.record({ method: "rawResponseItem/completed", params: { item } });
+    assert.equal(trace.events[1]?.skillLoaded, loaded, command);
+  }
+});

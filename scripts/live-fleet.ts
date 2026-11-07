@@ -92,11 +92,6 @@ function quota(agent: string, model: string) {
 
 export async function liveFleet(agent: "codex" | "claude", model: string) {
   assert.equal(
-    model,
-    agent === "codex" ? "gpt-6-luna" : "claude-haiku-4-5-20251001",
-    "Unapproved fleet model",
-  );
-  assert.equal(
     process.platform,
     "darwin",
     "Fleet resource monitor requires macOS",

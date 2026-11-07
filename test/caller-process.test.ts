@@ -78,3 +78,24 @@ test("native stdin closure rejects a request without an unhandled stream error",
     await host.close();
   }
 });
+
+test("an isolated native check receives only the supplied environment", async () => {
+  const host = callerProcess(
+    process.execPath,
+    [
+      "-e",
+      'process.stdin.once("data",()=>console.log(JSON.stringify({home:process.env.HOME,token:process.env.DEGREASER_TEST_TOKEN,path:process.env.PATH})))',
+    ],
+    process.cwd(),
+    () => {},
+    { HOME: "/synthetic/disposable-home", DEGREASER_TEST_TOKEN: "fixture" },
+  );
+  try {
+    assert.deepEqual(await host.request({}, () => true), {
+      home: "/synthetic/disposable-home",
+      token: "fixture",
+    });
+  } finally {
+    await host.close();
+  }
+});

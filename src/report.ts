@@ -106,17 +106,27 @@ function taskReason(task: RunTask, interrupted: boolean) {
     : (task.result?.reason ?? task.attempts.at(-1)?.failure ?? undefined);
 }
 
-function coverage(task: RunTask, input: ReviewInput, interrupted: boolean) {
+const preview = (text: string, full: boolean) =>
+  full || text.length <= 240
+    ? text
+    : `${text.slice(0, 240)}… (${text.length} chars; report --full)`;
+
+function coverage(
+  task: RunTask,
+  input: ReviewInput,
+  interrupted: boolean,
+  full: boolean,
+) {
   const reason = taskReason(task, interrupted);
   const harness = harnessLimitations(task, input);
   return {
     aspect: task.assignment.aspect,
     status:
       interrupted && task.status === "running" ? "interrupted" : task.status,
-    ...(reason ? { reason } : {}),
-    limitations: taskLimitations(task).filter(
-      (l) => l !== reason && !harness.has(l),
-    ),
+    ...(reason ? { reason: preview(reason, full) } : {}),
+    limitations: taskLimitations(task)
+      .filter((l) => l !== reason && !harness.has(l))
+      .map((text) => preview(text, full)),
     rejected: task.rejections.length,
     ...(task.status === "running" && task.attempts.at(-1)?.lastActivityAt
       ? {
@@ -174,6 +184,14 @@ export function renderReport(run: Run, full = false) {
   const all = findings(run),
     shown = full ? all : all.slice(0, 30);
   const workers = run.tasks.filter((task) => task.promptHash !== null);
+  const clipped =
+    !full &&
+    run.tasks.some((task) =>
+      [
+        taskReason(task, status === "interrupted") ?? "",
+        ...taskLimitations(task),
+      ].some((text) => text.length > 240),
+    );
   process.exitCode = status === "running" ? 3 : status === "completed" ? 0 : 1;
   return {
     run: run.id,
@@ -195,12 +213,19 @@ export function renderReport(run: Run, full = false) {
           location: `${f.location.path}:${f.location.side}:${f.location.startLine}-${f.location.endLine}`,
           title: f.title,
         })),
+    coverageBasis: "worker-declared",
     coverage: run.tasks.map((t) =>
-      coverage(t, input, status === "interrupted"),
+      coverage(t, input, status === "interrupted", full),
     ),
     limitations: [
       ...shownLimitations(input, full),
-      ...new Set(run.tasks.flatMap(taskLimitations)),
+      ...new Set(
+        run.tasks.flatMap((task) =>
+          taskLimitations(task).filter((text) =>
+            harnessLimitations(task, input).has(text),
+          ),
+        ),
+      ),
     ],
     ...(full
       ? {
@@ -235,13 +260,13 @@ export function renderReport(run: Run, full = false) {
       status === "running"
         ? [
             `degreaser-axi wait ${run.id}`,
-            ...(all.length > shown.length
+            ...(all.length > shown.length || clipped
               ? [`degreaser-axi report ${run.id} --full`]
               : []),
             ...(all.length ? [`degreaser-axi finding F1 --run ${run.id}`] : []),
           ]
         : [
-            ...(!full && all.length
+            ...(!full && (all.length || clipped)
               ? [`degreaser-axi report ${run.id} --full`]
               : []),
             ...(unverifiedOwner ? [ownerRecoveryGuidance(run)] : []),
@@ -289,8 +314,9 @@ export function exportRun(run: Run) {
         ...finding,
         ...location,
       })),
+      coverageBasis: "worker-declared",
       coverage: run.tasks.map((t) =>
-        coverage(t, input, status === "interrupted"),
+        coverage(t, input, status === "interrupted", true),
       ),
       limitations: [
         ...input.limitations.map((l) => l.message),

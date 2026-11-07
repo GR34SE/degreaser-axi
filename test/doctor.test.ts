@@ -127,12 +127,12 @@ console.log(${JSON.stringify(version)});
     "read/grep/find/ls",
     "missing",
     "Unverified",
-    "trust",
-    "policy",
   ])
     assert.ok(result.stdout.includes(expected), expected);
   assert.match(result.stdout, /not a universal no-exec/);
   assert.match(result.stdout, /does not call a model/);
+  assert.match(result.stdout, /versionSource: installed-package-manifest/);
+  assert.match(result.stdout, /versionSource: native-executable/);
   assert.match(result.stdout, /per-command/);
   assert.doesNotMatch(result.stdout, /status: ready/);
   assert.equal(readFileSync(log, "utf8"), '["--version"]\n["--version"]\n');

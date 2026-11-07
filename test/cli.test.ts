@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { performance } from "node:perf_hooks";
@@ -11,6 +17,9 @@ const cli = fileURLToPath(
   new URL("../dist/bin/degreaser-axi.js", import.meta.url),
 );
 const root = fileURLToPath(new URL("../", import.meta.url));
+const { version } = JSON.parse(
+  readFileSync(join(root, "package.json"), "utf8"),
+);
 const commands = [
   "home",
   "init",
@@ -61,7 +70,7 @@ test("help, version and strict routing work without repo, credentials or side ef
     for (const flag of ["--version", "-v", "-V", "version"]) {
       const result = run([flag]);
       assert.equal(result.status, 0);
-      assert.equal(result.stdout, "0.1.0\n");
+      assert.equal(result.stdout, `${version}\n`);
     }
     for (const args of [[], ["--help"], ["help"], ["home", "--help"]]) {
       const result = run(args);
@@ -76,7 +85,10 @@ test("help, version and strict routing work without repo, credentials or side ef
           : [command, "--help"];
       const result = run(args);
       assert.equal(result.status, 0, args.join(" "));
-      assert.ok(result.stdout.includes(command), command);
+      assert.equal(
+        result.stdout.split("\n")[0],
+        `command: ${command === "setup" ? "setup hooks" : command}`,
+      );
     }
     const review = run(["review", "--help"]).stdout;
     for (const text of [
