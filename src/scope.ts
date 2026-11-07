@@ -109,11 +109,28 @@ function binaryPaths(numstat: string): Set<string> {
   return paths;
 }
 
+const fileType = (mode: string | null) =>
+  mode === null ? null : Number.parseInt(mode, 8) & 0o170000;
+
 /**
- * Git emits patch sections in the same order as `--raw`, so section i belongs to
- * raw entry i. A section whose bytes are not valid UTF-8 (a Latin-1 file, on
- * either side) is replaced by Git's own binary stub and its path is marked
- * binary, so coverage, evidence checks and reports treat it like any binary file.
+ * Owner of each patch section, in order. Git emits patch sections in `--raw`
+ * order, except that a change between file, symlink and gitlink types is
+ * written as a deletion section followed by a creation section.
+ */
+export function patchSectionOwners(paths: ScopePath[]): ScopePath[] {
+  return paths.flatMap((path) =>
+    path.oldMode !== null &&
+    path.newMode !== null &&
+    fileType(path.oldMode) !== fileType(path.newMode)
+      ? [path, path]
+      : [path],
+  );
+}
+
+/**
+ * A section whose bytes are not valid UTF-8 (a Latin-1 file, on either side)
+ * is replaced by Git's own binary stub and its path is marked binary, so
+ * coverage, evidence checks and reports treat it like any binary file.
  */
 function omitNonUtf8Sections(
   patch: Buffer,
@@ -127,7 +144,8 @@ function omitNonUtf8Sections(
     if (at === 0 || patch[at - 1] === 0x0a) starts.push(at);
     at = patch.indexOf(marker, at + 1);
   }
-  if (starts.length !== paths.length || starts[0] !== 0)
+  const owners = patchSectionOwners(paths);
+  if (starts.length !== owners.length || starts[0] !== 0)
     throw new InputError(
       "Git patch sections do not match the changed paths; no run was started.",
     );
@@ -135,7 +153,7 @@ function omitNonUtf8Sections(
     .map((start, i) => {
       const section = patch.subarray(start, starts[i + 1] ?? patch.length);
       if (isUtf8(section)) return section.toString("utf8");
-      const path = paths[i];
+      const path = owners[i];
       if (!path) throw new InputError("Git patch section has no path record.");
       path.binary = true;
       omitted.add(path.path);
@@ -235,10 +253,9 @@ function resolveTree(repository: string): string {
     }
     // One recursive pathspec: Git matches pathspecs per file, so listing every
     // file as its own literal pathspec is quadratic and times out on monorepos.
-    // An exclude pathspec would make `add` fail on an ignored .degreaser, so
-    // root run state is removed from the temporary index afterwards.
-    // The exclude pathspec keeps unignored run state from being hashed into
-    // objects; it cannot be used when .degreaser is ignored (see above).
+    // Unignored run state is excluded so it is never hashed into objects; Git
+    // rejects that exclude for an ignored .degreaser, which `add -A` skips
+    // anyway. Removing run state from the temporary index is a safety net.
     const stateIgnored =
       git(repository, ["check-ignore", "-q", "--no-index", ".degreaser"], {
         allowFailure: true,

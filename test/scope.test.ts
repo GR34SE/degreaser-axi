@@ -9,6 +9,7 @@ import {
   renameSync,
   rmSync,
   statSync,
+  symlinkSync,
   utimesSync,
   writeFileSync,
 } from "node:fs";
@@ -590,6 +591,31 @@ test("non-UTF-8 file contents are omitted like binary while other files stay cov
     r.limitations.some((l) => l.code === "binary"),
     false,
   );
+});
+
+test("a file-to-symlink type change does not break non-UTF-8 omission", (t) => {
+  const f = fixture(t);
+  f.write("link", "regular file\n");
+  f.write("legacy", Buffer.from("caf\xe9\n", "latin1"));
+  f.git("add", ".");
+  f.git("commit", "--no-gpg-sign", "-m", "Base");
+  rmSync(join(f.root, "link"));
+  symlinkSync("target", join(f.root, "link"));
+  f.write("legacy", Buffer.from("na\xefve\n", "latin1"));
+  const r = prepareReview(request, f.root);
+  assert.equal(r.status, "ready");
+  assert.deepEqual(
+    r.paths.map((p) => [p.status, p.path, p.binary]),
+    [
+      ["M", "legacy", true],
+      ["T", "link", false],
+    ],
+  );
+  assert.match(r.patch ?? "", /Binary files a\/legacy and b\/legacy differ/);
+  assert.match(r.patch ?? "", /\+target/);
+  assert.deepEqual(r.limitations.find((l) => l.code === "non-utf8")?.paths, [
+    "legacy",
+  ]);
 });
 
 test("built-in exclusions cover generated directories, not files with those names", (t) => {

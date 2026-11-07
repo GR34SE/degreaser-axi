@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { rmSync, symlinkSync } from "node:fs";
+import { join } from "node:path";
 import test from "node:test";
 import { prepareReview } from "../src/input.ts";
 import { assemblePrompt, patchIndex } from "../src/prompt.ts";
@@ -234,6 +236,43 @@ test("patch index maps every section, including renames and deletions, to its li
     covered += end - start + 1;
   }
   assert.equal(covered, lines);
+});
+
+test("patch index gives a type change both of its Git sections", (t) => {
+  const f = fixture(t);
+  f.write("a.ts", "export const a = 1;\n");
+  f.write("link", "regular file\n");
+  f.write("z.ts", "export const z = 1;\n");
+  f.git("add", ".");
+  f.git("commit", "-qm", "base");
+  f.write("a.ts", "export const a = 2;\n");
+  rmSync(join(f.root, "link"));
+  symlinkSync("target", join(f.root, "link"));
+  f.write("z.ts", "export const z = 2;\n");
+  const input = prepareReview(
+    [
+      "--scope",
+      "worktree",
+      "--task",
+      "Link",
+      "--aspects",
+      "low-value-comments",
+    ],
+    f.root,
+  );
+  const { ranges, lines } = patchIndex(input.patch ?? "", input);
+  const all = (input.patch ?? "").split("\n");
+  const slice = (path: string) => {
+    const [start = 0, end = 0] = (ranges.get(path) ?? "")
+      .split("-")
+      .map(Number);
+    return all.slice(start - 1, end);
+  };
+  assert.deepEqual([...ranges.keys()], ["a.ts", "link", "z.ts"]);
+  assert.ok(slice("link").includes("-regular file"));
+  assert.ok(slice("link").includes("+target"));
+  assert.ok(slice("z.ts").includes("+export const z = 2;"));
+  assert.equal(ranges.get("z.ts")?.split("-")[1], String(lines));
 });
 
 test("repository-audit prompt makes assessed paths the scope instead of a missing patch", (t) => {

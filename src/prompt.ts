@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { encode } from "@toon-format/toon";
 import type { AspectId } from "./config.ts";
 import type { ReviewInput } from "./input.ts";
+import { patchSectionOwners } from "./scope.ts";
 
 export const hash = (text: string) =>
   createHash("sha256").update(text).digest("hex");
@@ -41,16 +42,17 @@ export function patchIndex(patch: string, input: ReviewInput) {
   const ranges = new Map<string, string>();
   const lines = patch.split("\n");
   if (lines.at(-1) === "") lines.pop();
-  // Git writes patch sections in the same order as the raw path records, so
-  // sections map to paths by position; C-quoted headers need no parsing.
+  // Sections map to paths by Git output order; C-quoted headers need no parsing.
   const starts = lines.flatMap((line, i) =>
     line.startsWith("diff --git ") ? [i] : [],
   );
-  if (starts.length === input.paths.length)
+  const owners = patchSectionOwners(input.paths);
+  if (starts.length === owners.length)
     for (const [i, start] of starts.entries()) {
-      const path = input.paths[i]?.path;
-      if (path !== undefined)
-        ranges.set(path, `${start + 1}-${starts[i + 1] ?? lines.length}`);
+      const path = owners[i]?.path;
+      if (path === undefined) continue;
+      const first = ranges.get(path)?.split("-")[0] ?? String(start + 1);
+      ranges.set(path, `${first}-${starts[i + 1] ?? lines.length}`);
     }
   return { ranges, lines: lines.length };
 }
