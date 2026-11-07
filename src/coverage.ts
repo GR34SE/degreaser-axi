@@ -138,7 +138,14 @@ export function mergePass(
     ? []
     : resolving && pass.unresolved?.length
       ? []
-      : (prior?.unresolved ?? []);
+      : (prior?.unresolved ?? []).filter(
+          (u) =>
+            !(
+              u.scope === "paths" &&
+              u.paths?.length &&
+              u.paths.every((path) => examined.includes(renamed.get(path) ?? path))
+            ),
+        );
   const open = new Map(
     [...carried, ...named(pass.unresolved ?? [])].map(
       (u) => [JSON.stringify(u), u] as const,
