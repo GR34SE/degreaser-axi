@@ -20,83 +20,98 @@ function yaml(path: string) {
   return document.toJS();
 }
 
-test("CI has an unconditional macOS gate with pinned tools and both Node runtimes", () => {
+test("CI selects checks without path filters and requires every macOS lane", () => {
   const workflow = yaml(".github/workflows/check.yml");
   assert.deepEqual(Object.keys(workflow.on).sort(), [
     "pull_request",
     "push",
+    "schedule",
     "workflow_dispatch",
   ]);
   assert.deepEqual(workflow.on.push, { branches: ["main"] });
   assert.equal(workflow.on.pull_request, null);
+  assert.equal(workflow.on.schedule.length, 1);
   assert.deepEqual(workflow.permissions, { contents: "read" });
-  assert.deepEqual(Object.keys(workflow.jobs), ["check"]);
-  const job = workflow.jobs.check;
-  assert.equal(job.name, "macOS deterministic");
-  assert.equal(job["runs-on"], "macos-15");
-  assert.ok(job["timeout-minutes"] <= 15);
-  assert.equal(job.if, undefined);
-  assert.equal(job["continue-on-error"], undefined);
-  assert.equal(job.permissions, undefined);
-  assert.deepEqual(job.env, { CI: "true" });
-  const actions = [];
-  const commands = [];
-  for (const step of job.steps) {
-    assert.equal(step.if, undefined);
-    assert.equal(step["continue-on-error"], undefined);
-    assert.equal(step.env, undefined);
-    if (step.uses) {
-      assert.match(step.uses, /^[\w-]+\/[\w-]+@[a-f0-9]{40}$/);
-      actions.push(step);
-    }
-    if (step.run) {
-      assert.equal(
-        spawnSync("bash", ["-n"], { input: step.run }).status,
-        0,
-        step.name,
-      );
-      commands.push(step.run.trim());
+  const { plan, validate, check } = workflow.jobs;
+  assert.equal(check.name, "macOS deterministic");
+  assert.equal(check.if, "always()");
+  assert.deepEqual(check.needs, ["plan", "validate"]);
+  assert.equal(validate.needs, "plan");
+  assert.equal(validate["runs-on"], "macos-15");
+  assert.equal(validate.strategy["fail-fast"], false);
+  assert.equal(validate.if, undefined);
+  assert.equal(validate["continue-on-error"], undefined);
+  assert.equal(validate.permissions, undefined);
+  assert.deepEqual(validate.env, { CI: "true" });
+  const steps = validate.steps;
+  const actions = steps.filter((step: { uses?: string }) => step.uses);
+  for (const job of Object.values(workflow.jobs) as {
+    steps: { uses?: string; run?: string; name?: string }[];
+  }[]) {
+    for (const step of job.steps) {
+      if (step.uses) assert.match(step.uses, /^[\w-]+\/[\w-]+@[a-f0-9]{40}$/);
+      if (step.run)
+        assert.equal(
+          spawnSync("bash", ["-n"], { input: step.run }).status,
+          0,
+          step.name,
+        );
     }
   }
-  assert.deepEqual(
-    actions.map((step) => step.uses.split("@")[0]),
-    [
-      "actions/checkout",
-      "actions/setup-node",
-      "actions/setup-node",
-      "pnpm/action-setup",
-    ],
-  );
   assert.equal(actions[0].with["persist-credentials"], false);
-  const versions = actions
-    .filter((step) => step.uses.startsWith("actions/setup-node@"))
-    .map((step) => step.with["node-version"]);
-  assert.equal(versions[0], "24.0.0");
-  assert.match(versions[1], /^24\.\d+\.\d+$/);
-  assert.notEqual(versions[1], versions[0]);
-  const pnpm = actions.at(-1);
+  assert.equal(plan.steps[0].with["fetch-depth"], 0);
+  const pnpm = actions.find((step: { uses: string }) =>
+    step.uses.startsWith("pnpm/action-setup@"),
+  );
+  const current = actions.at(-1);
+  assert.ok(steps.indexOf(pnpm) < steps.indexOf(current));
   assert.equal(pnpm.with.run_install, false);
-  assert.equal(pnpm.with.version, undefined); // Reads the exact packageManager pin.
+  assert.equal(pnpm.with.version, undefined);
+  assert.equal(current.with.cache, "pnpm");
+  assert.equal(current.with["cache-dependency-path"], "pnpm-lock.yaml");
+  assert.match(current.with["node-version"], /^24\.\d+\.\d+$/);
   assert.match(manifest.packageManager, /^pnpm@\d+\.\d+\.\d+$/);
-  assert.deepEqual(commands.slice(-2), [
-    "pnpm install --frozen-lockfile --ignore-scripts",
-    "pnpm check",
-  ]);
-  assert.equal(commands.length, 4);
-  assert.equal(manifest.private, true);
-});
-
-test("CI saves the minimum executable before changing Node, using the runner environment file", (t) => {
-  const steps = yaml(".github/workflows/check.yml").jobs.check.steps;
   const minimum = steps.findIndex(
     (step: { with?: Record<string, string> }) =>
       step.with?.["node-version"] === "24.0.0",
   );
-  const current = steps.findIndex(
-    (step: { uses?: string }, index: number) =>
-      index > minimum && step.uses?.startsWith("actions/setup-node@"),
+  assert.equal(
+    steps[minimum].if,
+    "matrix.lane == 'package' && github.event_name != 'pull_request'",
   );
-  assert.ok(minimum >= 0 && current > minimum + 1);
+  assert.equal(steps[minimum + 1].if, steps[minimum].if);
+  assert.equal(manifest.private, true);
+});
+
+test("required aggregate fails for failed, cancelled or skipped dependencies", () => {
+  const step = yaml(".github/workflows/check.yml").jobs.check.steps[0];
+  for (const plan of ["success", "failure", "cancelled", "skipped"])
+    for (const validate of ["success", "failure", "cancelled", "skipped"]) {
+      const result = spawnSync(
+        "bash",
+        ["-eu", "-o", "pipefail", "-c", step.run],
+        {
+          env: {
+            PATH: process.env.PATH,
+            PLAN_RESULT: plan,
+            VALIDATE_RESULT: validate,
+          },
+        },
+      );
+      assert.equal(
+        result.status === 0,
+        plan === "success" && validate === "success",
+        `${plan}/${validate}`,
+      );
+    }
+});
+
+test("CI saves the minimum executable before changing Node, using the runner environment file", (t) => {
+  const steps = yaml(".github/workflows/check.yml").jobs.validate.steps;
+  const minimum = steps.findIndex(
+    (step: { with?: Record<string, string> }) =>
+      step.with?.["node-version"] === "24.0.0",
+  );
   const temp = mkdtempSync(resolve(tmpdir(), "degreaser-ci-env-"));
   t.after(() => rmSync(temp, { recursive: true, force: true }));
   const environmentFile = resolve(temp, "environment");

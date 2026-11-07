@@ -30,7 +30,7 @@
     "release:notes": "node scripts/release-notes.ts",
     "release:prepare": "node scripts/prepare-release.ts",
     "qa": "pnpm build && node scripts/qa/scenario.mjs",
-    "check": "pnpm test && pnpm typecheck && pnpm lint && pnpm build && pnpm package:check",
+    "check": "pnpm test && pnpm typecheck && pnpm lint && node scripts/package-check.ts",
     "test:live": "node scripts/test-live.ts"
   },
   "dependencies": {

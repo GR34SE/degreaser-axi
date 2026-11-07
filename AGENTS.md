@@ -71,7 +71,19 @@ For product intent, start from `specs/README.md` and `specs/pending/degreaser.md
 | `pnpm test:live --help` | Opt-in native/model scenarios; unsupported/unrun is never passed |
 | `pnpm release:prepare --since <ancestor> --output <new-directory>` | From a clean committed checkout after checks: tested tarball, checksum and draft notes; no publishing |
 
-Live tests require synthetic code, confirmed models and a fresh quota check, without paid API fallback. Stop only owned processes. No model credentials/logins in CI. Required hosted check: **macOS deterministic**; local success does not replace it. Release output: external/ignored, existing parent, new destination; review notes before sharing.
+Live tests require synthetic code, confirmed models and a fresh quota check, without paid API fallback. Stop only owned processes. No model credentials/logins in CI. Required hosted check: **macOS deterministic**; local success does not replace it.
+
+CI selects documentation contracts only for PRs changing root `README.md` and/or
+`AGENTS.md`; static checks and current-Node installed-package QA still run.
+Any other path, empty diff or unavailable history runs all tests in four macOS
+shards, concurrency 2 per shard. Keep the allowlist conservative; assets,
+guidance, dependencies and workflow changes require full coverage. All selected
+lanes must pass the aggregate; failure, cancellation or skipping cannot pass.
+Every push to main, nightly schedule and manual dispatch runs the full suite
+and installed-package QA on minimum Node 24.0.0 plus pinned current Node 24.
+PRs defer only minimum-runtime acceptance. `pnpm check` and release preparation
+retain both runtimes by default. CI caches the pnpm store by lockfile and builds
+once per lane. Release output: external/ignored, existing parent, new destination; review notes before sharing.
 
 ## Task-specific skills and references
 
