@@ -14,7 +14,7 @@
 - An option, parameter or extension point without a current consumer: speculative-flexibility.
 - A shared layer combining cases with divergent rules and accumulating flags: wrong-abstraction.
 
-Sources / inspiration: S04. Teaching excerpts; context states omitted setup. These have not been executed as programs or model evaluations.
+Teaching excerpts; context states omitted setup. These have not been executed as programs or model evaluations.
 
 ## unnecessary-layers-B1 · REPORT
 

@@ -14,7 +14,7 @@
 - What an error handler returns, such as a fallback pretending success: masked-errors.
 - Missing boundary validation, such as a cast instead of a check: contract-bypass. This aspect reports excessive checks, not absent ones.
 
-Sources / inspiration: S01 S04. Teaching excerpts; context states omitted setup. These have not been executed as programs or model evaluations.
+Teaching excerpts; context states omitted setup. These have not been executed as programs or model evaluations.
 
 ## unjustified-defense-B1 · REPORT
 

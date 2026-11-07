@@ -84,6 +84,13 @@ export function patchIndex(patch: string, input: ReviewInput) {
   return { ranges, lines: lines.length };
 }
 
+/** The shared worker instruction; also the first section of every assembled prompt. */
+export const workerInstruction = (maxTurns: number) =>
+  readFileSync(
+    new URL("../assets/worker.md", import.meta.url),
+    "utf8",
+  ).replaceAll("{maxTurns}", String(maxTurns));
+
 export function assemblePrompt(
   input: ReviewInput,
   aspect: AspectId,
@@ -91,10 +98,7 @@ export function assemblePrompt(
   inlineBytes = 60_000,
 ) {
   const assets = new URL("../assets/", import.meta.url);
-  const instruction = readFileSync(
-    new URL("worker.md", assets),
-    "utf8",
-  ).replaceAll("{maxTurns}", String(input.config.limits.maxTurns));
+  const instruction = workerInstruction(input.config.limits.maxTurns);
   const response = readFileSync(new URL("response.md", assets), "utf8");
   const schema = readFileSync(
     new URL("schemas/result-v1.json", assets),

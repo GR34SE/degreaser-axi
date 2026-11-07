@@ -15,7 +15,7 @@
 - A shared mechanism combining cases with divergent rules: wrong-abstraction.
 - Departure from an established repository pattern without increased coupling: convention-drift.
 
-Sources / inspiration: S06. Teaching excerpts; context states omitted setup. These have not been executed as programs or model evaluations.
+Teaching excerpts; context states omitted setup. These have not been executed as programs or model evaluations.
 
 ## structural-erosion-B1 · REPORT
 

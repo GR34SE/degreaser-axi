@@ -14,7 +14,7 @@
 - Handling an actual error by returning apparent success: masked-errors.
 - Redundant checks on already guaranteed data: unjustified-defense.
 
-Sources / inspiration: S01 S04. Teaching excerpts; context states omitted setup. These have not been executed as programs or model evaluations.
+Teaching excerpts; context states omitted setup. These have not been executed as programs or model evaluations.
 
 ## contract-bypass-B1 · REPORT
 

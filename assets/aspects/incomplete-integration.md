@@ -13,7 +13,7 @@
 **Not here (another reviewer):**
 - Code not requested by the task, even when disconnected: scope-creep.
 
-Sources / inspiration: S04 S05. Teaching excerpts; context states omitted setup. These have not been executed as programs or model evaluations.
+Teaching excerpts; context states omitted setup. These have not been executed as programs or model evaluations.
 
 ## incomplete-integration-B1 · REPORT
 

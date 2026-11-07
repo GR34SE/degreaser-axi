@@ -14,7 +14,7 @@
 - Whether a check or handler is needed at all, such as redundant validation or try around a non-throwing operation: unjustified-defense.
 - A cast, type suppression or default for missing data when no error has occurred: contract-bypass.
 
-Sources / inspiration: S01 S05. Teaching excerpts; context states omitted setup. These have not been executed as programs or model evaluations.
+Teaching excerpts; context states omitted setup. These have not been executed as programs or model evaluations.
 
 ## masked-errors-B1 · REPORT
 
