@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
 import {
   type AcpRuntimeHandle,
   type AcpRuntimeUsageBreakdown,
@@ -10,6 +9,7 @@ import {
 } from "acpx/runtime";
 import { isolatedCommand } from "./native-environment.ts";
 import type { NativeProfile } from "./native-profile.ts";
+import { workerInstruction } from "./prompt.ts";
 import { type WorkerFailure, workerFailure } from "./worker-failure.ts";
 
 export interface WorkerRequest {
@@ -145,9 +145,15 @@ export async function executeWorker(
   let handle: AcpRuntimeHandle | undefined;
   try {
     if (request.signal?.aborted) stop("cancelled");
-    const instruction = (
-      await readFile(new URL("../assets/worker.md", import.meta.url), "utf8")
-    ).replaceAll("{maxTurns}", String(request.maxTurns));
+    // Only Claude honors a system prompt (acpx replaces Claude Code's own), so
+    // it carries the shared instruction there and not again in the turn text.
+    // Other harnesses read it as the first section of the turn text.
+    const instruction = workerInstruction(request.maxTurns);
+    const system =
+      profile.agent === "claude" && request.prompt.startsWith(instruction);
+    const prompt = system
+      ? request.prompt.slice(instruction.length).trimStart()
+      : request.prompt;
     handle = await runtime.ensureSession({
       sessionKey: `degreaser-${randomUUID()}`,
       agent: profile.agent,
@@ -155,7 +161,7 @@ export async function executeWorker(
       cwd: request.cwd,
       sessionOptions: {
         maxTurns: request.maxTurns,
-        systemPrompt: instruction,
+        ...(system ? { systemPrompt: instruction } : {}),
         ...(profile.agent === "claude"
           ? { allowedTools: ["Read", "Grep", "Glob"] }
           : {}),
@@ -191,7 +197,7 @@ export async function executeWorker(
       handle,
       mode: "prompt",
       requestId: randomUUID(),
-      text: request.prompt,
+      text: prompt,
       timeoutMs: request.timeoutMs,
       assertActive() {
         if (stopped) throw new Error("Worker admission cancelled.");

@@ -13,7 +13,7 @@
 **Not here (another reviewer):**
 - Verification outside a test runner, including runtime code, CI, scripts and check/verify commands: verification-theater.
 
-Sources / inspiration: S02 S03 S05. Teaching excerpts; context states omitted setup. These have not been executed as programs or model evaluations.
+Teaching excerpts; context states omitted setup. These have not been executed as programs or model evaluations.
 
 ## low-value-tests-B1 · REPORT
 

@@ -7,7 +7,13 @@ An unclosed or malformed last block does not fall back to an earlier block.
 
 Quotes must occur literally within the inclusive `startLine`–`endLine` range
 of the selected old/new Git blob. **Neighborhood tolerance is zero lines.**
-Whitespace and line endings are not normalized. Old evidence uses the old path
+Only CRLF line endings and trailing whitespace per line are normalized. A quote
+copied from the patch is accepted when every non-empty line carries one diff
+marker consistent with the cited side (`+`/space for new, `-`/space for old);
+the marker-stripped text must still occur in the cited lines. A quote needs at
+least three non-whitespace characters unless it equals the whole cited text.
+Absolute or `./`-prefixed finding paths inside the repository are normalized
+before schema validation; other paths remain invalid. Old evidence uses the old path
 (including rename sources); new evidence uses the new path. Excluded paths,
 binaries and gitlinks cannot supply source quotes. Missing Git objects are
 unavailable evidence, never an empty source file.

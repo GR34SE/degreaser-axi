@@ -15,7 +15,7 @@
 - An option or variant without a current consumer: speculative-flexibility.
 - One rule scattered through an overloaded unit without a shared mechanism for different cases: structural-erosion.
 
-Sources / inspiration: S04 S06. Teaching excerpts; context states omitted setup. These have not been executed as programs or model evaluations.
+Teaching excerpts; context states omitted setup. These have not been executed as programs or model evaluations.
 
 ## wrong-abstraction-B1 · REPORT
 
