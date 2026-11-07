@@ -135,10 +135,20 @@ function updateHook(
   const previous = receipt.hooks[agent];
   if (previous && previous.path !== path) conflict(path);
   const marked = groups.filter((group) => isMarked(format, group));
-  // Without a receipt (fresh clone, new worktree), our marked entry is ours.
+  // Without a receipt (fresh clone, new worktree), our marked entry is ours;
+  // removal additionally requires it to be exactly the entry this version writes.
+  const generated = cursor
+    ? { command: format.command }
+    : (
+        computeSessionStartHookUpdate({}, hookSpec)[0].hooks as Record<
+          string,
+          unknown[]
+        >
+      )[format.event]?.[0];
   const matches = previous
     ? groups.filter((group) => isDeepStrictEqual(group, previous.group))
-    : marked.length === 1
+    : marked.length === 1 &&
+        (!remove || isDeepStrictEqual(marked[0], generated))
       ? marked
       : [];
   if (matches.length > 1 || marked.some((group) => !matches.includes(group)))

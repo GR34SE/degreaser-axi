@@ -493,6 +493,28 @@ test("receipt-less remove keeps edited skills and a shared skill another harness
   assert.equal(readFileSync(settings, "utf8"), edited);
 });
 
+test("receipt-less remove conflicts on an edited hook that keeps the marker", (t) => {
+  const f = setup(t);
+  assert.equal(f.maintenance("claude,cursor").status, 0);
+  rmSync(join(f.root, ".degreaser"), { recursive: true });
+  for (const path of [".claude/settings.json", ".cursor/hooks.json"]) {
+    const file = join(f.root, path);
+    writeFileSync(
+      file,
+      readFileSync(file, "utf8").replace("startup-context", "edited-context"),
+    );
+  }
+  const edited = readFileSync(join(f.root, ".claude/settings.json"), "utf8");
+  for (const harness of ["claude", "cursor"]) {
+    const removal = f.maintenance(harness, "project", true);
+    assert.equal(removal.status, 2, removal.stdout + removal.stderr);
+  }
+  assert.equal(
+    readFileSync(join(f.root, ".claude/settings.json"), "utf8"),
+    edited,
+  );
+});
+
 test("user-scope setup works outside a Git repository", (t) => {
   const f = setup(t);
   const outside = join(f.home, "not-a-repo");
