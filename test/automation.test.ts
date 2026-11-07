@@ -64,6 +64,7 @@ test("CI selects checks without path filters and requires the Linux and macOS jo
   assert.ok(typecheck);
   assert.equal(
     typecheck.if,
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: literal GitHub Actions expression
     "${{ !cancelled() && steps.build.outcome == 'success' }}",
   );
   assert.ok(

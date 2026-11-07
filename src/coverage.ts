@@ -143,7 +143,9 @@ export function mergePass(
             !(
               u.scope === "paths" &&
               u.paths?.length &&
-              u.paths.every((path) => examined.includes(renamed.get(path) ?? path))
+              u.paths.every((path) =>
+                examined.includes(renamed.get(path) ?? path),
+              )
             ),
         );
   const open = new Map(
