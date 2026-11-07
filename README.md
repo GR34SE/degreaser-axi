@@ -24,7 +24,7 @@ change
 
 ## Quick Start
 
-Linux or macOS, Node 24.0.0 or newer, Git, and an authenticated Codex, Claude Code, Pi or Cursor login. Windows, Droid and Grok Build are out of v1. Model calls go through [acpx](https://github.com/openclaw/acpx) to a harness you already authenticated. Degreaser has no API keys of its own and does not fall back to paid keys.
+Linux or macOS, Node 24.0.0 or newer, Git, a procps-compatible `/bin/ps` (minimal Linux images such as Debian slim need the `procps` package; BusyBox `ps` is not enough), and an authenticated Codex, Claude Code, Pi or Cursor login. Windows, Droid and Grok Build are out of v1. Model calls go through [acpx](https://github.com/openclaw/acpx) to a harness you already authenticated. Degreaser has no API keys of its own and does not fall back to paid keys.
 
 The package is currently unpublished. To use this checkout, build and link it:
 
