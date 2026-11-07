@@ -308,3 +308,68 @@ test("examined paths keep only assessed files, and a clean result needs at least
   assert.equal(unexamined.result.status, "incomplete");
   assert.match(unexamined.result.limitations.join(" "), /without examining/);
 });
+
+test("quotes tolerate CRLF, copied diff markers and repo-path spellings but never absent or trivial text", (t) => {
+  const f = fixture(t);
+  f.write("crlf.ts", "const a = 1;\r\nconst B = 2;\r\nreturn null;\r\n");
+  f.git("add", ".");
+  f.git("commit", "-m", "Base");
+  f.write("crlf.ts", "const a = 1;\r\nconst B = 3;\r\nreturn null;\r\n");
+  const input = prepareReview(
+    [
+      "--scope",
+      "worktree",
+      "--task",
+      "Edit",
+      "--aspects",
+      "low-value-comments",
+    ],
+    f.root,
+  );
+  const ingest = (findings: ReturnType<typeof finding>[]) =>
+    ingestResult(
+      block({ ...clean, status: "findings", findings }),
+      "low-value-comments",
+      input,
+    );
+  const accepted = [
+    finding("crlf.ts", "new", "const a = 1;\nconst B = 3;", 1, 2),
+    finding("crlf.ts", "new", "+const a = 1;\n+const B = 3;", 1, 2),
+    finding("crlf.ts", "new", " const a = 1;\n+const B = 3;", 1, 2),
+    finding("crlf.ts", "old", "-const B = 2;", 2),
+    finding("crlf.ts", "new", "return null;", 3),
+    finding("./crlf.ts", "new", "const B = 3;", 2),
+    finding(`${input.repository}/crlf.ts`, "new", "const B = 3;", 2),
+  ];
+  const ok = ingest(accepted);
+  assert.deepEqual(ok.rejections, []);
+  assert.deepEqual(
+    ok.result.findings.map((x) => x.location.path),
+    accepted.map(() => "crlf.ts"),
+  );
+  const rejected = [
+    finding("crlf.ts", "new", "c", 1, 3),
+    finding("crlf.ts", "new", "-const B = 3;", 2),
+    finding("crlf.ts", "new", "+const a = 1;\nconst B = 3;", 1, 2),
+    finding("crlf.ts", "new", "+const B = 2;", 2),
+    finding("crlf.ts", "new", "const a = 1;\nconst B = 9;", 1, 2),
+  ];
+  const bad = ingest(rejected);
+  assert.deepEqual(
+    bad.rejections.map((r) => r.reason),
+    rejected.map(() => "quote-mismatch"),
+  );
+  assert.throws(
+    () =>
+      parseResult(
+        block({
+          ...clean,
+          status: "findings",
+          findings: [finding("/etc/passwd", "new", "root")],
+        }),
+        "low-value-comments",
+        input.repository,
+      ),
+    /schema/,
+  );
+});
