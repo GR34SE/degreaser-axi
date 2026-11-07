@@ -179,12 +179,28 @@ test("single rubric follows digest-fenced TOON input; a large patch moves to a f
 test("patch index maps every section, including renames and deletions, to its line range", (t) => {
   const f = fixture(t);
   f.write("keep.ts", "export const keep = 1;\nexport const other = 2;\n");
-  f.write("gone.ts", "export const gone = 1;\n");
+  f.write("gone\n.ts", "export const gone = 1;\n");
   f.git("add", ".");
   f.git("commit", "-qm", "base");
-  f.git("mv", "keep.ts", "kept.ts");
-  f.git("rm", "-q", "gone.ts");
+  f.git("mv", "keep.ts", 'kept".ts');
+  f.git("rm", "-q", "gone\n.ts");
   f.write("new.ts", "export const fresh = 1;\n");
+  const unusual = [
+    'quote".ts',
+    "tab\t.ts",
+    "line\n.ts",
+    "back\\slash.ts",
+    "bell\x07.ts",
+    "vertical\x0b.ts",
+    "octal\x01.ts",
+    "delete\x7f.ts",
+    "zażółć.ts",
+    "with space.ts",
+  ];
+  for (const [index, path] of unusual.entries())
+    f.write(path, `// sentinel ${index}\n`);
+  f.write("ignored/diff-order", "new.ts\n*\n");
+  f.git("config", "diff.orderFile", `${f.root}/ignored/diff-order`);
   const input = prepareReview(
     [
       "--scope",
@@ -198,7 +214,19 @@ test("patch index maps every section, including renames and deletions, to its li
   );
   const { ranges, lines } = patchIndex(input.patch ?? "", input);
   const all = (input.patch ?? "").split("\n");
-  assert.deepEqual([...ranges.keys()].sort(), ["gone.ts", "kept.ts", "new.ts"]);
+  assert.deepEqual(
+    [...ranges.keys()].sort(),
+    ["gone\n.ts", 'kept".ts', "new.ts", ...unusual].sort(),
+  );
+  for (const [index, path] of unusual.entries()) {
+    const [start = 0, end = 0] = (ranges.get(path) ?? "")
+      .split("-")
+      .map(Number);
+    assert.ok(
+      all.slice(start - 1, end).includes(`+// sentinel ${index}`),
+      JSON.stringify(path),
+    );
+  }
   let covered = 0;
   for (const range of ranges.values()) {
     const [start = 0, end = 0] = range.split("-").map(Number);

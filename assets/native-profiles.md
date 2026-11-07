@@ -33,7 +33,10 @@ ownership.
 `doctor` reports the configured identities (including enabled overrides), exact
 supported and observed native versions, and local integration integrity in both
 project and user scopes. It runs version checks only, not adapter sessions or
-hidden model tests. Installed files are not proof of host trust, reload, hook
+hidden model tests. `versionSource` distinguishes the pinned Codex package
+manifest from Claude/Pi/Cursor executable version output. Codex's executable is
+exercised by installed-package acceptance; doctor does not run it to corroborate
+the manifest. Installed files are not proof of host trust, reload, hook
 delivery, authentication or network access. Explicit local hook-disable settings
 are observations, not a claim to have evaluated managed policy.
 

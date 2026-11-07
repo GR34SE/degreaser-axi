@@ -26,22 +26,16 @@ change
 
 macOS, Node 24.0.0 or newer, Git, and an authenticated Codex, Claude Code, Pi or Cursor login. Linux, Windows, Droid and Grok Build are out of v1. Model calls go through [acpx](https://github.com/openclaw/acpx) to a harness you already authenticated. Degreaser has no API keys of its own and does not fall back to paid keys.
 
-Install it globally:
-
-```sh
-npm install -g degreaser-axi
-degreaser-axi --version
-```
-
-Startup integrations call the installed executable, so run `init` from a stable install, not through `npx`. To try commands without installing, use `npx -y degreaser-axi --help`; the installed skill falls back to `npx -y degreaser-axi` when the command is not on PATH. `degreaser` is an alias of `degreaser-axi`. The examples use `degreaser-axi`.
-
-From source:
+The package is currently unpublished. To use this checkout, build and link it:
 
 ```sh
 pnpm install --frozen-lockfile --ignore-scripts
 pnpm build
 pnpm link --global
+degreaser-axi --version
 ```
+
+Startup integrations call the installed executable, so keep this linked checkout at a stable path. `degreaser` is an alias of `degreaser-axi`. The examples use `degreaser-axi`. Registry installation and the skill's `npx` fallback require a future npm release; they are not available from this private package.
 
 Run the rest **inside the Git repository you want to review**. Init writes `.degreaserrc.json`, installs the selected integrations, and adds `/.degreaser/` to the root `.gitignore` without touching the index. `--aspects low-value-comments` is a cheap first review.
 
@@ -257,9 +251,9 @@ degreaser-axi doctor         # Local configuration/native-version diagnostics, n
 
 Each finding says what is wrong, where it occurs, why it matters and what would improve it. Incomplete reviews are marked explicitly. Reviewers inspect source; they do not run tests or claim runtime verification.
 
-Large changes do not need to be split by hand. Each reviewer reports which changed files it examined. When files remain, Degreaser starts a fresh, focused session for the same aspect over only those files and merges the results. It repeats this while each session adds coverage. An aspect counts as clean or not applicable only when every readable changed file was examined. A large patch is stored as a plain diff with a line range per file, so reviewers read it file by file.
+Large changes do not need to be split by hand. Each reviewer reports which changed files it examined. When files remain, Degreaser starts a fresh, focused session for the same aspect over only those files and merges the results. It repeats this while each session adds coverage. An aspect counts as clean or not applicable only when the accumulated worker declarations cover every readable assessed file. `coverageBasis: worker-declared` makes this limit explicit: Degreaser validates quoted findings against Git blobs, but does not independently prove file reads or the absence of defects. A large patch is stored as a plain diff with a line range per file, so reviewers read it file by file.
 
-Short reports show at most 30 findings, with total/shown counts and per-aspect coverage, limitations and rejections. Overlapping locations on the same old/new side share a group but retain separate evidence. `report --full` and `finding` do not clip evidence. `usageScope: latest-attempt-per-aspect` labels usage from each aspect's latest attempt, not a task/run total. Missing metadata is `unknown`, including a resumed attempt that fails before returning it. Full reports retain known usage in earlier attempt records and keep successful peers unchanged.
+Short reports show at most 30 findings, with total/shown counts and per-aspect coverage, limitations and rejections. Long aspect reasons and limitations have a 240-character preview with their original length; `report --full` retains the complete text. Shared harness limitations appear once at run level. Overlapping locations on the same old/new side share a group but retain separate evidence. `report --full` and `finding` do not clip evidence. `usageScope: latest-attempt-per-aspect` labels usage from each aspect's latest attempt, not a task/run total. Missing metadata is `unknown`, including a resumed attempt that fails before returning it. Full reports retain known usage in earlier attempt records and keep successful peers unchanged.
 
 Pass `report <run-id>` or `finding F1 --run <run-id>` to read historical evidence; otherwise reads select this repository's latest run. Reports of running reviews return the current snapshot without waiting. Home reads history even without a current RC. These read commands do not start reviews or modify local state.
 

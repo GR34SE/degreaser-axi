@@ -36,11 +36,35 @@ const fenced = (name: string, body: string) => {
   return `<${tag}>\n${body}\n</${tag}>`;
 };
 
+// Git's core.quotePath=false still C-quotes controls, backslashes and quotes.
+function patchPath(path: string) {
+  const escapes: Record<string, string> = {
+    '"': '\\"',
+    "\\": "\\\\",
+    "\x07": "\\a",
+    "\b": "\\b",
+    "\t": "\\t",
+    "\n": "\\n",
+    "\v": "\\v",
+    "\f": "\\f",
+    "\r": "\\r",
+  };
+  const quoted = Array.from(
+    path,
+    (char) =>
+      escapes[char] ??
+      (char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127
+        ? `\\${char.charCodeAt(0).toString(8).padStart(3, "0")}`
+        : char),
+  ).join("");
+  return quoted === path ? path : `"${quoted}"`;
+}
+
 /** 1-based inclusive line range of each file section in the raw patch, keyed by new path. */
 export function patchIndex(patch: string, input: ReviewInput) {
   const headers = new Map(
     input.paths.map((p) => [
-      `diff --git a/${p.oldPath ?? p.path} b/${p.path}`,
+      `diff --git ${patchPath(`a/${p.oldPath ?? p.path}`)} ${patchPath(`b/${p.path}`)}`,
       p.path,
     ]),
   );

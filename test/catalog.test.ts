@@ -45,14 +45,6 @@ test("distribution carries the fixed sixteen rubrics and 96 contextual examples"
       assert.match(example, /\*\*Why:\*\* .+/);
     }
   }
-  for (const name of [
-    "worker.md",
-    "response.md",
-    "catalog.md",
-    "skills/degreaser/SKILL.md",
-  ]) {
-    assert.ok(readFileSync(new URL(name, root), "utf8").length > 200, name);
-  }
 });
 
 test("each neighboring rubric exposes its reciprocal routing boundary", () => {

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { spawn, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import {
   mkdirSync,
   mkdtempSync,
@@ -11,6 +11,25 @@ import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseArgs } from "node:util";
+import { callerProcess } from "./caller-process.ts";
+
+const { values } = parseArgs({
+  options: { harnesses: { type: "string" }, help: { type: "boolean" } },
+});
+if (values.help) {
+  console.log(
+    "pnpm test:install --harnesses codex,claude,pi\nOpt-in native installation metadata checks in disposable homes; no model inference. Select only installed harnesses. Cursor is not implemented here; use its live init/review checks.",
+  );
+  process.exit(0);
+}
+const harnesses = values.harnesses?.split(",") ?? [];
+assert.ok(
+  harnesses.length &&
+    new Set(harnesses).size === harnesses.length &&
+    harnesses.every((h) => ["codex", "claude", "pi"].includes(h)),
+  "Select --harnesses codex,claude,pi (one or more; Cursor installation metadata check is not implemented).",
+);
 
 // Opt-in native discovery only: no model prompts, real credentials, or trust changes.
 const root = realpathSync(
@@ -43,7 +62,7 @@ const adapter = createRequire(
 const manifestPath = adapter.resolve("@openai/codex/package.json");
 const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
 const codex = join(dirname(manifestPath), manifest.bin.codex);
-const evidence: Record<string, unknown> = {};
+const evidence: Record<string, unknown> = { harnesses, inference: false };
 let failed = false;
 
 interface NativeItem {
@@ -95,75 +114,16 @@ async function session(
     ) => Promise<NativeEvent>,
   ) => Promise<void>,
 ) {
-  const child = spawn(command, args, {
-    cwd,
-    env,
-    detached: true,
-    stdio: ["pipe", "pipe", "pipe"],
-  });
-  let buffer = "";
-  let pending:
-    | {
-        match: (event: NativeEvent) => boolean;
-        resolve: (event: NativeEvent) => void;
-        reject: (error: Error) => void;
-      }
-    | undefined;
-  child.stderr.resume();
-  child.stdout.on("data", (chunk) => {
-    buffer += chunk.toString();
-    for (
-      let index = buffer.indexOf("\n");
-      index >= 0;
-      index = buffer.indexOf("\n")
-    ) {
-      const line = buffer.slice(0, index);
-      buffer = buffer.slice(index + 1);
-      try {
-        const event = JSON.parse(line);
-        if (pending?.match(event)) {
-          const current = pending;
-          pending = undefined;
-          current.resolve(event);
-        }
-      } catch {
-        /* Native diagnostics may contain non-JSON lines. */
-      }
-    }
-  });
-  child.on("error", (error) => pending?.reject(error));
-  child.on("exit", (code) =>
-    pending?.reject(new Error(`native process exited ${code}`)),
-  );
-  const request = (value: object, match: (event: NativeEvent) => boolean) =>
-    new Promise<NativeEvent>((resolve, reject) => {
-      pending = { match, resolve, reject };
-      child.stdin.write(`${JSON.stringify(value)}\n`);
-    });
-  const timeout = setTimeout(
-    () => pending?.reject(new Error("native request timed out")),
-    20_000,
-  );
+  const host = callerProcess(command, args, cwd, () => {}, env);
   try {
-    await action(request);
+    await action((value, match) => host.request(value, match));
   } finally {
-    clearTimeout(timeout);
-    if (child.pid) {
-      try {
-        process.kill(-child.pid, "SIGKILL");
-      } catch {
-        /* Already exited. */
-      }
-    }
-    await new Promise<void>((resolve) =>
-      child.exitCode !== null || child.signalCode !== null
-        ? resolve()
-        : child.once("close", () => resolve()),
-    );
+    await host.close();
   }
 }
 
 async function check(name: string, run: () => Promise<void>) {
+  if (!harnesses.includes(name)) return;
   try {
     await run();
   } catch (error) {
@@ -182,7 +142,7 @@ try {
     "setup",
     "hooks",
     "--harnesses",
-    "codex,claude,pi,cursor",
+    harnesses.join(","),
     "--installation-scope",
     "user",
   ]);
@@ -319,6 +279,12 @@ try {
     );
   });
   await check("pi", async () => {
+    const expectedContext = sync(process.execPath, [
+      cli,
+      "startup-context",
+      "--plain",
+    ]);
+    assert.ok(expectedContext);
     const version = sync("pi", ["--version"]);
     const found: Record<string, unknown> = { version };
     evidence.pi = found;
@@ -349,9 +315,7 @@ try {
             join(home, ".agents/skills/degreaser/SKILL.md"),
         };
         found.startup = message && {
-          delivered: message.content?.includes(
-            "Degreaser reviews code changes",
-          ),
+          delivered: message.content === expectedContext,
           display: message.display,
         };
         assert.ok(
@@ -362,7 +326,7 @@ try {
           "user skill not recognized",
         );
         assert.ok(
-          message?.content?.includes("Degreaser reviews code changes"),
+          message?.content === expectedContext,
           "startup context not delivered",
         );
       },

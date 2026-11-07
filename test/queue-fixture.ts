@@ -1,5 +1,10 @@
 import assert from "node:assert/strict";
-import { type ChildProcess, spawn, spawnSync } from "node:child_process";
+import {
+  type ChildProcess,
+  type ChildProcessWithoutNullStreams,
+  spawn,
+  spawnSync,
+} from "node:child_process";
 import { once } from "node:events";
 import {
   existsSync,
@@ -64,6 +69,23 @@ export async function until(check: () => boolean, message: string, ms = 10000) {
   while (!check() && Date.now() < end) await setTimeout(25);
   assert.ok(check(), message);
 }
+export function capture(child: ChildProcessWithoutNullStreams) {
+  let stdout = "",
+    stderr = "";
+  child.stdout.on("data", (data) => {
+    stdout += data;
+  });
+  child.stderr.on("data", (data) => {
+    stderr += data;
+  });
+  return once(child, "close").then(([code, signal]) => ({
+    code,
+    signal,
+    stdout,
+    stderr,
+  }));
+}
+
 export function queueFixture(
   t: TestContext,
   config: Partial<ProjectConfig> = {},

@@ -20,7 +20,7 @@ support, not whether the recommendation is correct. The caller makes that decisi
 Workers also list the assessed paths they examined. Paths outside the review are
 dropped, and so is a path with a rejected finding, so a later pass judges it
 again. A pass whose worker lifecycle failed contributes no coverage and ends the
-aspect's passes. Rejection counts accumulate across passes. The coordinator certifies findings, no-findings or not-applicable only
+aspect's passes. Rejection counts accumulate across passes. The coordinator completes findings, no-findings or not-applicable only
 when the accumulated `examinedPaths` cover every readable assessed path (binaries
 and gitlinks are not required). `scope-creep` not-applicable is the exception: its rubric
 decides applicability from the task's feature scope, not from files. Otherwise it starts a focused pass, in a fresh
@@ -30,11 +30,15 @@ each one adds coverage, so the loop is bounded by the path count and
 the run deadline, not by a fixed pass limit. A pass without progress leaves the
 aspect incomplete, naming the unexamined paths. Report coverage shows `examined`
 as examined/assessed paths, or `unknown` when the worker did not say. It is the
-worker's declaration, not proof of reading.
+worker's declaration, not proof of reading; reports and exports label it
+`coverageBasis: worker-declared`.
 
 Assignment evidence is TOON inside a tag whose suffix is derived from the
-evidence digest, so embedded text cannot close the block. Patches up to 60,000
-bytes are inline in a separate digest-tagged block. Larger patches are written
+evidence digest, so embedded text cannot close the block. On the first pass, patches up to 60,000
+bytes are inline in a separate digest-tagged block. Focused passes list only
+remaining paths and use the file-backed patch even when it is small. New
+findings outside that pass are rejected; verbatim repeats of accepted findings
+are ignored. Larger patches are written
 as a raw unified diff to `input/patch.diff`, and each assessed path carries
 `patchLines`, its section's line range there, so workers read the change in
 slices instead of one oversized read. `input/patch.json` keeps the exact patch
@@ -131,10 +135,10 @@ new results or replacement incomplete evidence can change ordinal IDs.
 
 Short reports expose total `count`, `shown` (at most 30), resolved/selected
 `aspects`, and each aspect's status, reason (omitted when none), limitations and
-rejection count. Run-level `limitations` lists every input, harness and aspect
-limitation once. Native harness/profile limitations shared by every worker of an
-agent appear only there; an aspect row lists only its own worker-reported and
-attempt limitations, excluding text identical to its reason.
+rejection count. Reasons and aspect limitations longer than 240 characters show
+a preview, original length and a full-report command. Run-level `limitations`
+lists input and shared harness limitations once; aspect rows own the remaining
+worker-reported and attempt limitations, excluding text identical to their reason.
 `report <run-id> --full` retrieves every finding without clipping, including
 uncertainty, and `finding <id> --run <run-id>` includes its aspect's limitations
 and the input's coverage limits. Running reports read the current saved snapshot

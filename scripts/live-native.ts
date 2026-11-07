@@ -11,8 +11,15 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import type { Agent } from "../src/config.ts";
-import { inspectNativeProfile } from "./live-profile.ts";
+import {
+  collectOwned,
+  type FleetProcess,
+  processes,
+  sameProcess,
+} from "./fleet-resources.ts";
+import { inspectNativeProfile, readPiSettings } from "./live-profile.ts";
 
 export async function liveNativeWorker(agent: Agent, model: string) {
   const { nativeProfile }: typeof import("../src/native-profile.ts") =
@@ -23,19 +30,13 @@ export async function liveNativeWorker(agent: Agent, model: string) {
     await import(
       new URL("../dist/src/worker-runtime.js", import.meta.url).href
     );
+  const settingsBefore = agent === "pi" ? await readPiSettings() : null;
   const cwd = await mkdtemp(join(tmpdir(), "degreaser-live-"));
   const nonce = randomBytes(16).toString("hex");
   const marker = `AMBIENT_${randomBytes(8).toString("hex")}`;
   const owned = new Set<number>();
   const tools: { kind: string; status: string }[] = [];
   const started = Date.now();
-  const piSettings = join(
-    process.env.PI_CODING_AGENT_DIR ??
-      join(process.env.HOME ?? "", ".pi", "agent"),
-    "settings.json",
-  );
-  const settingsBefore =
-    agent === "pi" ? await readFile(piSettings).catch(() => null) : null;
   try {
     await mkdir(join(cwd, ".claude"), { recursive: true });
     await mkdir(join(cwd, ".codex"), { recursive: true });
@@ -125,28 +126,22 @@ export async function liveNativeWorker(agent: Agent, model: string) {
     );
     const effectiveProfile = inspectNativeProfile(profile, cwd, nonce, marker);
     const controller = new AbortController();
-    const descendants = new Set<number>();
+    const descendants: FleetProcess[] = [];
+    let samplingFailure: unknown;
     const sample = () => {
-      const rows = spawnSync("ps", ["-A", "-o", "pid=,ppid="], {
-        encoding: "utf8",
-        timeout: 3000,
-      })
-        .stdout.trim()
-        .split("\n")
-        .map((s) => s.trim().split(/\s+/).map(Number));
-      let changed = true;
-      while (changed) {
-        changed = false;
-        for (const [pid, ppid] of rows)
-          if (
-            pid &&
-            ppid &&
-            (owned.has(ppid) || descendants.has(ppid)) &&
-            !descendants.has(pid)
-          ) {
-            descendants.add(pid);
-            changed = true;
-          }
+      try {
+        const rows = processes();
+        for (const root of rows.filter((p) => owned.has(p.pid))) {
+          for (const child of collectOwned(rows, root, descendants))
+            if (
+              child.pid !== root.pid &&
+              !descendants.some((p) => sameProcess(p, child))
+            )
+              descendants.push(child);
+        }
+      } catch (error) {
+        samplingFailure = error;
+        controller.abort();
       }
     };
     const sampling = setInterval(sample, 100);
@@ -180,19 +175,16 @@ export async function liveNativeWorker(agent: Agent, model: string) {
       clearInterval(sampling);
       clearTimeout(cancelTimer);
     }
-    const alive = [...descendants].filter((pid) => {
-      try {
-        process.kill(pid, 0);
-        return true;
-      } catch {
-        return false;
-      }
-    });
+    if (samplingFailure) throw samplingFailure;
+    const remaining = processes();
+    const alive = descendants.filter((child) =>
+      remaining.some((p) => sameProcess(child, p)),
+    );
     assert.equal(cancelled.failure, "cancelled");
     assert.ok(cancelled.sessionId && cancelled.sessionId !== result.sessionId);
     assert.ok(cancelAt > 0 && Date.now() - cancelAt < 15000);
     assert.ok(
-      descendants.size > 0,
+      descendants.length > 0,
       "Cancellation must join meaningful native descendants.",
     );
     assert.deepEqual(alive, []);
@@ -251,7 +243,7 @@ export async function liveNativeWorker(agent: Agent, model: string) {
         sessionId: cancelled.sessionId,
         distinctFreshContext: true,
         failure: cancelled.failure,
-        joinedNativeDescendants: descendants.size,
+        joinedNativeDescendants: descendants.length,
         remaining: alive,
         elapsedAfterRequestMs: Date.now() - cancelAt,
       },
@@ -261,9 +253,7 @@ export async function liveNativeWorker(agent: Agent, model: string) {
       elapsedMs: Date.now() - started,
       piSettingsUnchanged:
         agent === "pi"
-          ? ((await readFile(piSettings).catch(() => null))?.equals(
-              settingsBefore ?? Buffer.alloc(0),
-            ) ?? settingsBefore === null)
+          ? isDeepStrictEqual(await readPiSettings(), settingsBefore)
           : null,
     };
     console.log(JSON.stringify(evidence, null, 2));

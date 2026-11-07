@@ -1,32 +1,13 @@
 import assert from "node:assert/strict";
-import type { ChildProcessWithoutNullStreams } from "node:child_process";
-import { once } from "node:events";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { alive, queueFixture, until } from "./queue-fixture.ts";
+import { alive, capture, queueFixture, until } from "./queue-fixture.ts";
 
 const faultLoader = fileURLToPath(
   new URL("./fixtures/storage-fault.mjs", import.meta.url),
 );
-function capture(child: ChildProcessWithoutNullStreams) {
-  let stdout = "",
-    stderr = "";
-  child.stdout.on("data", (data) => {
-    stdout += data;
-  });
-  child.stderr.on("data", (data) => {
-    stderr += data;
-  });
-  return once(child, "close").then(([code, signal]) => ({
-    code,
-    signal,
-    stdout,
-    stderr,
-  }));
-}
-
 test("cancel during effective resumed admission refuses explicitly instead of returning the old terminal report", async (t) => {
   const f = queueFixture(t, { concurrency: 1 });
   f.setPlan({ workers: { "low-value-comments": { result: "" } } });

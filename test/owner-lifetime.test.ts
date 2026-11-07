@@ -1,29 +1,12 @@
 import assert from "node:assert/strict";
-import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
+import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { constants, copyFileSync, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 import { setTimeout } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
-import { alive, queueFixture, until } from "./queue-fixture.ts";
-
-function capture(child: ChildProcessWithoutNullStreams) {
-  let stdout = "",
-    stderr = "";
-  child.stdout.on("data", (data) => {
-    stdout += data;
-  });
-  child.stderr.on("data", (data) => {
-    stderr += data;
-  });
-  return once(child, "close").then(([code, signal]) => ({
-    code,
-    signal,
-    stdout,
-    stderr,
-  }));
-}
+import { alive, capture, queueFixture, until } from "./queue-fixture.ts";
 
 test("bounded waits and lost waiters retain one detached owner and terminal waits are read-only", async (t) => {
   const f = queueFixture(t);
@@ -191,7 +174,7 @@ for (const useful of [false, true]) {
   });
 }
 
-test("completion racing cancel never loses evidence, duplicates attempts or leaves workers", async (t) => {
+test("completion racing cancel retains one terminal attempt and joins workers", async (t) => {
   const f = queueFixture(t);
   f.setPlan({ worker: { resultGate: f.gate("finish") } });
   f.start(["--aspects", "low-value-comments"]);
@@ -204,6 +187,8 @@ test("completion racing cancel never loses evidence, duplicates attempts or leav
   assert.doesNotMatch(response.stdout, /run-busy/);
   await until(() => !alive(owner.pid), "Raced owner exits");
   const state = f.state();
+  assert.notEqual(state.status, "running");
+  assert.ok(state.tasks[0]?.attempts[0]?.endedAt);
   assert.equal(state.tasks[0]?.attempts.length, 1);
   assert.equal(f.events().length, 1);
   const bytes = readFileSync(join(f.root, ".degreaser/runs", id, "run.json"));
