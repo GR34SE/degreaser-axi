@@ -137,13 +137,14 @@ test("strict public RC schema rejects unknown fields and bounded invalid values 
     { ...identity, caller: "claude" },
     { ...identity, limits: { timeout: 1 } },
     { ...identity, aspects: { custom: [] } },
-    { ...identity, aspects: { enable: ["reuse-existing"] } },
-    { ...identity, aspects: { overrides: { A17: { model: "x" } } } },
+    { ...identity, aspects: { enable: ["missed-reuse"] } },
+    { ...identity, aspects: { "missed-reuse": "off" } },
+    { ...identity, aspects: { A17: { model: "x" } } },
     {
       ...identity,
-      aspects: { overrides: { "missed-reuse": { agent: "claude" } } },
+      aspects: { "missed-reuse": { agent: "claude" } },
     },
-    { ...identity, aspects: { overrides: { "missed-reuse": {} } } },
+    { ...identity, aspects: { "missed-reuse": {} } },
     { ...identity, model: " " },
     { agent: "pi", model: "unqualified" },
     ...[
@@ -180,15 +181,13 @@ test("selection narrows all sixteen defaults without re-enabling disabled aspect
     ...identity,
     concurrency: 2,
     aspects: {
-      disable: ["unnecessary-layers"],
-      overrides: {
-        "masked-errors": { model: "exact-codex-id" },
-        "contract-bypass": {
-          agent: "claude",
-          model: "claude-haiku-4-5-20251001",
-        },
-        "verification-theater": { agent: "pi", model: "openai/gpt-6-luna" },
+      "unnecessary-layers": false,
+      "masked-errors": { model: "exact-codex-id" },
+      "contract-bypass": {
+        agent: "claude",
+        model: "claude-haiku-4-5-20251001",
       },
+      "verification-theater": { agent: "pi", model: "openai/gpt-6-luna" },
     },
   };
   const original = JSON.stringify(rc);
@@ -223,13 +222,13 @@ test("selection narrows all sixteen defaults without re-enabling disabled aspect
     () =>
       resolveConfig({
         ...identity,
-        aspects: { enable: ["missed-reuse"], disable: ["missed-reuse"] },
+        aspects: Object.fromEntries(all.map((id) => [id, false])),
       }),
-    /both/,
+    /empty/,
   );
   assert.throws(
-    () => resolveConfig({ ...identity, aspects: { disable: all } }),
-    /empty/,
+    () => resolveConfig({ ...identity, aspects: { disable: ["scope-creep"] } }),
+    /one entry per aspect/,
   );
   assert.throws(() => resolveConfig(identity, { aspects: ["A99"] }), /aspect/);
   assert.throws(() => resolveConfig(identity, { aspects: [] }), /empty/);
@@ -238,7 +237,7 @@ test("selection narrows all sixteen defaults without re-enabling disabled aspect
       resolveConfig({
         ...identity,
         aspects: {
-          overrides: { "missed-reuse": { agent: "pi", model: "wrong" } },
+          "missed-reuse": { agent: "pi", model: "wrong" },
         },
       }),
     /\.degreaserrc\.json: .*model.*must match pattern/,
@@ -248,7 +247,7 @@ test("selection narrows all sixteen defaults without re-enabling disabled aspect
       resolveConfig({
         agent: "pi",
         model: "openai/gpt-6-luna",
-        aspects: { overrides: { "missed-reuse": { model: "wrong" } } },
+        aspects: { "missed-reuse": { model: "wrong" } },
       }),
     /provider/,
   );

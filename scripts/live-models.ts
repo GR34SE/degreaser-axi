@@ -79,9 +79,7 @@ export async function liveModels(agent: Agent, model: string) {
                   agent: "codex",
                   model: "gpt-6-luna",
                   aspects: {
-                    overrides: {
-                      "low-value-comments": { agent, model: unsupported },
-                    },
+                    "low-value-comments": { agent, model: unsupported },
                   },
                 }
               : { agent, model: unsupported },
