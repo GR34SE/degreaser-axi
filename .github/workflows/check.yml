@@ -41,17 +41,27 @@ jobs:
   # CI_LINUX_RUNNER and CI_MACOS_RUNNER repository variables may name
   # self-hosted runner labels; unset, jobs use GitHub-hosted runners. Each PR
   # takes one macOS job, because macOS hosts run at most two VMs. Fork PRs
-  # always use GitHub-hosted runners.
-  static:
-    name: Linux static
+  # always use GitHub-hosted runners. Linux runs the same runtime suite.
+  linux:
+    name: Linux checks
+    needs: plan
     runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_LINUX_RUNNER || 'ubuntu-24.04' }}
-    timeout-minutes: 10
+    timeout-minutes: 30
     env:
       CI: "true"
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           persist-credentials: false
+      - name: Set up minimum Node for full acceptance
+        if: github.event_name != 'pull_request'
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "24.0.0"
+          package-manager-cache: false
+      - name: Retain minimum Node path
+        if: github.event_name != 'pull_request'
+        run: echo "DEGREASER_NODE24_MIN=$(node -p process.execPath)" >> "$GITHUB_ENV"
       # Node comes first: the pnpm installer runs node, and self-hosted
       # runners need not provide it.
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
@@ -63,12 +73,35 @@ jobs:
           run_install: false
           cache: true
           cache_dependency_path: pnpm-lock.yaml
+      - name: Initialize disposable runner Git identity
+        run: |
+          if ! git config user.name >/dev/null; then
+            git config --global user.name 'github-actions[bot]'
+          fi
+          if ! git config user.email >/dev/null; then
+            git config --global user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          fi
       - name: Install locked dependencies without lifecycle scripts
         run: pnpm install --frozen-lockfile --ignore-scripts
-      - name: Build and check generated-skill drift
+      - id: build
+        name: Build and check generated-skill drift
         run: pnpm build
+      - name: Documentation contracts
+        if: needs.plan.outputs.scope == 'documentation'
+        run: node --test --test-concurrency=4 test/documentation.test.ts
+      - name: Runtime regression suite
+        if: needs.plan.outputs.scope == 'full'
+        run: node --test --test-concurrency=4 test/*.test.ts
+      # Run after a test failure too, so one PR run reports both results.
       - name: Typecheck and lint
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: pnpm typecheck && pnpm lint
+      - name: Installed package on current Node (PR)
+        if: ${{ !cancelled() && steps.build.outcome == 'success' && github.event_name == 'pull_request' }}
+        run: node scripts/package-check.ts --current-node-only
+      - name: Installed package on minimum and current Node (full acceptance)
+        if: ${{ !cancelled() && steps.build.outcome == 'success' && github.event_name != 'pull_request' }}
+        run: node scripts/package-check.ts
 
   macos:
     name: macOS runtime
@@ -130,13 +163,13 @@ jobs:
   check:
     name: macOS deterministic
     if: always()
-    needs: [plan, static, macos]
+    needs: [plan, linux, macos]
     runs-on: ubuntu-24.04
     timeout-minutes: 1
     steps:
       - name: Require every selected job to pass
         env:
           PLAN_RESULT: ${{ needs.plan.result }}
-          STATIC_RESULT: ${{ needs.static.result }}
+          LINUX_RESULT: ${{ needs.linux.result }}
           MACOS_RESULT: ${{ needs.macos.result }}
-        run: test "$PLAN_RESULT" = success && test "$STATIC_RESULT" = success && test "$MACOS_RESULT" = success
+        run: test "$PLAN_RESULT" = success && test "$LINUX_RESULT" = success && test "$MACOS_RESULT" = success

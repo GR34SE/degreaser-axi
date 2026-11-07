@@ -4,7 +4,7 @@
 
 Degreaser is a local CLI for coding agents to review their work for unjustified complexity, broken contracts and misleading verification. The caller supplies the task and change scope; Degreaser sends each enabled review aspect to a fresh, isolated, read-only worker through acpx. Workers return source evidence. The caller evaluates the findings and makes edits. Degreaser does not fix code or detect AI authorship.
 
-Implemented package: ESM TypeScript, macOS, Node 24+, Codex/Claude Code/Pi/Cursor workers and onboarding. The package is prepared for public v1 distribution. Actual npm publication is not yet authorized: leave `NPM_PUBLISH_ENABLED` unset or false until the owner explicitly enables it. Local npm login is not a publication gate because CI uses OIDC. Planned support is not shipped support. Public product text, CLI output, prompts and skills are English.
+Implemented package: ESM TypeScript, Linux and macOS, Node 24+, Codex/Claude Code/Pi/Cursor workers and onboarding. The package is prepared for public v1 distribution. Actual npm publication is not yet authorized: leave `NPM_PUBLISH_ENABLED` unset or false until the owner explicitly enables it. Local npm login is not a publication gate because CI uses OIDC. Planned support is not shipped support. Public product text, CLI output, prompts and skills are English.
 
 ### Behavior to preserve
 
@@ -43,7 +43,7 @@ Outside v1: custom rubrics, automatic apply, model judge, semantic finding merge
 | Init, integrations and generated skill | `src/init.ts`, `src/integrations.ts`, `src/integration-targets.ts`, `src/guidance.ts`; `assets/skills/degreaser/SKILL.md` |
 | Validation and packaging | `test/`, `scripts/qa/`, `scripts/test-live.ts`, `scripts/package-check.ts`, `.github/workflows/check.yml` |
 
-Read the relevant contract before editing. Build/runtime must work from public `assets/` without private files. Generate the product skill from `src/guidance.ts` with `pnpm skill:generate`; never hand-edit it. README is for users: purpose, verified setup, usage and results, without development handoff or private links. Until publication is separately authorized, document the working checkout installation and label registry installation as unavailable. Do not describe an unpublished package as released.
+Read the relevant contract before editing. Build/runtime must work from public `assets/` without private files. Generate the product skill from `src/guidance.ts` with `pnpm skill:generate`; never hand-edit it. Keep README short and written for users: purpose, requirements, working installation, one basic workflow, essential limitations and license. Link to existing public contracts for configuration, commands and review details instead of duplicating them. Contributor instructions, validation procedures and project design rules belong in AGENTS.md, not README. Do not add development handoff or private links. Until publication is separately authorized, document the working checkout installation and label registry installation as unavailable. Do not describe an unpublished package as released.
 
 ### Private intent and history
 
@@ -72,10 +72,12 @@ For product intent, start from `specs/README.md` and `specs/pending/degreaser.md
 | `pnpm test:live --help` | Opt-in native/model scenarios; unsupported/unrun is never passed |
 | `pnpm release:prepare --since <ancestor> --output <new-directory>` | From a clean committed checkout after checks: tested tarball, checksum and draft notes; no publishing |
 
-Live tests require synthetic code, confirmed models and a fresh quota check, without paid API fallback. Stop only owned processes. No model credentials/logins in CI. Required hosted check: **macOS deterministic**; local success does not replace it.
+Live tests require synthetic code, confirmed models and a fresh quota check, without paid API fallback. Stop only owned processes. No model credentials/logins in CI. The opt-in fleet resource monitor reads macOS memory-pressure interfaces and refuses other hosts. Required hosted check: **macOS deterministic**; local success does not replace it.
 
-CI runs build, typecheck and lint in one Linux job, and runtime tests plus
-installed-package QA in one macOS job; keep each PR to one macOS job. Repository
+CI runs build, typecheck, lint, the deterministic suite and installed-package
+QA in one Linux job, and the deterministic suite plus installed-package QA in
+one macOS job; keep each PR to one macOS job. Non-PR runs also accept minimum
+Node 24.0.0 on both systems. Repository
 variables `CI_LINUX_RUNNER` / `CI_MACOS_RUNNER` may name self-hosted runner
 labels; unset, jobs use GitHub-hosted runners. Fork PRs always use
 GitHub-hosted runners. Never commit

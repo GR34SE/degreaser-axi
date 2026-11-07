@@ -110,7 +110,10 @@ for (const useful of [false, true]) {
       sentinel.kill();
       await sentinelExit;
     });
-    const other = queueFixture(t);
+    // The peer stays gated for the whole test, so its limits must outlast it under load.
+    const other = queueFixture(t, {
+      limits: { workerTimeoutSeconds: 120, runTimeoutSeconds: 180 },
+    });
     other.setPlan({ worker: { resultGate: other.gate("finish") } });
     assert.equal(other.start(["--aspects", "low-value-comments"]).status, 3);
     const otherOwner = other.state().owner;

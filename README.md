@@ -1,160 +1,55 @@
 <p align="center">
-  <img src="assets/branding/degreaser.png" alt="Degreaser — Removes slop!" width="760">
+  <img src="https://raw.githubusercontent.com/GR34SE/degreaser-axi/main/assets/branding/degreaser.png" alt="Degreaser — Removes slop!" width="760">
 </p>
 
 # Degreaser
 
-Focused slop review for coding agents.
+Code review for coding agents. Degreaser checks for unnecessary complexity, broken contracts and misleading verification. It runs 16 focused reviewers in fresh, read-only sessions and returns findings with code quotes and suggested corrections. Your agent decides what to fix.
 
-`degreaser-axi` looks at the change your coding agent just made. It runs sixteen small reviewers in parallel: one aspect each, a fresh context, evidence back. Your agent decides what to fix.
+## Install
 
-It does source-only reviews, waits on detached runs, cancels, resumes unchanged unresolved work, and reads saved reports. Init confirms the worker model and installs the startup integration and skill for the harnesses you pick.
+Requires Linux or macOS, Node 24+, Git, pnpm, and a logged-in Codex, Claude Code, Pi or Cursor. Linux needs a procps-compatible `/bin/ps` (minimal images such as Debian slim need the `procps` package). Claude Code, Pi and Cursor must be on PATH; the Codex worker is bundled.
 
-- **The change, plus the repo** - Reviewers assess the diff and can follow callers, tests, dependencies and existing helpers.
-- **One aspect per reviewer** - Sixteen focused reviews, each with examples of problems to report and justified code to keep.
-- **Findings with quotes** - Location, quoted code, a concrete consequence, a checked counterargument and a direction. Reviewers only read.
-
-```
-change
-  → degreaser-axi review    (sixteen isolated aspects)
-  → findings with quotes
-  → your coding agent decides
-  → degreaser-axi dismiss   (when you keep the code)
-```
-
-## Quick Start
-
-macOS, Node 24.0.0 or newer, Git, and an authenticated Codex, Claude Code, Pi or Cursor login. Linux, Windows, Droid and Grok Build are out of v1. Model calls go through [acpx](https://github.com/openclaw/acpx) to a harness you already authenticated. Degreaser has no API keys of its own and does not fall back to paid keys.
-
-The package is currently unpublished. To use this checkout, build and link it:
+The package is not published to npm yet. Build and link a checkout:
 
 ```sh
+git clone https://github.com/GR34SE/degreaser-axi.git
+cd degreaser-axi
 pnpm install --frozen-lockfile --ignore-scripts
 pnpm build
 pnpm link --global
-degreaser-axi --version
 ```
 
-Startup integrations call the installed executable, so keep this linked checkout at a stable path. `degreaser` is an alias of `degreaser-axi`. The examples use `degreaser-axi`. Registry installation and the skill's `npx` fallback require a future npm release; nothing has been published to npm yet.
+Keep the linked checkout at a stable path.
 
-Run the rest **inside the Git repository you want to review**. Init writes `.degreaserrc.json`, installs the selected integrations, and adds `/.degreaser/` to the root `.gitignore` without touching the index. `--aspects low-value-comments` is a cheap first review.
+## Use
 
-Claude, Pi and Cursor must already be on PATH. The Codex worker ships with this package. Cursor workers use the native `cursor-agent acp` / `agent acp` server, not a separate ACP adapter package. `degreaser-axi doctor` prints the native versions this install accepts: Codex exactly as bundled; Claude and Pi at the verified version or newer in the same major; Cursor at the verified release date or later. Accepted versions other than the verified one run with an "unverified newer version" notice. See [native worker restrictions and limits](https://github.com/GR34SE/degreaser-axi/blob/main/assets/native-profiles.md), or `dist/assets/native-profiles.md` in a built checkout or installed package.
+In the Git repository you want to review:
 
 ```sh
 degreaser-axi init
-degreaser-axi review --scope worktree --task "Add CSV import with quoted-field support" --aspects low-value-comments
+```
+
+Choose the review model and the agent integrations you use, then start a new agent session (or reload Pi). Ask your agent:
+
+> Run Degreaser on my current changes. The task was to add CSV import. Wait for the review, assess the findings, and fix the ones that apply.
+
+Or use the CLI:
+
+```sh
+degreaser-axi review --scope worktree --task "Add CSV import"
 degreaser-axi report
 ```
 
-## Init
+If the review returns `running`, follow its `degreaser-axi wait <run-id>` command. Keep the code unchanged until it finishes. A partial review is not a clean result.
 
-In a terminal, Space selects agents and Enter confirms. Init detects Codex, Claude Code, Pi and Cursor on PATH without starting them, then asks Project or Global. Pick the review agent, then press Enter on the highlighted model or type to search that agent's catalog. Only the selected review agent's catalog is loaded. If your previous model is no longer offered, init says so before you choose another.
+Reviews read source; they do not run tests or apply fixes. Review context goes to your selected model provider, uses its quota, and is saved locally in ignored `.degreaser/` files. All 16 reviewers run by default; use `--aspects` to select fewer or `--concurrency` to limit simultaneous calls.
 
-Every init, including reinit, needs you to confirm or change the model. An existing RC prefills the last choice. Otherwise init recommends a small model from the catalogs your harnesses advertise at that moment: Claude Haiku first, then Codex Luna, then another small model. A newer Haiku or Luna is matched by name, with no Degreaser update. Without a terminal, missing decisions return `decision-required` (exit 2) with exact candidates and example commands, and write nothing. After the user chooses, pass `--agent`, `--model` and `--harnesses`. The existing RC is not consent for a later invocation.
+See `degreaser-axi --help` for commands and options, or `degreaser-axi doctor` for setup diagnostics. Details: [configuration and scopes](https://github.com/GR34SE/degreaser-axi/blob/main/assets/input-contract.md), [results and limitations](https://github.com/GR34SE/degreaser-axi/blob/main/assets/result-contract.md), [worker restrictions](https://github.com/GR34SE/degreaser-axi/blob/main/assets/native-profiles.md).
 
-`--agent` is the reviewer harness; `--harnesses` are caller integrations. Pick only the ones you use. `--model` is that harness's exact catalog ID. Cursor puts parameter brackets in the ID, so quote it:
+## Review aspects
 
-```sh
-degreaser-axi init --agent cursor --model 'composer-2.5[fast=true]' --harnesses cursor,codex,claude,pi
-```
-
-Init reads native catalogs without inference. The non-interactive response includes credential sources, not private account identities. Catalog entries do not guarantee later provider availability. Invalid choices or failed discovery never silently pick a replacement.
-
-Init keeps other RC settings and installs both the startup integration and the skill for each selected harness. Installation defaults to the project; choose Global in the terminal or pass `--installation-scope user`. RC and ignore setup still belong to the current project. Nothing edits global permissions, Codex features/rules, or your AGENTS.md and CLAUDE.md.
-
-## Integrations
-
-Start a new harness session after installation (or reload Pi). Project and hook trust still go through the host. Degreaser never grants trust itself.
-
-If something breaks later (updated harness, moved install, edited hooks), `degreaser-axi doctor` checks native versions and installed integrations without calling a model. To repair moved package paths or missing owned files:
-
-```sh
-degreaser-axi setup hooks --harnesses cursor,codex,claude,pi
-```
-
-Use your selected targets and the original scope. `--remove` drops only owned entries. Foreign settings stay intact; edited owned files produce a conflict instead of being overwritten. Keep your edits elsewhere, or restore the owned content, then retry.
-
-Ownership receipts live in `.degreaser/integrations.json` at the selected project or home root. `doctor` labels owned content from an older package `outdated` (repair with `setup hooks`) and your own edits `modified`. It also works before `init`, reporting the missing RC. Codex and Pi share `.agents/skills/degreaser` with Cursor, kept until every owner is removed.
-
-### Uninstall
-
-Remove the integrations for each scope you installed, with the same harnesses:
-
-```sh
-degreaser-axi setup hooks --harnesses cursor,codex,claude,pi --remove
-degreaser-axi setup hooks --harnesses cursor,codex,claude,pi --installation-scope user --remove
-```
-
-Removal works even without a receipt (a fresh clone or `.degreaser/` deleted): it deletes the startup hook entry and the skill files Degreaser generated, leaves edited or foreign content with a conflict or untouched, and prunes directories it emptied. Then delete `.degreaserrc.json`, the `/.degreaser/` line in `.gitignore`, `.degreaser/` and `<git-common-dir>/degreaser/dismissed.json` (the `dismiss` ledger; `git rev-parse --git-common-dir` prints the directory).
-
-Startup reads compact local context. It starts no models or reviews, is disabled in review workers and prints nothing in repositories without an RC. Missing executables or invalid local state do not block the host; an invalid RC prints one line pointing to `doctor`. Use the CLI home view for state errors and `setup hooks` for repair.
-
-Then invoke the skill:
-
-- Claude Code: `/degreaser review my changes`
-- Codex: `$degreaser review my changes`
-- Pi: `/skill:degreaser review my changes`
-- Cursor: `/degreaser review my changes`
-
-Or ask in plain words:
-
-> Run Degreaser on my current changes for the CSV import feature. Wait for the review, assess the findings, and fix the ones that apply.
-
-For a feature branch, name its target:
-
-> Review this branch against develop with Degreaser. The task was to add CSV import with quoted-field support.
-
-The agent supplies the scope and task, starts the review, and waits before editing. Startup integrations make Degreaser discoverable; they do not launch reviews or call models on their own.
-
-## Review from the CLI
-
-```sh
-# Current work: staged, unstaged and new non-ignored files.
-degreaser-axi review --scope worktree --task "Add CSV import with quoted-field support"
-
-# Feature branch, including local work, against an explicitly chosen target.
-degreaser-axi review --scope branch --base develop --task "Add CSV import with quoted-field support"
-
-# Whole-repository review is explicit and can cost more.
-degreaser-axi review --scope repository --task "Review the repository for unnecessary complexity"
-
-# Only part of the repository (or of a worktree/branch change).
-degreaser-axi review --scope repository --path landing --path 'packages/*/src' --task "Audit the landing page"
-```
-
-Use `--task-file <path>` instead of `--task` for a longer brief. An empty diff finishes without starting reviewers.
-
-Repeat `--path <pattern>` to assess only matching files in any scope. Patterns are relative to the Git root, wherever you run the command. A directory or file name such as `landing` or `landing/app/blog.ts` selects that file or everything beneath it; quoted globs (`*`, `**`, `?`, `[...]`) such as `'landing/**/*.tsx'` also work, and a matching directory includes its contents. `exclude` and the built-in exclusions still apply. A narrowed repository audit that matches no files fails without starting reviewers; a `--path` that matches none of a non-empty set of changed files in `worktree` or `branch` scope is rejected (exit 2) naming the patterns (an empty change set is still `no-changes`), so a typo never looks like a clean review. Built-in exclusions cover directories named `node_modules`, `dist`, `build` and `coverage`, not files with those names. Other files remain readable context.
-
-If a review returns `running`, use the supplied `degreaser-axi wait <run-id>`. Keep the code unchanged until the run finishes. If some reviewers fail, completed peers stay available.
-
-`review` and `wait` accept `--wait <seconds>` (default 480). A short wait returns `running` with exit 3, not success. A caller timeout or a killed waiting command does not stop the detached run: attach again with `wait`, not a replacement `review`. Repeated waits on a finished run only read its result.
-
-### Cancel and resume
-
-```sh
-degreaser-axi cancel <run-id>
-degreaser-axi resume <run-id>
-```
-
-Cancel signals the verified owner, stops queued work and retries, and waits for owned worker cleanup. Useful results and attempt history remain: cancellation returns `partial` or `failed` with exit 1. A run that finished first stays completed with exit 0. No permanent background service remains after cleanup. If cancel races ownership admission, it can return `run-busy` with exit 2: cancellation was **not applied**. Retry the supplied cancel command after admission finishes; the old terminal report does not confirm cancellation of resumed work.
-
-Resume is for partial failure, cancellation or owner interruption. It rechecks source, task-file contents, resolved base, prompts and selected agent/model, then continues only unresolved aspects. An incomplete aspect continues with its unexamined files instead of starting over. Successful results stay intact, and earlier attempts (including incomplete evidence) remain in `report --full`. Changed input needs a new review. Unchanged completed runs return `already-completed` without starting anything.
-
-Failure to check freshness is not proof that input changed. Git/configuration errors keep their diagnostics; unreadable task or packaged prompt files return `environment-blocked`. Repair access or the environment before retrying.
-
-Resume accepts `--concurrency <n>` and `--wait <seconds>`. It keeps the original absolute deadline unless you pass `--deadline <seconds>`, which starts a new budget at the resumed owner's start. An expired deadline needs that override. Prefer these flags to editing an RC that is itself part of the reviewed source.
-
-### Ownership
-
-A live owner cannot be evicted just because its heartbeat is old. Recovery checks process birth identities and joins verified old work before replacement attempts. If a lock or PID is ambiguous, it refuses takeover rather than signalling unrelated processes. Follow the reported local inspection guidance; do not remove locks while an owner or worker is still active.
-
-Reports mark interrupted active aspects as `interrupted`; full-report attempts are labeled `last-persisted` history, not proof that a worker is still running. Use the same Node executable as the original owner. For `owner-unverified`, inspect the run's `run.json` and `owner.lock` against local PID, start-time and process-group identities. Never signal a reused PID. If ownership remains unverifiable, keep the old evidence and start a new review only after confirming old work has stopped.
-
-## What it looks for
-
-All 16 aspects are enabled by default.
+All 16 built-in aspects are enabled by default. Each reviewer checks one question:
 
 | Aspect | Review question |
 | --- | --- |
@@ -172,23 +67,27 @@ All 16 aspects are enabled by default.
 | `wrong-abstraction` | Does a shared mechanism combine cases with conflicting rules? |
 | `reinvented-infrastructure` | Does a handwritten cache, parser or similar mechanism miss required semantics? |
 | `unidiomatic-code` | Can a native construct remove unnecessary logic without changing behavior? |
-| `structural-erosion` | Does this change concentrate more responsibilities and branching in an overloaded unit? |
+| `structural-erosion` | Does this change add responsibilities and branching to an overloaded unit? |
 | `verification-theater` | Does a runtime or tooling check prove the property it claims to verify? |
 
-A loop, wrapper, validation check or smoke test is not automatically slop. Reviewers have to establish a concrete problem in context, check reasons to keep the code, and treat zero findings as a valid result.
+A wrapper, comment or validation check is not automatically a problem. Reviewers must establish a concrete consequence and check reasons to keep the code. See the [catalog and aspect boundaries](https://github.com/GR34SE/degreaser-axi/blob/main/assets/catalog.md) for details.
 
-## Configure the review
+For a one-run subset of enabled aspects:
 
-Root `.degreaserrc.json` holds every configurable review setting, including defaults. Init writes the complete file after every explicit confirmation and keeps existing controls. You can disable built-in aspects, cap concurrency, or override the model for individual aspects.
+```sh
+degreaser-axi review --scope worktree --task "Add CSV import" --aspects missed-reuse,low-value-tests
+```
 
-A fresh init after selecting Codex and Luna writes:
+## Configuration
+
+`init` writes `.degreaserrc.json` at the Git root. Keep the exact `agent` and `model` you confirmed there; the Codex model below is an example, not a guarantee of availability.
 
 ```json
 {
   "schemaVersion": 1,
   "agent": "codex",
   "model": "gpt-6-luna",
-  "concurrency": null,
+  "concurrency": 4,
   "maxRetries": 1,
   "limits": {
     "workerTimeoutSeconds": 300,
@@ -197,129 +96,19 @@ A fresh init after selecting Codex and Luna writes:
     "runTimeoutSeconds": 900
   },
   "aspects": {
-    "missed-reuse": true,
-    "unnecessary-layers": true,
-    "speculative-flexibility": true,
-    "masked-errors": true,
-    "unjustified-defense": true,
     "low-value-comments": true,
-    "convention-drift": true,
-    "scope-creep": true,
-    "contract-bypass": true,
-    "low-value-tests": true,
-    "incomplete-integration": true,
-    "wrong-abstraction": true,
-    "reinvented-infrastructure": true,
-    "unidiomatic-code": true,
-    "structural-erosion": true,
-    "verification-theater": true
+    "scope-creep": false
   },
-  "exclude": []
+  "exclude": ["vendor", "src/generated"]
 }
 ```
 
-Each aspect appears once. `true` runs it with the selected agent and model, `false` turns it off, and an object runs it with its own identity: `"low-value-comments": { "model": "<exact-model-id>" }` keeps the default agent, while an agent override must also name its compatible exact model. An aspect missing from the map is on. `exclude` adds to the fixed built-in exclusions.
+- `concurrency: 4` caps simultaneous reviewers; the default `null` leaves them uncapped.
+- `aspects` accepts `true` (enabled), `false` (disabled), or `{ "model": "<exact-model-id>" }` to override the model for one aspect. Omitted aspects stay enabled. Changing its agent also requires an explicit compatible model.
+- `maxRetries` counts extra attempts. The limits above are defaults; `maxTurns` is enforced natively only by Claude and is advisory for other workers.
+- `exclude` adds literal repository-relative files or directory prefixes, not globs. It narrows assessed coverage, not worker read access.
 
-After upgrading the installed package:
-
-```sh
-degreaser-axi config sync
-degreaser-axi setup hooks --harnesses <your harnesses>
-```
-
-`setup hooks` refreshes owned skills and startup hooks that `doctor` reports as `outdated`. `config sync` fills only missing settings with the installed defaults, including nested settings, and reports what it added. Existing values (turned-off aspects, zero retries, model overrides) stay. A complete file is left untouched. Sync does not discover models, install integrations or check the registry. Use `init` to create a missing RC and confirm the model and harnesses.
-
-Older sparse files remain valid. Home/startup context, doctor and review responses list missing settings with their defaults and suggest `config sync`; those reads never rewrite the file or block review solely for missing defaults. Explicit values stay pinned when package defaults change. `schemaVersion` versions the format, not the package: adding a defaulted field does not bump it. Unsupported versions, unknown fields and invalid settings are rejected without rewriting the file. Sync currently completes format v1; it does not guess conversions for future incompatible formats.
-
-`concurrency: null` means no cap; omitting it in older files means the same. Older binaries that reject RC null need upgrading before using a newly generated file.
-
-Without a concurrency limit, all enabled aspects can run in parallel after the first model invocation. A lower limit reduces simultaneous calls; it does not reduce the number of aspects reviewed. Retries and continuation keep your selected harness and model.
-
-Defaults: one extra retry, 300-second worker timeout, 120-second worker idle limit, 900-second run deadline, 40-turn budget. The idle limit stops an attempt that sends no events for that long, so a stuck worker retries early while an active one keeps its full timeout; running reports show each aspect's `lastActivity`. Configure `maxRetries` and `limits.workerTimeoutSeconds`, `limits.workerIdleSeconds`, `limits.runTimeoutSeconds`, `limits.maxTurns`. Only Claude enforces the turn budget natively; Codex, Pi and Cursor treat it as advisory. `exclude` accepts literal repository-relative files or directory prefixes, not globs. For a one-run selection, use `review --path` instead.
-
-Missing/malformed output, discarded oversized output and attempt timeouts get only the configured bounded retries in fresh sessions. Auth, model, account and rate-limit failures do not trigger automatic retries or fallback. Rate limits suggest lower-concurrency resume after the limit clears; disabled or suspended accounts need access restored with the selected provider. If a provider failure overlaps cancellation or the run deadline, reports keep the attempt failure and the separate run `stopReason`.
-
-Before creating a run, review checks selected pairs against native model catalogs without inference. Unsupported pairs return `invalid-input`; discovery/auth/host failures return `environment-blocked`. Both are exit 2 and no new run. Catalog membership is not a provider-access guarantee. Claude's review-time catalog includes the requested model, so its runtime identity check cannot independently detect later provider withdrawal. No model fallback is used.
-
-The root RC follows the strict versioned [configuration schema](https://github.com/GR34SE/degreaser-axi/blob/main/assets/schemas/config-v1.json). Unknown fields and explicitly selected aspects that are turned off are errors. See the [input contract](https://github.com/GR34SE/degreaser-axi/blob/main/assets/input-contract.md) for exact bounds, literal-path exclusions and Git representation limits. In a built checkout or installed package, these are `dist/assets/schemas/config-v1.json` and `dist/assets/input-contract.md`.
-
-To review only specific aspects for one run, without changing configuration:
-
-```sh
-degreaser-axi review --scope worktree --task "Fix CSV parsing" --aspects missed-reuse,reinvented-infrastructure
-```
-
-## Read the results
-
-The CLI follows [AXI](https://axi.md/): a short summary, details on demand, and a command for the next step.
-
-```sh
-degreaser-axi report          # Latest run and findings.
-degreaser-axi report --full   # Full evidence.
-degreaser-axi finding F1     # One finding from the latest run.
-degreaser-axi export > r.json # Findings, coverage and limitations as JSON for other tools.
-degreaser-axi doctor         # Local configuration/native-version diagnostics, no inference.
-```
-
-Each finding says what is wrong, where it occurs, why it matters and what would improve it. Incomplete reviews are marked explicitly. Reviewers inspect source; they do not run tests or claim runtime verification.
-
-Large changes do not need to be split by hand. Each reviewer reports which changed files it examined. When files remain, Degreaser starts a fresh, focused session for the same aspect over only those files and merges the results. It repeats this while each session adds coverage. An aspect counts as clean or not applicable only when the accumulated worker declarations cover every readable assessed file. `coverageBasis: worker-declared` makes this limit explicit: Degreaser validates quoted findings against Git blobs, but does not independently prove file reads or the absence of defects. A large patch is stored as a plain diff with a line range per file, so reviewers read it file by file.
-
-Short reports show at most 30 findings, with total/shown counts and per-aspect coverage, limitations and rejections. Long aspect reasons and limitations have a 240-character preview with their original length; `report --full` retains the complete text. Shared harness limitations appear once at run level. Overlapping locations on the same old/new side share a group but retain separate evidence. `report --full` and `finding` do not clip evidence. `usageScope: latest-attempt-per-aspect` labels usage from each aspect's latest attempt, not a task/run total. Missing metadata is `unknown`, including a resumed attempt that fails before returning it. Full reports retain known usage in earlier attempt records and keep successful peers unchanged.
-
-Pass `report <run-id>` or `finding F1 --run <run-id>` to read historical evidence; otherwise reads select this repository's latest run. Reports of running reviews return the current snapshot without waiting. Home reads history even without a current RC. These read commands do not start reviews or modify local state.
-
-When you decide not to apply a finding:
-
-```sh
-degreaser-axi dismiss F3 --reason "Kept for clients on the old API"
-```
-
-Later reviews that assess the same file pass dismissed findings and reasons to their reviewers, which should not raise the same issue again. Dismissals live in `degreaser/dismissed.json` inside the Git common directory (usually `.git/degreaser/`), so every worktree of the repository shares them and they are never committed. Edit or delete that file to undo a dismissal.
-
-Full reports separate configured identities from actual attempts and coordinator-only applicability results, including scope-creep in repository audits. When storage remains writable, a detached owner's fatal cause is saved with its execution controls: prompt identity changes (`input-changed`) stay distinct from unexpected owner failures (`owner-failed`). Reports show the latest cause; `report --full` retains earlier execution causes after resume. A broken store cannot reliably save its own failure and leaves the last committed evidence.
-
-Results and progress are saved locally in ignored `.degreaser/`. Review context is sent through your chosen harness to its model provider. Degreaser does not apply fixes; your coding agent decides which findings warrant changes.
-
-A representative one-aspect report excerpt:
-
-```text
-status: completed
-evidence: source-only
-scope: worktree
-aspects: 1/1
-count: 1
-shown: 1
-rejected: 0
-```
-
-For example, `finding F1` can quote `// Return the sum of two numbers.` and explain why it repeats the function below it. The quote check establishes that the code exists, not that the recommendation is correct. Zero findings is equally valid. See [result validation and local data limits](https://github.com/GR34SE/degreaser-axi/blob/main/assets/result-contract.md), also available at `dist/assets/result-contract.md` in a built checkout or installed package.
-
-Exit codes: **0** completed/no changes/already completed, **1** partial/failed/interrupted, **2** invalid input/decision required/environment or state blocked, **3** running. Findings alone do not cause a nonzero exit.
-
-## Privacy and limitations
-
-- Credentials stay in the native harness. Do not put tokens in the RC, task, model ID or command arguments. Worker environments exclude direct API-key and provider-routing overrides; no credential copying or automatic account fallback.
-- Diagnostics keep selected identities, local paths, bounded numeric versions, failure categories and repair guidance, not raw exception payloads, native stderr, environment dumps, thoughts, full transcripts or tool logs. Unknown configuration keys/values are not echoed. This is not a general secret scanner.
-- **Review data is intentionally not redacted.** Tasks, paths, patches, finding quotes and other evidence may contain sensitive code. `.degreaser/` stays local and ignored, but reports print that evidence. Inspect it before sharing. Native harness caches/history have their own retention rules.
-- Review context reaches your selected model provider. Exclusions narrow assessed coverage, not worker read access. Ignored files may still be read as repository context. Use only repositories and providers you are authorized to review.
-- Reviews are source-only, not tests, runtime verification or a guarantee of defect detection. Codex uses a read-only filesystem sandbox but retains shell/code mode for reads. Claude and Pi use native read-tool allowlists and Cursor uses native ask mode, not a universal OS no-exec sandbox. Host-managed policy still applies.
-- Git clean filters can execute local commands during scope resolution. Binary contents and submodule contents are not reviewed as source. The resolved Git tree does not freeze live repository context; do not edit while reviewers run.
-- All sixteen reviewers can consume substantial memory and subscription quota. Set `concurrency` for your machine/account. No silent model or harness switch occurs when access, quota or compatibility fails.
-- v1 has no custom aspects or automatic fixes.
-
-## Check a checkout
-
-```sh
-export DEGREASER_NODE24_MIN=/absolute/path/to/node-v24.0.0/bin/node
-pnpm check
-```
-
-This runs deterministic tests, type checking, lint/format, build and a separate local-tarball installation check on your current Node and exactly Node 24.0.0. Supply a verified minimum-version executable; a missing runtime fails the check rather than skipping it. It needs no model account.
-
-The GitHub Actions workflow runs this gate, with runtime tests on macOS, for pushes to main, nightly and on manual dispatch. Pull requests check the installed package on current Node 24 only, and run just the documentation tests when they change nothing but `README.md` or `AGENTS.md`. The check is named `macOS deterministic`; live model tests are not part of it. Local checks do not establish a hosted CI pass.
-
-`pnpm qa` runs just the isolated init → review → report → partial failure → same-run resume scenario. Its external adapter and faults are synthetic; the compiled CLI, Git, owner and saved results are real. Live model reviews are separate and consume your selected subscription quota.
+`degreaser-axi config sync` fills missing settings with installed defaults without changing explicit choices. See the [configuration contract](https://github.com/GR34SE/degreaser-axi/blob/main/assets/input-contract.md) and [JSON schema](https://github.com/GR34SE/degreaser-axi/blob/main/assets/schemas/config-v1.json) for the full format and bounds.
 
 ## License
 

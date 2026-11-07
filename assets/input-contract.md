@@ -29,6 +29,45 @@ Model discovery uses the same restricted native profiles and environment as work
 
 Invalid syntax fails before discovery. Empty change scopes and coordinator-only scope-creep repository audits need no catalog or reviewer. Identity objects of aspects not selected for the run are syntax-checked but do not trigger discovery. Actual review sessions retain exact argv selection and check the advertised catalog and selected identity before inference. A missing entry or selection mismatch fails as `model-unavailable`, without fallback or blind retry. These are metadata checks, not proof of provider access or future availability. In particular, Claude's review-time `--model` adds the requested ID to its advertised catalog, so that runtime check cannot independently detect provider withdrawal. Provider/auth failures can still occur when a turn starts. Pi's offline startup catalog may also be cached; no preflight predicts future provider availability.
 
+### Complete configuration example
+
+Example with Codex and `gpt-6-luna`; confirm the exact model available in your native catalog during `init`.
+
+```json
+{
+  "schemaVersion": 1,
+  "agent": "codex",
+  "model": "gpt-6-luna",
+  "concurrency": null,
+  "maxRetries": 1,
+  "limits": {
+    "workerTimeoutSeconds": 300,
+    "workerIdleSeconds": 120,
+    "maxTurns": 40,
+    "runTimeoutSeconds": 900
+  },
+  "aspects": {
+    "missed-reuse": true,
+    "unnecessary-layers": true,
+    "speculative-flexibility": true,
+    "masked-errors": true,
+    "unjustified-defense": true,
+    "low-value-comments": true,
+    "convention-drift": true,
+    "scope-creep": true,
+    "contract-bypass": true,
+    "low-value-tests": true,
+    "incomplete-integration": true,
+    "wrong-abstraction": true,
+    "reinvented-infrastructure": true,
+    "unidiomatic-code": true,
+    "structural-erosion": true,
+    "verification-theater": true
+  },
+  "exclude": []
+}
+```
+
 ## Assessed paths and exclusions
 
 `exclude` is a list of **literal repository-relative file names or directory prefixes**, for example `["vendor", "package-lock.json", "src/generated"]`. No leading/trailing slash, `.`/`..` components, backslashes, negation or glob syntax. Entries are never interpreted as Git pathspecs. `vendor` also excludes `vendor/file`, but not `vendor-other`.
