@@ -45,9 +45,9 @@ function setup(t: TestContext) {
     PI_CODING_AGENT_DIR: join(home, ".pi/agent"),
     SYNTHETIC_PLAN: plan,
   };
-  const run = (args: string[]) =>
+  const run = (args: string[], cwd = f.root) =>
     spawnSync(process.execPath, ["--import", loader, cli, ...args], {
-      cwd: f.root,
+      cwd,
       env,
       encoding: "utf8",
       timeout: 30_000,
@@ -441,4 +441,88 @@ test("hooks use the bare command when PATH resolves to this install, including p
   );
   assert.match(command(bin), /then 'degreaser-axi' startup-context /);
   assert.match(command(`.:${bin.replace(/^\//, "")}`), /node' '/);
+});
+
+test("remove works without the local receipt for provably owned entries and prunes emptied directories", (t) => {
+  const f = setup(t);
+  f.write(".claude/keep/notes.md", "foreign");
+  f.write(".cursor/hooks.json", JSON.stringify({ version: 1, hooks: {} }));
+  assert.equal(f.maintenance("codex,claude,pi,cursor").status, 0);
+  f.write(".claude/skills/other/SKILL.md", "foreign skill");
+  rmSync(join(f.root, ".degreaser"), { recursive: true });
+  const removal = f.maintenance("codex,claude,pi,cursor", "project", true);
+  assert.equal(removal.status, 0, removal.stdout + removal.stderr);
+  for (const gone of [
+    ".agents",
+    ".codex",
+    ".pi",
+    ".claude/skills/degreaser",
+    ".degreaser",
+  ])
+    assert.ok(!existsSync(join(f.root, gone)), gone);
+  assert.equal(
+    readFileSync(join(f.root, ".claude/keep/notes.md"), "utf8"),
+    "foreign",
+  );
+  assert.equal(
+    readFileSync(join(f.root, ".claude/skills/other/SKILL.md"), "utf8"),
+    "foreign skill",
+  );
+  assert.ok(!existsSync(join(f.root, ".claude/settings.json")));
+});
+
+test("receipt-less remove keeps edited skills and a shared skill another harness still uses", (t) => {
+  const f = setup(t);
+  assert.equal(f.maintenance("codex,cursor").status, 0);
+  rmSync(join(f.root, ".degreaser"), { recursive: true });
+  assert.equal(f.maintenance("codex", "project", true).status, 0);
+  assert.ok(installed(f.root, "project").shared);
+  assert.ok(!installed(f.root, "project").codex);
+  assert.equal(f.maintenance("cursor", "project", true).status, 0);
+  assert.ok(!installed(f.root, "project").shared);
+  assert.equal(f.maintenance("claude").status, 0);
+  const settings = join(f.root, ".claude/settings.json");
+  writeFileSync(
+    settings,
+    readFileSync(settings, "utf8").replace("degreaser-startup-v1", "edited"),
+  );
+  const edited = readFileSync(settings, "utf8");
+  rmSync(join(f.root, ".degreaser"), { recursive: true });
+  const kept = f.maintenance("claude", "project", true);
+  assert.equal(kept.status, 0, kept.stdout);
+  assert.equal(readFileSync(settings, "utf8"), edited);
+});
+
+test("user-scope setup works outside a Git repository", (t) => {
+  const f = setup(t);
+  const outside = join(f.home, "not-a-repo");
+  mkdirSync(outside);
+  const result = f.run(
+    ["setup", "hooks", "--harnesses", "codex", "--installation-scope", "user"],
+    outside,
+  );
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.ok(installed(f.home, "user").codex);
+  const removal = f.run(
+    [
+      "setup",
+      "hooks",
+      "--harnesses",
+      "codex",
+      "--installation-scope",
+      "user",
+      "--remove",
+    ],
+    outside,
+  );
+  assert.equal(removal.status, 0, removal.stdout + removal.stderr);
+  assert.ok(!installed(f.home, "user").codex);
+});
+
+test("setup hooks errors point to the full subcommand help", (t) => {
+  const f = setup(t);
+  const result = f.run(["setup", "hooks", "--harnesses", "bogus"]);
+  assert.equal(result.status, 2);
+  assert.match(result.stdout, /degreaser-axi setup hooks --help/);
+  assert.doesNotMatch(result.stdout, /degreaser-axi setup --help/);
 });
