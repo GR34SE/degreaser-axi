@@ -3,6 +3,7 @@
 // Usage: node scripts/comment-measure.ts <claude|codex> <exact-model> <empty-dir>
 // Check fresh quota first and build (`pnpm build`) before running.
 import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { buildFixture, expectations, task } from "./comment-fixtures.ts";
 
 const [agent, model, dir] = process.argv.slice(2);
@@ -10,7 +11,9 @@ if (!agent || !model || !dir)
   throw new Error(
     "Usage: node scripts/comment-measure.ts <agent> <model> <dir>",
   );
-const cli = new URL("../dist/bin/degreaser-axi.js", import.meta.url).pathname;
+const cli = fileURLToPath(
+  new URL("../dist/bin/degreaser-axi.js", import.meta.url),
+);
 const run = (...args: string[]) => {
   const r = spawnSync("node", [cli, ...args], { cwd: dir, encoding: "utf8" });
   console.log(
@@ -33,6 +36,8 @@ run(
 );
 const id = (run("report").stdout.match(/^run: (\S+)/m) ?? [])[1];
 if (id) run("report", id, "--full");
-console.log("Expected:");
+console.log(
+  "Expected verdicts (NOT compared automatically; check them against the report above):",
+);
 for (const e of expectations)
   console.log(`${e.verdict} ${e.id} ${e.file} "${e.marker}" (${e.note})`);

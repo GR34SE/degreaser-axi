@@ -53,7 +53,10 @@ export function pathSizes(input: ReviewInput) {
   return sizes;
 }
 
-/** First paths that fit both bounds; a portion always holds at least one path. */
+/**
+ * First paths that fit both bounds; a portion always holds at least one path.
+ * A path of unknown size is treated as filling the byte bound, so it goes alone.
+ */
 export function takePortion(
   paths: readonly string[],
   sizes: ReadonlyMap<string, number>,
@@ -63,7 +66,7 @@ export function takePortion(
   const portion: string[] = [];
   let bytes = 0;
   for (const path of paths) {
-    const size = sizes.get(path) ?? 0;
+    const size = sizes.get(path) ?? maxBytes;
     if (portion.length >= maxPaths) break;
     if (portion.length && bytes + size > maxBytes) break;
     portion.push(path);
@@ -121,11 +124,15 @@ export function mergePass(
   // resolving pass replaces them only with a real answer; a pass that failed
   // before answering cannot erase them.
   const assessed = new Set(input.paths.map((p) => p.path));
+  let outside = 0;
   const named = (items: Unresolved[]) =>
-    items.map((u) => ({
-      ...u,
-      ...(u.paths ? { paths: u.paths.filter((p) => assessed.has(p)) } : {}),
-    }));
+    items.map((u) => {
+      if (!u.paths) return u;
+      const mapped = [...new Set(u.paths.map((p) => renamed.get(p) ?? p))];
+      const inside = mapped.filter((p) => assessed.has(p));
+      outside += mapped.length - inside.length;
+      return { ...u, paths: inside };
+    });
   const answered = resolving && pass.status !== "incomplete";
   const carried = answered
     ? []
@@ -170,6 +177,10 @@ export function mergePass(
       `Unexamined assessed paths (${missing.length}): ${shown}${more}.`,
     );
   }
+  if (outside)
+    merged.limitations.push(
+      `Ignored ${outside} unresolved path(s) named outside the assessed set.`,
+    );
   merged.limitations.push(...pass.limitations);
   return merged;
 }

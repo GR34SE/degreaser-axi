@@ -101,7 +101,9 @@ for (const [name, worker, retries, count, status] of [
     assert.ok(
       calls.every(
         (e) =>
-          e.prompt?.startsWith(calls[0]?.prompt ?? "") &&
+          (name.includes("timeout")
+            ? e.prompt === calls[0]?.prompt
+            : e.prompt?.startsWith(calls[0]?.prompt ?? "")) &&
           e.model === "gpt-6-luna" &&
           e.agent === "codex",
       ),

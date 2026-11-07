@@ -298,7 +298,11 @@ export async function ownRun(
       task.unresolved = {
         cause:
           task.attempts.at(-1)?.failure ||
-          (stuck.size ? "no-progress" : "declared-unresolved"),
+          (stuck.size
+            ? "no-progress"
+            : stopped()
+              ? stopReason
+              : "declared-unresolved"),
         paths,
         ...(stuck.size ? { stuck: [...stuck] } : {}),
       };
@@ -346,6 +350,7 @@ export async function ownRun(
         let receivedResult = false;
         let cleanupFailed = false;
         let nativeStop: string | undefined;
+        let profiled = false;
         try {
           const profile = await nativeProfile(
             task.assignment,
@@ -353,6 +358,7 @@ export async function ownRun(
             signal,
             () => persist(true),
           );
+          profiled = true;
           if (stopped()) abort.signal.throwIfAborted();
           if (Date.now() >= attemptDeadline) profileTimeout.abort();
           signal.throwIfAborted();
@@ -485,7 +491,11 @@ export async function ownRun(
                   : failure
               : failure;
           record.diagnostic = failureDiagnostic(
-            error instanceof ResultError ? "result-validation" : "profile",
+            error instanceof ResultError
+              ? "result-validation"
+              : profiled
+                ? "internal"
+                : "profile",
             record.failure,
             error instanceof ResultError ? undefined : error,
             nativeStop,
@@ -493,7 +503,9 @@ export async function ownRun(
           task.limitations.push(
             error instanceof ResultError
               ? error.message
-              : "Worker could not start or complete safely. Check the selected harness installation, subscription and native policy.",
+              : profiled
+                ? "Review stopped on an unexpected internal error; its details are not recorded."
+                : "Worker could not start or complete safely. Check the selected harness installation, subscription and native policy.",
           );
         } finally {
           clearTimeout(profileTimer);

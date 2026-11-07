@@ -78,7 +78,7 @@
                 "diagnostic": {
                   "type": "object", "additionalProperties": false, "required": ["stage", "recovery"],
                   "properties": {
-                    "stage": { "enum": ["profile", "session-setup", "model-check", "turn-start", "turn-stream", "turn-result", "usage", "cleanup", "result-validation"] },
+                    "stage": { "enum": ["profile", "session-setup", "model-check", "turn-start", "turn-stream", "turn-result", "usage", "cleanup", "result-validation", "internal"] },
                     "recovery": { "enum": ["fix-authentication", "change-model", "wait-for-quota", "fix-account", "fix-environment", "retry-later", "resume", "inspect-cleanup", "inspect"] },
                     "code": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]{0,63}$" },
                     "detailCode": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]{0,63}$" },

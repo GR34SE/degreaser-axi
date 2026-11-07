@@ -45,8 +45,7 @@ const httpStatuses: Record<string, WorkerFailure> = {
   "429": "rate-limited",
 };
 
-/** Prefer machine causes, including wrapped errors, to unstructured provider prose. */
-export function workerFailure(error: unknown): WorkerFailure {
+function causeChain(error: unknown) {
   const chain: Record<string, unknown>[] = [];
   const seen = new Set<unknown>();
   let current = error;
@@ -56,6 +55,12 @@ export function workerFailure(error: unknown): WorkerFailure {
     chain.push(record);
     current = record.cause;
   }
+  return chain;
+}
+
+/** Prefer machine causes, including wrapped errors, to unstructured provider prose. */
+export function workerFailure(error: unknown): WorkerFailure {
+  const chain = causeChain(error);
   for (const key of ["detailCode", "code"]) {
     for (const record of chain) {
       const code = record[key];
@@ -127,6 +132,7 @@ export const WORKER_STAGES = [
   "usage",
   "cleanup",
   "result-validation",
+  "internal",
 ] as const;
 export type WorkerStage = (typeof WORKER_STAGES)[number];
 
@@ -201,14 +207,7 @@ export function failureDiagnostic(
   error?: unknown,
   stopReason?: unknown,
 ): WorkerDiagnostic {
-  const chain: Record<string, unknown>[] = [];
-  const seen = new Set<unknown>();
-  let current = error;
-  while (current && typeof current === "object" && !seen.has(current)) {
-    seen.add(current);
-    chain.push(current as Record<string, unknown>);
-    current = (current as Record<string, unknown>).cause;
-  }
+  const chain = causeChain(error);
   const pick = (key: string) => {
     for (const record of chain) {
       const value = record[key];

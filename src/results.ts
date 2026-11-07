@@ -131,11 +131,7 @@ export function parseResult(
   return value;
 }
 
-/**
- * A null, empty or whitespace-only `reason` carries no content. It is omitted
- * unless the status requires one; `not-applicable` then still fails validation
- * rather than receiving an invented reason.
- */
+/** `not-applicable` keeps an empty reason so validation still rejects it; no reason is invented. */
 function omitEmptyOptionalReason(value: unknown) {
   if (typeof value !== "object" || value === null) return;
   const result = value as { status?: unknown; reason?: unknown };

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
+import { takePortion } from "../src/coverage.ts";
 import { queueFixture } from "./queue-fixture.ts";
 
 const finding = {
@@ -429,4 +430,33 @@ test("a run deadline is reported as its own cause, keeps the pending paths and r
   assert.equal(after?.result?.examinedPaths?.length, 6);
   const first = f.events()[before]?.prompt ?? "";
   assert.match(first, /examined 2 paths/);
+});
+
+test("a path of unknown size is taken alone, not as zero bytes", () => {
+  const sizes = new Map([["a.ts", 10]]);
+  assert.deepEqual(takePortion(["a.ts", "gone.ts", "b.ts"], sizes, 9, 100), [
+    "a.ts",
+  ]);
+  assert.deepEqual(takePortion(["gone.ts", "a.ts"], sizes, 9, 100), [
+    "gone.ts",
+  ]);
+});
+
+test("unresolved paths outside the assessed set are reported, not silently dropped", (t) => {
+  const f = setup(t, []);
+  f.setPlan({
+    results: {
+      "low-value-comments": {
+        ...openContext,
+        unresolved: [{ ...openContext.unresolved[0], paths: ["b.ts", "x.ts"] }],
+      },
+    },
+  });
+  const task = run(f);
+  assert.deepEqual(task.result?.unresolved?.[0]?.paths, ["b.ts"]);
+  assert.ok(
+    task.result?.limitations.some((l: string) =>
+      l.includes("outside the assessed set"),
+    ),
+  );
 });
