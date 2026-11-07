@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import type { Agent } from "../src/config.ts";
 import { type CallerEvidence, items, object } from "./caller-evidence.ts";
 import { callerEnvironment, callerProcess } from "./caller-process.ts";
+import { assertClaudeModel } from "./live-profile.ts";
 
 export async function nativeCaller(
   agent: Exclude<Agent, "cursor">,
@@ -104,6 +105,7 @@ export async function nativeCaller(
     }
   }
   if (agent === "claude") {
+    let observedModel: unknown;
     let resultCount = 0;
     const notifications: { task: string; status: string }[] = [];
     const host = callerProcess(
@@ -131,7 +133,8 @@ export async function nativeCaller(
       cwd,
       (e) => {
         if (e.type === "system" && e.subtype === "init") {
-          assert.equal(e.model, model);
+          assertClaudeModel(model, e.model);
+          observedModel = e.model;
           if (session)
             assert.equal(e.session_id, session, "Caller session changed");
           session = String(e.session_id);
@@ -188,6 +191,8 @@ export async function nativeCaller(
         skillDiscovered: true,
         resultCount,
         notifications,
+        requestedModel: model,
+        observedModel,
       };
     } finally {
       await host.close();

@@ -109,8 +109,9 @@ export class CallerEvidence {
         ? "review"
         : /\bwait\s+r-\d{8}-\d{4}-[a-f0-9]{4}/.test(text)
           ? "wait"
-          : /SKILL\.md|degreaser/.test(text) &&
-              /Skill|read|cat/.test(`${tool} ${text}`)
+          : (tool === "Skill" && args.skill === "degreaser") ||
+              (/[/\\]degreaser[/\\]SKILL\.md\b/.test(text) &&
+                /read|cat/i.test(`${tool} ${text}`))
             ? "skill"
             : /continuation\.txt/.test(text)
               ? "continue"
@@ -181,7 +182,9 @@ export class CallerEvidence {
       handle: controlOutput ? handle : undefined,
       skillLoaded:
         call.operation === "skill" &&
-        (output.includes("Do not edit code while a run is active") ||
+        (/(?:^|\n)(?:\s*\d+[→\t ]+)?name:\s*degreaser\s*(?:\n|$)/.test(
+          output,
+        ) ||
           (call.tool === "Skill" &&
             output.includes("Launching skill: degreaser"))),
     });

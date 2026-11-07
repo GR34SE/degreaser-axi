@@ -22,6 +22,7 @@ function policySnapshot() {
   const rules = join(root, "rules");
   const paths = [
     join(root, "config.toml"),
+    join(root, "hooks.json"),
     ...(existsSync(rules)
       ? readdirSync(rules)
           .sort()

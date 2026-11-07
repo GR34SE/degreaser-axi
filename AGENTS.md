@@ -43,7 +43,7 @@ Outside v1: custom rubrics, automatic apply, model judge, semantic finding merge
 | Init, integrations and generated skill | `src/init.ts`, `src/integrations.ts`, `src/integration-targets.ts`, `src/guidance.ts`; `assets/skills/degreaser/SKILL.md` |
 | Validation and packaging | `test/`, `scripts/qa/`, `scripts/test-live.ts`, `scripts/package-check.ts`, `.github/workflows/check.yml` |
 
-Read the relevant contract before editing. Build/runtime must work from public `assets/` without private files. Generate the product skill from `src/guidance.ts` with `pnpm skill:generate`; never hand-edit it. README is for users: purpose, verified setup, usage and results, without development handoff or private links. Write it for the released npm package (`npm install -g degreaser-axi`, `npx -y degreaser-axi`), not as a development build.
+Read the relevant contract before editing. Build/runtime must work from public `assets/` without private files. Generate the product skill from `src/guidance.ts` with `pnpm skill:generate`; never hand-edit it. README is for users: purpose, verified setup, usage and results, without development handoff or private links. Until publication is separately authorized, document the working checkout installation and label registry installation as unavailable. Do not describe an unpublished package as released.
 
 ### Private intent and history
 
@@ -68,6 +68,7 @@ For product intent, start from `specs/README.md` and `specs/pending/degreaser.md
 | `pnpm qa` | Isolated init/review/report/partial/resume with a synthetic adapter |
 | `pnpm package:check` | Separate installed tarballs on minimum/current Node; set `DEGREASER_NODE24_MIN` to a verified Node 24.0.0 binary |
 | `pnpm check` | Aggregate deterministic gates; QA and live tests are separate |
+| `pnpm test:install --harnesses codex,claude,pi` | After build: native installation discovery in disposable homes, no inference; select installed harnesses (Cursor unsupported) |
 | `pnpm test:live --help` | Opt-in native/model scenarios; unsupported/unrun is never passed |
 | `pnpm release:prepare --since <ancestor> --output <new-directory>` | From a clean committed checkout after checks: tested tarball, checksum and draft notes; no publishing |
 

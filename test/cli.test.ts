@@ -76,7 +76,10 @@ test("help, version and strict routing work without repo, credentials or side ef
           : [command, "--help"];
       const result = run(args);
       assert.equal(result.status, 0, args.join(" "));
-      assert.ok(result.stdout.includes(command), command);
+      assert.equal(
+        result.stdout.split("\n")[0],
+        `command: ${command === "setup" ? "setup hooks" : command}`,
+      );
     }
     const review = run(["review", "--help"]).stdout;
     for (const text of [

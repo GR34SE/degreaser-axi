@@ -179,10 +179,16 @@ export async function ownRun(
         const missing = accumulated
           ? uncovered(input, accumulated.examinedPaths ?? [])
           : null;
+        const passInput = missing
+          ? {
+              ...input,
+              paths: input.paths.filter((p) => missing.includes(p.path)),
+            }
+          : input;
         const text = missing
-          ? `${prompt.text}\n\n${continuationSection(missing, accumulated?.examinedPaths?.length ?? 0)}`
+          ? `${assemblePrompt(passInput, task.assignment.aspect, join(dir, "input", "patch.diff"), 0).text}\n\n${continuationSection(missing, accumulated?.examinedPaths?.length ?? 0)}`
           : prompt.text;
-        const pass = await runPass(task, text, accumulated, started);
+        const pass = await runPass(task, text, passInput, accumulated, started);
         if (!pass) {
           if (accumulated) {
             task.result = accumulated;
@@ -211,6 +217,7 @@ export async function ownRun(
     async function runPass(
       task: RunTask,
       text: string,
+      passInput: typeof input,
       accumulated: WorkerResult | null,
       started: () => void,
     ): Promise<WorkerResult | null> {
@@ -310,7 +317,7 @@ export async function ownRun(
               const validated = ingestResult(
                 outcome.output,
                 task.assignment.aspect,
-                input,
+                passInput,
               );
               const pass = validated.result;
               receivedResult = true;

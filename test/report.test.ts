@@ -242,6 +242,7 @@ test("compiled reports group transitive same-side overlaps with stable evidence 
 });
 
 test("short coverage attributes incomplete limitations and full reports separate configuration, coordinator results and executions", async (t) => {
+  const longLimitation = `Unexamined assessed paths: ${"unexamined-file.ts, ".repeat(80)}`;
   const f = queueFixture(t);
   f.write("source.ts", "new line 1\n");
   f.setPlan({
@@ -254,7 +255,11 @@ test("short coverage attributes incomplete limitations and full reports separate
         ...result(
           "masked-errors",
           [],
-          ["Could not inspect the error handler.", "Generated caller skipped."],
+          [
+            "Could not inspect the error handler.",
+            "Generated caller skipped.",
+            longLimitation,
+          ],
         ),
         reason: "Could not inspect the error handler.",
       },
@@ -277,6 +282,9 @@ test("short coverage attributes incomplete limitations and full reports separate
   assert.equal(short.count, 1);
   assert.equal(short.rejected, 1);
   assert.equal(short.usage, "unknown");
+  assert.equal(short.coverageBasis, "worker-declared");
+  assert.ok(short.help.includes(`degreaser-axi report ${short.run} --full`));
+  assert.ok(!reviewed.stdout.includes(longLimitation));
   const incomplete = short.coverage.find(
     (row: { aspect: string }) => row.aspect === "masked-errors",
   );
@@ -290,7 +298,8 @@ test("short coverage attributes incomplete limitations and full reports separate
     "Synthetic external adapter; not a live provider result.",
     "codex does not natively enforce maxTurns (40); the instruction budget is advisory. Attempt and run deadlines are enforced.",
   ];
-  for (const limitation of [...harness, "Generated caller skipped."])
+  assert.ok(!short.limitations.includes("Generated caller skipped."));
+  for (const limitation of harness)
     assert.equal(
       short.limitations.filter((l: string) => l === limitation).length,
       1,
@@ -305,6 +314,11 @@ test("short coverage attributes incomplete limitations and full reports separate
   assert.ok(!("reason" in clean));
   assert.equal(short.coverage[0].rejected, 1);
   const full = decode(f.run(["report", "--full"]).stdout);
+  assert.ok(
+    full.coverage
+      .find((row: { aspect: string }) => row.aspect === "masked-errors")
+      .limitations.includes(longLimitation),
+  );
   assert.equal(full.pathList, `.degreaser/runs/${short.run}/input/review.json`);
   assert.equal(
     full.paths,

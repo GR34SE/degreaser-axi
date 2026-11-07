@@ -182,11 +182,12 @@ function checked<T>(
     );
   return value;
 }
-function readJson(path: string): unknown {
+function readState(path: string, format: "json" | "text" = "json"): unknown {
   let fd: number | undefined;
   try {
     fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
-    return JSON.parse(readFileSync(fd, "utf8"));
+    const text = readFileSync(fd, "utf8");
+    return format === "json" ? JSON.parse(text) : text;
   } catch {
     throw new StateError(
       "state-corrupt",
@@ -209,7 +210,7 @@ export function saveRun(run: Run) {
   const path = statePath(run.repository, "runs", run.id, "run.json");
   checkedRun(run, path, run.repository, run.id);
   if (existsSync(path))
-    checkedRun(readJson(path), path, run.repository, run.id);
+    checkedRun(readState(path), path, run.repository, run.id);
   atomicWrite(path, `${JSON.stringify(run, null, 2)}\n`);
 }
 export function loadRun(repository: string, requested?: string): Run {
@@ -221,13 +222,13 @@ export function loadRun(repository: string, requested?: string): Run {
         "no-history",
         "No local review history in this repository.",
       );
-    id = checked(readJson(path), stateSchema, path).latestRunId;
+    id = checked(readState(path), stateSchema, path).latestRunId;
   }
   const path = join(runDirectory(repository, id), "run.json");
   statePath(repository, "runs", id, "run.json");
   if (!existsSync(path))
     throw new StateError("run-not-found", `Run not found: ${path}`);
-  return checkedRun(readJson(path), path, repository, id);
+  return checkedRun(readState(path), path, repository, id);
 }
 function checkedRun(
   value: unknown,
@@ -273,7 +274,7 @@ export function loadInput(run: Run): ReviewInput {
     "review.json",
   );
   try {
-    const input = checked(readJson(path), inputSchema, path);
+    const input = checked(readState(path), inputSchema, path);
     if (input.repository !== run.repository)
       throw new Error("Repository mismatch");
     if (
@@ -296,11 +297,25 @@ export function loadInput(run: Run): ReviewInput {
       "input",
       "patch.json",
     );
-    if (checked(readJson(patch), patchSchema, patch) !== input.patch)
+    if (checked(readState(patch), patchSchema, patch) !== input.patch)
       throw new StateError(
         "state-corrupt",
         `Patch differs from persisted scope: ${patch}`,
       );
+    if (input.patch !== null) {
+      const rawPatch = statePath(
+        run.repository,
+        "runs",
+        run.id,
+        "input",
+        "patch.diff",
+      );
+      if (readState(rawPatch, "text") !== input.patch)
+        throw new StateError(
+          "state-corrupt",
+          `Patch differs from persisted scope: ${rawPatch}`,
+        );
+    }
     return input;
   } catch (error) {
     if (error instanceof StateError) throw error;

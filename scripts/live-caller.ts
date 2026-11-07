@@ -19,7 +19,7 @@ const cli = fileURLToPath(
 const quote = (s: string) => `'${s.replaceAll("'", "'\\''")}'`;
 const command = `${quote(process.execPath)} ${quote(cli)}`;
 const contextQuestion =
-  'From the Degreaser startup context already delivered to you, respond before ANY tool call with one JSON line prefixed STARTUP. Keys: history, model, run, status. Set history="none" if it says no local run yet (run=null and status=null); history="known" only if an actual last-run ID was delivered; history="unavailable" if the startup context is missing. Model is the exact review model ID without the harness prefix. Run and status are the delivered last-run ID/status, or real JSON null when absent. Do not inspect files or use tools to obtain this answer. Do not guess.';
+  'From the Degreaser startup context already delivered to you, respond before ANY tool call with one JSON line prefixed STARTUP. Keys: history, model, run, status. Set history="none" if it says no local run yet (run=null and status=null); history="known" only if an actual last-run ID was delivered; history="unavailable" if the startup context is missing. Copy model exactly from the Review model field without its harness prefix. Preserve aliases literally; do not resolve them or report your own inference model. Run and status are the delivered last-run ID/status, or real JSON null when absent. Do not inspect files or use tools to obtain this answer. Do not guess.';
 const digest = (path: string) =>
   existsSync(path)
     ? createHash("sha256").update(readFileSync(path)).digest("hex")
@@ -63,15 +63,6 @@ export async function liveCaller(
   agent: Exclude<Agent, "cursor">,
   model: string,
 ) {
-  assert.equal(
-    model,
-    {
-      codex: "gpt-6-luna",
-      claude: "claude-haiku-4-5-20251001",
-      pi: "openai/gpt-6-luna",
-    }[agent],
-    "Unapproved fixture model",
-  );
   const cwd = await realpath(
     await mkdtemp(join(tmpdir(), "degreaser-caller-flow-")),
   );
@@ -82,6 +73,7 @@ export async function liveCaller(
     model,
     case: "caller",
     flow: trace,
+    passed: false,
   };
   let watcher: NodeJS.Timeout | undefined;
   let violation: string | undefined;
@@ -314,6 +306,10 @@ Do not edit source or Git index. Only AFTER a terminal result is visible to you,
     evidence.ownerJoined = joined;
     evidence.globalPolicyUnchanged =
       JSON.stringify(policy()) === JSON.stringify(before);
+    evidence.passed =
+      evidence.passed === true &&
+      joined &&
+      evidence.globalPolicyUnchanged === true;
     console.log(JSON.stringify(evidence, null, 2));
     if (joined) await rm(cwd, { recursive: true, force: true });
     else

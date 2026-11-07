@@ -18,8 +18,8 @@ export function uncovered(input: ReviewInput, examined: readonly string[]) {
 
 /**
  * Folds one focused pass into the aspect's accumulated result. Coverage only grows;
- * established findings are kept. A clean status is certified by the coordinator
- * from coverage, never by a single pass's self-reported status.
+ * established findings are kept. Completion requires accumulated worker-declared
+ * coverage; the coordinator does not independently observe file reads.
  */
 export function mergePass(
   input: ReviewInput,

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Agent } from "../src/config.ts";
@@ -14,8 +14,7 @@ export async function liveModels(agent: Agent, model: string) {
     );
   const cwd = await mkdtemp(join(tmpdir(), "degreaser-live-models-"));
   const piSettings = join(
-    process.env.PI_CODING_AGENT_DIR ??
-      join(process.env.HOME ?? "", ".pi/agent"),
+    process.env.PI_CODING_AGENT_DIR ?? join(homedir(), ".pi/agent"),
     "settings.json",
   );
   const before =
