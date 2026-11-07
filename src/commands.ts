@@ -23,7 +23,8 @@ const concurrency: Flag = {
 const installation = {
   harnesses: {
     type: "string",
-    description: "Comma-separated codex,claude,pi; explicit selection required",
+    description:
+      "Comma-separated codex,claude,pi,cursor; explicit selection required",
   },
   "installation-scope": {
     type: "string",
@@ -52,7 +53,7 @@ export const COMMANDS: Record<string, Command> = {
     flags: {
       agent: {
         type: "string",
-        description: "Confirmed worker agent: codex, claude or pi",
+        description: "Confirmed worker agent: codex, claude, pi or cursor",
       },
       model: {
         type: "string",

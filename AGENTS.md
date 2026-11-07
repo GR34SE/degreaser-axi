@@ -4,7 +4,7 @@
 
 Degreaser is a local CLI for coding agents to review their work for unjustified complexity, broken contracts and misleading verification. The caller supplies the task and change scope; Degreaser sends each enabled review aspect to a fresh, isolated, read-only worker through acpx. Workers return source evidence. The caller evaluates the findings and makes edits. Degreaser does not fix code or detect AI authorship.
 
-Implemented package: ESM TypeScript, macOS, Node 24+, Codex/Claude Code/Pi workers and onboarding. `package.json` remains private; npm publication is not authorized. Planned support is not shipped support. Public product text, CLI output, prompts and skills are English.
+Implemented package: ESM TypeScript, macOS, Node 24+, Codex/Claude Code/Pi/Cursor workers and onboarding. `package.json` remains private; npm publication is not authorized. Planned support is not shipped support. Public product text, CLI output, prompts and skills are English.
 
 ### Behavior to preserve
 
@@ -24,9 +24,11 @@ Exit codes describe completeness, not whether findings exist: **0** completed/no
 
 One harness selection installs its startup hook/native equivalent and product skill together. Default installation scope is the project; user-wide installation is explicit. Init saves `.degreaserrc.json` and adds `/.degreaser/` to the root `.gitignore`, preserving unrelated content. `config sync` fills missing defaults; `setup hooks` repairs/removes owned integrations. Startup context only reads local state; it never starts models, resumes work or fetches packages.
 
-Do not change global permissions, trust, Codex rules or unselected harnesses. Do not use the AXI bulk installer. A restricted caller uses host-supported per-command approval or reports the actual block. Test installations only in disposable projects/homes. `doctor` checks local configuration/capabilities; it does not prove login, model access or delivery of startup context.
+Do not change global permissions, trust, Codex rules or unselected harnesses. Do not use the AXI bulk installer. A restricted caller uses host-supported per-command approval or reports the actual block. Test installations only in disposable projects/homes. The CLI works across Codex, Claude, Pi and Cursor without caller configuration. `doctor` checks local configuration/capabilities; it does not prove login, model access or delivery of startup context.
 
 Outside v1: custom rubrics, automatic apply, model judge, semantic finding merges, custom diff parser, per-review worktree/snapshot, daemon, hosted queue or benchmark platform. Use Git, public `acpx/runtime`, AXI routing/TOON, Ajv and Node built-ins before inventing infrastructure. Effect is not this package's required stack.
+
+**Always use `axi-sdk-js` for anything it provides:** CLI routing, help, version fast path, errors (`AxiError` rendered by `runAxiCli`), the built-in `update`, home header and session hooks (`computeSessionStartHookUpdate`/`Removal`, `resolvePortableHookCommand`). Use only its public exports (package `index` and `axi-sdk-js/fast-path`). Hand-write something only when the SDK lacks it, does not export it publicly, or would break a rule here (`installSessionStartHooks` touches unselected agents and global Codex config); say why in a short comment. Check the SDK before adding CLI, output, hook or update code.
 
 ## Where to work
 
@@ -41,7 +43,7 @@ Outside v1: custom rubrics, automatic apply, model judge, semantic finding merge
 | Init, integrations and generated skill | `src/init.ts`, `src/integrations.ts`, `src/integration-targets.ts`, `src/guidance.ts`; `assets/skills/degreaser/SKILL.md` |
 | Validation and packaging | `test/`, `scripts/qa/`, `scripts/test-live.ts`, `scripts/package-check.ts`, `.github/workflows/check.yml` |
 
-Read the relevant contract before editing. Build/runtime must work from public `assets/` without private files. Generate the product skill from `src/guidance.ts` with `pnpm skill:generate`; never hand-edit it. README is for users: purpose, verified setup, usage and results, without development handoff or private links.
+Read the relevant contract before editing. Build/runtime must work from public `assets/` without private files. Generate the product skill from `src/guidance.ts` with `pnpm skill:generate`; never hand-edit it. README is for users: purpose, verified setup, usage and results, without development handoff or private links. Write it for the released npm package (`npm install -g degreaser-axi`, `npx -y degreaser-axi`), not as a development build.
 
 ### Private intent and history
 

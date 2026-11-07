@@ -3,7 +3,11 @@ import { join } from "node:path";
 import { Ajv } from "ajv";
 import { InputError } from "./input-error.ts";
 
-export type Agent = "codex" | "claude" | "pi";
+export const AGENTS = ["codex", "claude", "pi", "cursor"] as const;
+export type Agent = (typeof AGENTS)[number];
+export function isAgent(value: string): value is Agent {
+  return (AGENTS as readonly string[]).includes(value);
+}
 export const ASPECT_IDS = [
   "missed-reuse",
   "unnecessary-layers",
@@ -93,7 +97,8 @@ export function loadConfig(repository: string): ProjectConfig {
     );
   } catch {
     throw new InputError(
-      "Root .degreaserrc.json must exist and contain readable JSON. Configure an explicit agent and model. In a new Git worktree, commit .degreaserrc.json and .gitignore where init ran, or run init here.",
+      "Root .degreaserrc.json must exist and contain readable JSON. In a new Git worktree, commit .degreaserrc.json and .gitignore where init ran, or run init here.",
+      ["degreaser-axi init"],
     );
   }
   return validateConfig(data);

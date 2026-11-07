@@ -9,7 +9,7 @@ export async function load(url, context, nextLoad) {
     shortCircuit: true,
     source: `
 const synthetic = ["Synthetic external adapter; not a live provider result."];
-export const PROFILE_LIMITATIONS = {codex: synthetic, claude: synthetic, pi: synthetic};
+export const PROFILE_LIMITATIONS = {codex: synthetic, claude: synthetic, pi: synthetic, cursor: synthetic};
 export async function nativeProfile(identity, purpose = "review") {
   return {
     ...identity,

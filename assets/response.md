@@ -12,12 +12,12 @@ Do not include Markdown fences inside the block.
   `incomplete`; include applicable constructs you could not examine and why.
 - `reason`: required nonempty explanation for `not-applicable`.
 - `examinedPaths`: every assessed path whose change you actually read and
-  judged for this aspect, using the paths from the supplied change. Always
-  include it, also for `not-applicable`. A path whose change you read and found
-  to contain nothing this aspect covers is examined: list it. A path you only
-  saw by name is not examined. Unlisted readable paths count as unexamined: the coordinator
-  reviews them in a focused follow-up pass and never certifies a clean or
-  not-applicable result without them.
+  judged for this aspect, preferably as the repository-relative paths from the
+  supplied change. Always include it, also for `not-applicable`. A path whose
+  change you read and found to contain nothing this aspect covers is examined:
+  list it. A path you only saw by name is not examined. Unlisted readable paths
+  count as unexamined: the coordinator reviews them in a focused follow-up pass
+  and never certifies a clean or not-applicable result without them.
 
 Each finding contains:
 

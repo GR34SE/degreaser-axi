@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import {
+  existsSync,
   mkdtempSync,
   readFileSync,
   realpathSync,
@@ -145,4 +146,22 @@ test("configured roots and invalid receipts do not produce false ownership", () 
     else process.env.PI_CODING_AGENT_DIR = oldPi;
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test("a linked Claude skill outlives codex removal and inspects as installed", (t) => {
+  const root = mkdtempSync(join(realpathSync(tmpdir()), "degreaser-link-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const shared = join(root, ".agents/skills/degreaser/SKILL.md");
+  const linked = join(root, ".claude/skills/degreaser/SKILL.md");
+  prepareIntegrations(root, ["codex", "claude"], "project", {
+    skillInstall: "link",
+  }).apply();
+  prepareIntegrations(root, ["codex"], "project", { remove: true }).apply();
+  assert.equal(readFileSync(linked, "utf8"), readFileSync(shared, "utf8"));
+  const claude = inspectIntegrations(root).find(
+    (r) => r.harness === "claude" && r.scope === "project",
+  );
+  assert.equal(claude?.files[0]?.status, "installed");
+  prepareIntegrations(root, ["claude"], "project", { remove: true }).apply();
+  assert.equal(existsSync(shared), false);
 });

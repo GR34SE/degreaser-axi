@@ -166,6 +166,14 @@ test("strict public RC schema rejects unknown fields and bounded invalid values 
     validate({ ...identity, schemaVersion: 1, concurrency: 32, maxRetries: 0 }),
     true,
   );
+  assert.equal(validate({ agent: "cursor", model: "composer-2.5-fast" }), true);
+  assert.deepEqual(
+    resolveConfig({
+      agent: "cursor",
+      model: "composer-2.5-fast",
+    }).assignments[0],
+    { aspect: "missed-reuse", agent: "cursor", model: "composer-2.5-fast" },
+  );
   assert.throws(
     () => resolveConfig({ ...identity, limits: { workerTimeoutSecons: 300 } }),
     /\.degreaserrc\.json: .*limits.*must NOT have additional properties/,

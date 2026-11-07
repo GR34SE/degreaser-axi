@@ -20,14 +20,16 @@ import {
 } from "./integration-files.ts";
 import {
   HOOK_MARKER,
+  hookFormat,
   hookSpec,
   type InstallationScope,
   installationChoices,
   integrationTarget,
+  isMarked,
   skillInstallChoice,
 } from "./integration-targets.ts";
+import { assertNotWorker } from "./native-environment.ts";
 import { hash } from "./prompt.ts";
-import { StateError } from "./storage.ts";
 
 export interface Receipt {
   schemaVersion: 1;
@@ -35,7 +37,12 @@ export interface Receipt {
   hooks: Partial<
     Record<
       Agent,
-      { path: string; group: HookGroup; created: boolean; others: string[] }
+      {
+        path: string;
+        group: HookGroup | { command: string };
+        created: boolean;
+        others: string[];
+      }
     >
   >;
 }
@@ -57,14 +64,14 @@ export const validateReceipt = new Ajv({ strict: true }).compile<Receipt>({
             type: "array",
             minItems: 1,
             uniqueItems: true,
-            items: { enum: ["codex", "claude", "pi"] },
+            items: { enum: ["codex", "claude", "pi", "cursor"] },
           },
         },
       },
     },
     hooks: {
       type: "object",
-      propertyNames: { enum: ["codex", "claude"] },
+      propertyNames: { enum: ["codex", "claude", "cursor"] },
       additionalProperties: {
         type: "object",
         additionalProperties: false,
@@ -84,6 +91,19 @@ export const validateReceipt = new Ajv({ strict: true }).compile<Receipt>({
 });
 const json = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`;
 
+function withGroups(
+  settings: Record<string, unknown>,
+  events: Record<string, unknown>,
+  event: string,
+  groups: unknown[],
+) {
+  const { [event]: _, ...rest } = events;
+  const hooks = groups.length ? { ...events, [event]: groups } : rest;
+  if (Object.keys(hooks).length) return { ...settings, hooks };
+  const { hooks: __, ...other } = settings;
+  return other;
+}
+
 function updateHook(
   edits: IntegrationEdits,
   receipt: Receipt,
@@ -91,29 +111,30 @@ function updateHook(
   path: string,
   remove: boolean,
 ) {
+  const format = hookFormat(agent);
+  // The SDK edits only the nested SessionStart format; Cursor's flat sessionStart is ours.
+  const cursor = agent === "cursor";
   const text = edits.read(path);
   const settings = parseObject(text ?? "{}", path);
+  if (
+    format.version !== undefined &&
+    settings.version !== undefined &&
+    settings.version !== format.version
+  )
+    conflict(path);
   const hooks = settings.hooks === undefined ? {} : settings.hooks;
   if (!hooks || typeof hooks !== "object" || Array.isArray(hooks))
     conflict(path);
   const events = hooks as Record<string, unknown>;
-  const groups = events.SessionStart ?? [];
+  const groups = events[format.event] ?? [];
   if (
     !Array.isArray(groups) ||
-    groups.some(
-      (group) =>
-        !group || typeof group !== "object" || !Array.isArray(group.hooks),
-    )
+    groups.some((group) => format.commands(group) === null)
   )
     conflict(path);
   const previous = receipt.hooks[agent];
   if (previous && previous.path !== path) conflict(path);
-  const marked = groups.filter((group) =>
-    group.hooks.some(
-      (hook: { command?: unknown }) =>
-        typeof hook?.command === "string" && hook.command.includes(HOOK_MARKER),
-    ),
-  );
+  const marked = groups.filter((group) => isMarked(format, group));
   // Without a receipt (fresh clone, new worktree), our marked entry is ours.
   const matches = previous
     ? groups.filter((group) => isDeepStrictEqual(group, previous.group))
@@ -134,22 +155,38 @@ function updateHook(
     if (!previous) return;
     delete receipt.hooks[agent];
     if (!matches.length) return;
-    const [cleaned] = computeSessionStartHookRemoval(settings, HOOK_MARKER);
+    const cleaned = cursor
+      ? withGroups(settings, events, format.event, remaining)
+      : computeSessionStartHookRemoval(settings, HOOK_MARKER)[0];
+    const leftover = Object.keys(cleaned).filter(
+      (key) => !cursor || key !== "version",
+    );
     edits.set(
       path,
-      previous.created && Object.keys(cleaned).length === 0
-        ? null
-        : json(cleaned),
+      previous.created && leftover.length === 0 ? null : json(cleaned),
     );
     return;
   }
-  const [updated, changed] = computeSessionStartHookUpdate(settings, hookSpec);
-  const group = updated.hooks?.SessionStart?.find((g) =>
-    g.hooks?.some((hook) => hook.command?.includes(HOOK_MARKER)),
-  );
+  const [updated, changed] = cursor
+    ? [
+        withGroups(
+          { version: format.version, ...settings },
+          events,
+          format.event,
+          [...remaining, { command: format.command }],
+        ),
+        !(
+          matches.length === 1 &&
+          isDeepStrictEqual(previous?.group, { command: format.command })
+        ),
+      ]
+    : computeSessionStartHookUpdate(settings, hookSpec);
+  const group = (updated.hooks as Record<string, unknown[]> | undefined)?.[
+    format.event
+  ]?.find((g) => isMarked(format, g));
   receipt.hooks[agent] = {
     path,
-    group: group ?? {},
+    group: (group ?? {}) as HookGroup | { command: string },
     created: previous?.created ?? text === null,
     others,
   };
@@ -179,6 +216,15 @@ function planClaudeSkill(
     receipt.files[dir]?.hash === hash(`symlink:${current}`) &&
     receipt.files[dir]?.owners.includes("claude");
   if (options.remove || !options.link) {
+    // Claude no longer reads the shared copy through a link.
+    const sharedOwner = receipt.files[shared];
+    if (sharedOwner?.owners.includes("claude")) {
+      sharedOwner.owners = sharedOwner.owners.filter((o) => o !== "claude");
+      if (!sharedOwner.owners.length) {
+        delete receipt.files[shared];
+        edits.set(shared, null);
+      }
+    }
     if (!isLink) return { skipFile: false, fileBelowRemovedLink: false };
     if (!ownedLink && !options.replace.has(dir)) conflict(dir, !options.remove);
     edits.link(dir, null);
@@ -229,7 +275,7 @@ export function prepareIntegrations(
     !(harnesses.includes("claude") && harnesses.some((a) => a !== "claude"))
   )
     throw new InputError(
-      "--skill-install link needs claude plus codex or pi: Claude's skill links to their .agents/skills copy.",
+      "--skill-install link needs claude plus codex, pi or cursor: Claude's skill links to their .agents/skills copy.",
     );
   const edits = new IntegrationEdits();
   const base = scope === "project" ? repository : homedir();
@@ -308,6 +354,10 @@ export function prepareIntegrations(
         : target.activation,
     });
   }
+  // A linked Claude skill keeps the shared copy alive until Claude is removed.
+  const sharedOwner = receipt.files[shared];
+  if (link && !remove && sharedOwner && !sharedOwner.owners.includes("claude"))
+    sharedOwner.owners = [...sharedOwner.owners, "claude" as const].sort();
   if (Object.keys(receipt.files).length || Object.keys(receipt.hooks).length)
     edits.set(path, json(receipt));
   else if (original !== null) edits.set(path, null);
@@ -318,11 +368,7 @@ export function setupIntegrations(
   values: Record<string, unknown>,
   cwd: string,
 ) {
-  if (process.env.DEGREASER_WORKER)
-    throw new StateError(
-      "nested-review",
-      "Workers cannot install Degreaser integrations.",
-    );
+  assertNotWorker("install Degreaser integrations");
   const { harnesses, scope } = installationChoices(values);
   const repository = repositoryRoot(cwd);
   const plan = prepareIntegrations(repository, harnesses, scope, {

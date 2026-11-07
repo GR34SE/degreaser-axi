@@ -128,9 +128,13 @@ export function ingestResult(
     const assessed = new Set(
       input.paths.flatMap((p) => [p.path, p.oldPath].filter(Boolean)),
     );
-    result.examinedPaths = result.examinedPaths.filter(
-      (p) => assessed.has(p) && !unjudged.includes(p),
-    );
+    // Workers may cite absolute or ./-prefixed paths; only membership matters.
+    const root = `${input.repository}/`;
+    const relative = (p: string) =>
+      (p.startsWith(root) ? p.slice(root.length) : p).replace(/^(\.\/)+/, "");
+    result.examinedPaths = [
+      ...new Set(result.examinedPaths.map(relative)),
+    ].filter((p) => assessed.has(p) && !unjudged.includes(p));
     if (result.status === "no-findings" && !result.examinedPaths.length) {
       result.status = "incomplete";
       result.limitations.push(
