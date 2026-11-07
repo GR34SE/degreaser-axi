@@ -124,6 +124,9 @@ function coverage(
     status:
       interrupted && task.status === "running" ? "interrupted" : task.status,
     ...(reason ? { reason: preview(reason, full) } : {}),
+    ...(task.attempts.at(-1)?.diagnostic && task.status !== "running"
+      ? { cause: task.attempts.at(-1)?.diagnostic }
+      : {}),
     limitations: taskLimitations(task)
       .filter((l) => l !== reason && !harness.has(l))
       .map((text) => preview(text, full)),

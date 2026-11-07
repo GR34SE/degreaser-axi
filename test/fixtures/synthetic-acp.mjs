@@ -50,6 +50,11 @@ const connection = new AgentSideConnection(
       };
     },
     async newSession(params) {
+      if (scenario === "session-fail")
+        throw new RequestError(
+          -32000,
+          "Synthetic setup failure synthetic-secret",
+        );
       const sessionId = randomUUID();
       record({
         method: "new",
@@ -84,6 +89,7 @@ const connection = new AgentSideConnection(
           -32000,
           "Synthetic rate limit 429 synthetic-secret",
         );
+      if (scenario === "refusal") return { stopReason: "refusal" };
       if (scenario === "hang") {
         child = spawn(
           process.execPath,

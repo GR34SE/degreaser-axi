@@ -24,7 +24,11 @@ import {
   saveRun,
   terminalStatus,
 } from "./storage.ts";
-import { workerFailure } from "./worker-failure.ts";
+import {
+  failureDiagnostic,
+  recoveryFor,
+  workerFailure,
+} from "./worker-failure.ts";
 import { executeWorker } from "./worker-runtime.ts";
 
 /** Sole writer after admission. Every child is joined before the owner exits. */
@@ -263,6 +267,7 @@ export async function ownRun(
           record.startedAt + input.config.limits.workerTimeoutSeconds * 1000;
         let receivedResult = false;
         let cleanupFailed = false;
+        let nativeStop: string | undefined;
         try {
           const profile = await nativeProfile(
             task.assignment,
@@ -298,11 +303,17 @@ export async function ownRun(
           );
           record.sessionId = outcome.sessionId ?? null;
           cleanupFailed = outcome.cleanupFailed;
+          nativeStop = outcome.stopReason;
           const runStopped = stopped();
           record.failure =
             runStopped && (!outcome.failure || outcome.failure === "cancelled")
               ? stopReason
               : (outcome.failure ?? null);
+          if (outcome.diagnostic && record.failure)
+            record.diagnostic = {
+              ...outcome.diagnostic,
+              recovery: recoveryFor(record.failure),
+            };
           task.limitations = outcome.limitations;
           task.usage = outcome.usage
             ? Object.fromEntries(
@@ -386,6 +397,12 @@ export async function ownRun(
                   ? "timeout"
                   : failure
               : failure;
+          record.diagnostic = failureDiagnostic(
+            error instanceof ResultError ? "result-validation" : "profile",
+            record.failure,
+            error instanceof ResultError ? undefined : error,
+            nativeStop,
+          );
           task.limitations.push(
             error instanceof ResultError
               ? error.message

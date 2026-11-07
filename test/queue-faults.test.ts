@@ -237,6 +237,25 @@ for (const [name, error, expected] of [
     assert.equal(f.state().tasks[0]?.status, "no-findings");
     assert.equal(f.state().tasks[1]?.attempts.length, 1);
     assert.equal(f.state().tasks[1]?.attempts[0]?.failure, expected);
+    const diagnostic = f.state().tasks[1]?.attempts[0]?.diagnostic;
+    assert.equal(diagnostic?.stage, "turn-result");
+    assert.equal(
+      diagnostic?.recovery,
+      {
+        authentication: "fix-authentication",
+        "model-unavailable": "change-model",
+        "rate-limited": "wait-for-quota",
+        "environment-blocked": "fix-environment",
+        "account-disabled": "fix-account",
+        runtime: "inspect",
+      }[expected],
+    );
+    assert.ok(
+      !JSON.stringify(diagnostic).match(
+        /Quota exhausted|Model not found|Permission denied|Account disabled/,
+      ),
+    );
+    assert.match(f.run(["report"]).stdout, /cause:/);
     assert.ok(
       f.events().every((e) => e.agent === "codex" && e.model === "gpt-6-luna"),
     );

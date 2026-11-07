@@ -19,6 +19,7 @@ import type { ReviewInput } from "./input.ts";
 import { InputError } from "./input-error.ts";
 import { assemblePrompt, hash, reviewIdentity } from "./prompt.ts";
 import type { Rejection, WorkerResult } from "./results.ts";
+import type { WorkerDiagnostic } from "./worker-failure.ts";
 
 export interface RunTask {
   assignment: Assignment;
@@ -37,6 +38,7 @@ export interface RunTask {
     sessionId: string | null;
     lastActivityAt?: number;
     failure: string | null;
+    diagnostic?: WorkerDiagnostic;
     result?: WorkerResult | null;
     rejections?: Rejection[];
     limitations?: string[];
