@@ -40,11 +40,11 @@ jobs:
 
   # CI_LINUX_RUNNER and CI_MACOS_RUNNER repository variables may name
   # self-hosted runner labels; unset, jobs use GitHub-hosted runners. Each PR
-  # takes one macOS job, because macOS hosts run at most two VMs. Dependabot
-  # PRs run third-party updates, so they always use GitHub-hosted runners.
+  # takes one macOS job, because macOS hosts run at most two VMs. Fork PRs
+  # always use GitHub-hosted runners.
   static:
     name: Linux static
-    runs-on: ${{ github.actor != 'dependabot[bot]' && vars.CI_LINUX_RUNNER || 'ubuntu-24.04' }}
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_LINUX_RUNNER || 'ubuntu-24.04' }}
     timeout-minutes: 10
     env:
       CI: "true"
@@ -70,7 +70,7 @@ jobs:
   macos:
     name: macOS runtime
     needs: plan
-    runs-on: ${{ github.actor != 'dependabot[bot]' && vars.CI_MACOS_RUNNER || 'macos-15' }}
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_MACOS_RUNNER || 'macos-15' }}
     timeout-minutes: 25
     env:
       CI: "true"
