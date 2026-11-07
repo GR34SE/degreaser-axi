@@ -10,7 +10,7 @@ const planner = fileURLToPath(
   new URL("../scripts/ci-plan.ts", import.meta.url),
 );
 
-test("CI selects documentation only for an entirely allowlisted PR diff; all other events and unknown paths get every shard", (t) => {
+test("CI selects documentation only for an entirely allowlisted PR diff; all other events and unknown paths get the full suite", (t) => {
   const f = fixture(t);
   f.write("ignored/outputs", "");
   const output = join(f.root, "ignored/outputs");
@@ -38,18 +38,10 @@ test("CI selects documentation only for an entirely allowlisted PR diff; all oth
   assert.equal(plan().scope, "full", "empty comparisons must not skip tests");
   commit("README.md");
   commit("AGENTS.md");
-  const docs = plan();
-  assert.equal(docs.scope, "documentation");
-  assert.deepEqual(docs.matrix.include, [
-    { lane: "static", shard: "1/1" },
-    { lane: "package", shard: "1/1" },
-    { lane: "tests", shard: "1/1" },
-  ]);
-  const outputs = readFileSync(output, "utf8").trim().split("\n");
-  assert.equal(outputs.at(-2), "scope=documentation");
-  assert.deepEqual(
-    JSON.parse(outputs.at(-1)?.slice("matrix=".length) ?? ""),
-    docs.matrix,
+  assert.equal(plan().scope, "documentation");
+  assert.equal(
+    readFileSync(output, "utf8").trim().split("\n").at(-1),
+    "scope=documentation",
   );
   for (const event of ["push", "schedule", "workflow_dispatch"])
     assert.equal(plan(event).scope, "full");
@@ -67,14 +59,7 @@ test("CI selects documentation only for an entirely allowlisted PR diff; all oth
     assert.equal(plan("pull_request", previous).scope, "full", path);
   }
   commit("src/new.ts");
-  const full = plan();
-  assert.equal(full.scope, "full");
-  assert.deepEqual(
-    full.matrix.include
-      .filter((job: { lane: string }) => job.lane === "tests")
-      .map((job: { shard: string }) => job.shard),
-    ["1/4", "2/4", "3/4", "4/4"],
-  );
+  assert.equal(plan().scope, "full");
   assert.equal(
     plan("pull_request", f.git("rev-parse", "HEAD~1").trim()).scope,
     "full",
