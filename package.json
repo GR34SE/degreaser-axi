@@ -42,7 +42,7 @@
     "acpx": "0.21.1",
     "ajv": "8.20.0",
     "axi-sdk-js": "0.1.13",
-    "pi-acp": "0.0.33"
+    "pi-acp": "0.0.34"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.3",
