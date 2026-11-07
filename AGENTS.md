@@ -43,7 +43,7 @@ Outside v1: custom rubrics, automatic apply, model judge, semantic finding merge
 | Init, integrations and generated skill | `src/init.ts`, `src/integrations.ts`, `src/integration-targets.ts`, `src/guidance.ts`; `assets/skills/degreaser/SKILL.md` |
 | Validation and packaging | `test/`, `scripts/qa/`, `scripts/test-live.ts`, `scripts/package-check.ts`, `.github/workflows/check.yml` |
 
-Read the relevant contract before editing. Build/runtime must work from public `assets/` without private files. Generate the product skill from `src/guidance.ts` with `pnpm skill:generate`; never hand-edit it. README is for users: purpose, verified setup, usage and results, without development handoff or private links. Until publication is separately authorized, document the working checkout installation and label registry installation as unavailable. Do not describe an unpublished package as released.
+Read the relevant contract before editing. Build/runtime must work from public `assets/` without private files. Generate the product skill from `src/guidance.ts` with `pnpm skill:generate`; never hand-edit it. Keep README short and written for users: purpose, requirements, working installation, one basic workflow, essential limitations and license. Link to existing public contracts for configuration, commands and review details instead of duplicating them. Contributor instructions, validation procedures and project design rules belong in AGENTS.md, not README. Do not add development handoff or private links. Until publication is separately authorized, document the working checkout installation and label registry installation as unavailable. Do not describe an unpublished package as released.
 
 ### Private intent and history
 
