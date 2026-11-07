@@ -60,7 +60,8 @@ incomplete, and coverage counts never turn it into a clean one. Established
 findings are kept. Open entries persist until a resolving pass, which `resume`
 runs once: it returns findings or no-findings to clear them, or `incomplete`
 with the entries that remain. A pass that fails before answering cannot clear
-them. Each unresolved task records `unresolved.cause` and the exact pending
+them. An entry of scope `paths` whose named paths have all since been examined
+is dropped when passes merge. Each unresolved task records `unresolved.cause` and the exact pending
 `paths` in `run.json`, and report coverage shows `stopCause` and `pending`.
 Causes are kept apart: `deadline`, `cancelled`, `no-progress`, `invalid-output`,
 `timeout`, other runtime failure codes and `declared-unresolved`. State saved
