@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import type { Agent, Identity } from "./config.ts";
 import { DiagnosticError } from "./diagnostics.ts";
 import {
+  acceptedNativeVersions,
   assertNativeVersion,
   SUPPORTED_NATIVE_VERSIONS,
 } from "./native-compatibility.ts";
@@ -39,6 +40,8 @@ export interface NativeProfile extends Identity {
   environment: Record<string, string>;
   adapterVersion: string;
   nativeVersion: string;
+  /** Set when the host CLI is newer than the verified version. */
+  versionNotice?: string;
   limitations: string[];
 }
 export const PROFILE_LIMITATIONS: Record<Agent, string[]> = {
@@ -142,7 +145,7 @@ async function nativeExecutable(
   env: Record<string, string>,
   signal?: AbortSignal,
   spawned?: () => void,
-): Promise<{ path: string; version: string }> {
+): Promise<{ path: string; version: string; notice?: string }> {
   let executable: string | undefined;
   let denied: unknown;
   for (const directory of (env.PATH ?? "").split(":").filter(isAbsolute)) {
@@ -166,16 +169,16 @@ async function nativeExecutable(
       "missing-dependency",
       `The ${agent} executable was not found on absolute PATH entries.`,
       [
-        `Install or expose the supported ${agent} ${SUPPORTED_NATIVE_VERSIONS[agent]} on PATH, then run degreaser-axi doctor. Login and model availability have not been checked.`,
+        `Install or expose a supported ${agent} (${acceptedNativeVersions(agent)}) on PATH, then run degreaser-axi doctor. Login and model availability have not been checked.`,
       ],
       { agent, supportedNativeVersion: SUPPORTED_NATIVE_VERSIONS[agent] },
     );
   const stdout = await nativeVersion(executable, env, signal, spawned);
-  const version = assertNativeVersion(
+  const { version, notice } = assertNativeVersion(
     agent,
     stdout.trim().split(/\s+/)[0] ?? "",
   );
-  return { path: executable, version };
+  return { path: executable, version, ...(notice ? { notice } : {}) };
 }
 
 export async function nativeProfile(
@@ -220,6 +223,7 @@ export async function nativeProfile(
       environment,
       adapterVersion: "native-acp",
       nativeVersion: native.version,
+      ...(native.notice ? { versionNotice: native.notice } : {}),
       limitations: [...PROFILE_LIMITATIONS.cursor],
     };
   }
@@ -259,6 +263,7 @@ export async function nativeProfile(
   const entry = Object.values(manifest.bin)[0];
   if (!entry) throw new Error("Installed adapter executable is unavailable.");
   let nativeVersion = SUPPORTED_NATIVE_VERSIONS.codex;
+  let versionNotice: string | undefined;
   if (agent === "codex") {
     const adapterRequire = createRequire(manifestPath);
     const nativeManifest = JSON.parse(
@@ -267,7 +272,10 @@ export async function nativeProfile(
         "utf8",
       ),
     ) as { version: string };
-    nativeVersion = assertNativeVersion("codex", nativeManifest.version);
+    nativeVersion = assertNativeVersion(
+      "codex",
+      nativeManifest.version,
+    ).version;
     environment.CODEX_PATH = launcher;
     environment.INITIAL_AGENT_MODE = "read-only";
     environment.CODEX_CONFIG = JSON.stringify(codexConfig);
@@ -281,6 +289,7 @@ export async function nativeProfile(
     );
     environment.DEGREASER_NATIVE_EXECUTABLE = native.path;
     nativeVersion = native.version;
+    versionNotice = native.notice;
     if (agent === "claude") {
       environment.CLAUDE_CODE_EXECUTABLE = launcher;
       environment.CLAUDE_CODE_DISABLE_AUTO_MEMORY = "1";
@@ -294,6 +303,7 @@ export async function nativeProfile(
     environment,
     adapterVersion: version,
     nativeVersion,
+    ...(versionNotice ? { versionNotice } : {}),
     limitations: [...PROFILE_LIMITATIONS[agent]],
   };
 }

@@ -2,7 +2,10 @@ import { configNotice, loadConfig, resolveConfig } from "./config.ts";
 import { diagnoseFailure, PERMISSION_GUIDANCE } from "./diagnostics.ts";
 import { repositoryRoot } from "./git.ts";
 import { inspectIntegrations } from "./integration-diagnostics.ts";
-import { SUPPORTED_NATIVE_VERSIONS } from "./native-compatibility.ts";
+import {
+  acceptedNativeVersions,
+  SUPPORTED_NATIVE_VERSIONS,
+} from "./native-compatibility.ts";
 import { nativeProfile, PROFILE_LIMITATIONS } from "./native-profile.ts";
 
 const guarantees = {
@@ -29,6 +32,7 @@ export async function doctor(cwd: string) {
       agent,
       model,
       supportedNativeVersion: SUPPORTED_NATIVE_VERSIONS[agent],
+      acceptedNativeVersions: acceptedNativeVersions(agent),
       guarantee: guarantees[agent],
       limitations: PROFILE_LIMITATIONS[agent],
     };
@@ -36,7 +40,10 @@ export async function doctor(cwd: string) {
       const profile = await nativeProfile({ agent, model });
       profiles.push({
         ...description,
-        compatibility: "verified-version",
+        compatibility: profile.versionNotice
+          ? "unverified-newer-version"
+          : "verified-version",
+        ...(profile.versionNotice ? { notice: profile.versionNotice } : {}),
         versionSource:
           agent === "codex"
             ? "installed-package-manifest"

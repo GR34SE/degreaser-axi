@@ -70,6 +70,34 @@ console.log("99.0.0");
   });
 }
 
+test("doctor accepts a newer same-major Claude with a one-line unverified notice", (t) => {
+  const f = fixture(t);
+  const bin = join(f.root, "bin");
+  mkdirSync(bin);
+  writeFileSync(
+    join(bin, "claude"),
+    `#!${process.execPath}\nconsole.log("2.1.319");\n`,
+    { mode: 0o755 },
+  );
+  f.write(
+    ".degreaserrc.json",
+    JSON.stringify({ agent: "claude", model: "claude-haiku-4-5-20251001" }),
+  );
+  const result = spawnSync(process.execPath, [cli, "doctor"], {
+    cwd: f.root,
+    encoding: "utf8",
+    timeout: 15000,
+    env: { HOME: f.root, PATH: `${bin}:${process.env.PATH}` },
+  });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /unverified-newer-version/);
+  assert.match(
+    result.stdout,
+    /Unverified newer claude native version 2\.1\.319/,
+  );
+  assert.doesNotMatch(result.stdout, /environment-blocked/);
+});
+
 test("doctor checks configured overrides and installation, not models or ambient sandbox hints", (t) => {
   const f = fixture(t);
   const bin = join(f.root, "bin");

@@ -23,15 +23,20 @@ See [input-contract.md](input-contract.md) for refusal semantics.
 | Pi | pi-acp 0.0.33 / Pi 1.4.0 | Native read/grep/find/ls only; skills, extensions, MCP, context files and templates disabled |
 | Cursor | native ACP / Cursor CLI 2026.11.05-86047df | Ask/read-only mode, sandbox enabled, writes denied by the ACP client; no separate adapter package |
 
-Native versions are checked rather than silently assuming that a newer CLI
-accepts the same isolation flags. Claude and Pi must already be installed and
+Native versions are checked before dispatch. Codex is bundled and must match
+exactly. Claude and Pi accept the verified version or newer within the same
+major; Cursor accepts the verified release date or later. Any other accepted
+version (including another Cursor build on the verified date) is allowed but
+reported as an unverified-newer-version notice in
+`doctor`, `init` discovery and `review`; older versions and other majors are
+refused. Claude and Pi must already be installed and
 authenticated; Cursor uses `cursor-agent` or `agent` on PATH. Executables resolve from absolute PATH entries, not a developer's
 hard-coded home directory. Their native launchers replace themselves with the
 verified executable, preserving the official adapter's streaming and process
 ownership.
 
-`doctor` reports the configured identities (including enabled overrides), exact
-supported and observed native versions, and local integration integrity in both
+`doctor` reports the configured identities (including enabled overrides), accepted
+and observed native versions, and local integration integrity in both
 project and user scopes. It runs version checks only, not adapter sessions or
 hidden model tests. `versionSource` distinguishes the pinned Codex package
 manifest from Claude/Pi/Cursor executable version output. Codex's executable is
@@ -40,8 +45,9 @@ the manifest. Installed files are not proof of host trust, reload, hook
 delivery, authentication or network access. Explicit local hook-disable settings
 are observations, not a claim to have evaluated managed policy.
 
-An unverified Claude, Pi or Cursor version fails closed before review admission. Point
-PATH at the already installed supported version above, or use a Degreaser release
+A Claude, Pi or Cursor version below the minimum (or another Claude/Pi major) fails
+closed before review admission. Point
+PATH at an already installed accepted version, or use a Degreaser release
 that has revalidated the observed version. Degreaser never updates or downgrades
 the global CLI or switches models to get past this refusal.
 
