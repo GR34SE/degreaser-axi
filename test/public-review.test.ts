@@ -902,3 +902,38 @@ test("public --path narrows worktree changes and an unmatched pattern is rejecte
   assert.match(typo.stdout + typo.stderr, /--path docs, landng/);
   assert.ok(!existsSync(join(f.root, ".degreaser")));
 });
+
+test("a rejected result block gives the same-model retry concrete validator feedback", (t) => {
+  const f = setup(t);
+  f.write("source", "literal\n");
+  f.write(
+    ".degreaserrc.json",
+    JSON.stringify({ agent: "codex", model: "gpt-6-luna", maxRetries: 1 }),
+  );
+  const base = {
+    aspect: "low-value-comments",
+    findings: [],
+    limitations: [],
+  };
+  f.setPlan({
+    workers: {
+      "low-value-comments": {
+        attempts: [
+          {
+            result: `<degreaser-result>${JSON.stringify({ ...base, status: "not-applicable", reason: null })}</degreaser-result>`,
+          },
+          { result: { ...base, status: "no-findings", reason: "" } },
+        ],
+      },
+    },
+  });
+  const result = f.run(args);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  const [first, retry] = f.events();
+  assert.ok(first && retry);
+  assert.doesNotMatch(first.prompt, /was rejected/);
+  assert.ok(retry.prompt.startsWith(first.prompt as string));
+  assert.match(retry.prompt, /was rejected: Result schema:.*reason/);
+  assert.equal(retry.model, first.model);
+  assert.equal(f.events().length, 2);
+});

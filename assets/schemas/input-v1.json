@@ -61,7 +61,9 @@
           "newMode": { "$ref": "#/definitions/mode" },
           "oldOid": { "anyOf": [{ "type": "null" }, { "$ref": "#/definitions/oid" }] },
           "newOid": { "anyOf": [{ "type": "null" }, { "$ref": "#/definitions/oid" }] },
-          "binary": { "type": "boolean" }
+          "binary": { "type": "boolean" },
+          "oldLink": { "type": "string" },
+          "newLink": { "type": "string" }
         }
       }
     },

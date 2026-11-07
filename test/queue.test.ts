@@ -175,7 +175,8 @@ test("retries retain their cap slot and join the prior process before a fresh se
   const [first, retry] = f.events().filter((e) => e.aspect === "missed-reuse");
   assert.ok(first && retry);
   assert.notEqual(first.sessionId, retry.sessionId);
-  assert.equal(first.prompt, retry.prompt);
+  assert.ok(first.prompt && retry.prompt?.startsWith(first.prompt));
+  assert.match(retry.prompt ?? "", /previous final result block was rejected/);
   assert.ok(!alive(first.pid), "Prior process is gone before its retry");
   assert.ok(alive(retry.pid));
   assert.equal(f.events().filter((e) => alive(e.pid)).length, 2);

@@ -75,6 +75,17 @@
                 "sessionId": { "type": ["string", "null"] },
                 "lastActivityAt": { "type": "integer", "minimum": 0 },
                 "failure": { "type": ["string", "null"] },
+                "diagnostic": {
+                  "type": "object", "additionalProperties": false, "required": ["stage", "recovery"],
+                  "properties": {
+                    "stage": { "enum": ["profile", "session-setup", "model-check", "turn-start", "turn-stream", "turn-result", "usage", "cleanup", "result-validation", "internal"] },
+                    "recovery": { "enum": ["fix-authentication", "change-model", "wait-for-quota", "fix-account", "fix-environment", "retry-later", "resume", "inspect-cleanup", "inspect"] },
+                    "code": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]{0,63}$" },
+                    "detailCode": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]{0,63}$" },
+                    "retryable": { "type": "boolean" },
+                    "stopReason": { "enum": ["end_turn", "max_tokens", "max_turn_requests", "refusal", "cancelled"] }
+                  }
+                },
                 "result": { "anyOf": [{ "type": "null" }, { "$ref": "result-v1.json" }] },
                 "rejections": { "$ref": "#/properties/tasks/items/properties/rejections" },
                 "limitations": { "$ref": "#/properties/tasks/items/properties/limitations" },
@@ -83,6 +94,14 @@
             }
           },
           "limitations": { "type": "array", "items": { "type": "string" } },
+          "unresolved": {
+            "type": "object", "additionalProperties": false, "required": ["cause", "paths"],
+            "properties": {
+              "cause": { "type": "string", "minLength": 1 },
+              "paths": { "type": "array", "items": { "type": "string" } },
+              "stuck": { "type": "array", "items": { "type": "string" } }
+            }
+          },
           "usage": {
             "anyOf": [
               { "type": "null" },

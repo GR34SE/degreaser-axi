@@ -82,10 +82,8 @@ test("resume retains successes, supersedes incomplete evidence and records only 
   assert.deepEqual(current.tasks[3]?.attempts[0], old.tasks[3]?.attempts[0]);
   assert.equal(current.tasks[3]?.result?.status, "no-findings");
   assert.equal(new Set(f.events().map((e) => e.sessionId)).size, 6);
-  for (const aspect of ["unjustified-defense", "low-value-comments"]) {
-    const events = f.events().filter((e) => e.aspect === aspect);
-    assert.equal(events[0]?.prompt, events[1]?.prompt);
-  }
+  const retried = f.events().filter((e) => e.aspect === "unjustified-defense");
+  assert.equal(retried[0]?.prompt, retried[1]?.prompt);
 });
 
 test("resumed pre-result failure reports unknown latest usage while retaining distinct attempt metadata and peer evidence", async (t) => {
@@ -179,7 +177,7 @@ test("resumed pre-result failure reports unknown latest usage while retaining di
   const detail = decode(f.run(["finding", "F1", "--run", old.id]).stdout);
   for (const key of ["id", "group", "quote", "evidence", "location"])
     assert.deepEqual(detail[key], originalDetail[key]);
-  assert.equal(detail.aspectStatus, "failed");
+  assert.equal(detail.aspectStatus, "incomplete");
   assert.ok(detail.limitations.includes("One construct remains."));
 
   f.setPlan({ workers: { "low-value-comments": { usage: nextUsage } } });
