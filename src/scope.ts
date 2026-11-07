@@ -21,6 +21,9 @@ export interface ScopePath {
   oldOid: string | null;
   newOid: string | null;
   binary: boolean;
+  /** Symlink target text from the resolved blob; present only for a mode 120000 side. */
+  oldLink?: string;
+  newLink?: string;
 }
 export interface Limitation {
   code: string;
@@ -167,6 +170,30 @@ function omitNonUtf8Sections(
       return `${head.join("\n")}\nBinary files ${label("--- ")} and ${label("+++ ")} differ\n`;
     })
     .join("");
+}
+
+/**
+ * A symlink's Git content is its target text. Workers cannot follow a directory
+ * link or run readlink, so the coordinator records the text from the blob. A
+ * target that is not UTF-8 is treated like other non-UTF-8 content.
+ */
+function readLinkTargets(
+  repository: string,
+  paths: ScopePath[],
+  omitted: Set<string>,
+) {
+  for (const path of paths)
+    for (const side of ["old", "new"] as const) {
+      const oid = side === "old" ? path.oldOid : path.newOid;
+      if ((side === "old" ? path.oldMode : path.newMode) !== "120000" || !oid)
+        continue;
+      const bytes = requireGitBytes(repository, ["cat-file", "blob", oid]);
+      if (!isUtf8(bytes)) {
+        path.binary = true;
+        omitted.add(path.path);
+      } else
+        path[side === "old" ? "oldLink" : "newLink"] = bytes.toString("utf8");
+    }
 }
 
 function resolveBase(
@@ -364,6 +391,7 @@ export function resolveScope(
       );
   }
   const nonUtf8Set = new Set<string>();
+  readLinkTargets(repository, paths, nonUtf8Set);
   const patch = textPatch && omitNonUtf8Sections(textPatch, paths, nonUtf8Set);
   const excludedPaths = nulList(
     requireGit(repository, [...diff, "--name-only", "-z", "--", ...selection]),
