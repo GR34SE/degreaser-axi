@@ -16,7 +16,10 @@ import { parseArgs } from "node:util";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const { values } = parseArgs({
-  options: { "pack-destination": { type: "string" } },
+  options: {
+    "pack-destination": { type: "string" },
+    "current-node-only": { type: "boolean", default: false },
+  },
 });
 const temporary = await mkdtemp(join(tmpdir(), "degreaser-package-"));
 let retainInstallation = false;
@@ -73,13 +76,18 @@ try {
   const minimumNode =
     process.env.DEGREASER_NODE24_MIN ??
     (process.version === "v24.0.0" ? process.execPath : undefined);
-  assert.ok(
-    minimumNode,
-    "Set DEGREASER_NODE24_MIN to a Node 24.0.0 executable.",
-  );
-  assert.equal(run(minimumNode, ["--version"], temporary), "v24.0.0\n");
+  if (!values["current-node-only"]) {
+    assert.ok(
+      minimumNode,
+      "Set DEGREASER_NODE24_MIN to a Node 24.0.0 executable.",
+    );
+    assert.equal(run(minimumNode, ["--version"], temporary), "v24.0.0\n");
+  }
   for (const [index, runtime] of [
-    ...new Set([process.execPath, minimumNode]),
+    ...new Set([
+      process.execPath,
+      ...(values["current-node-only"] || !minimumNode ? [] : [minimumNode]),
+    ]),
   ].entries()) {
     const installDir = join(temporary, `install-${index}`);
     await mkdir(installDir);
