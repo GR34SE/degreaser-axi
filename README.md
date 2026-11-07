@@ -75,9 +75,20 @@ degreaser-axi setup hooks --harnesses cursor,codex,claude,pi
 
 Use your selected targets and the original scope. `--remove` drops only owned entries. Foreign settings stay intact; edited owned files produce a conflict instead of being overwritten. Keep your edits elsewhere, or restore the owned content, then retry.
 
-Ownership receipts live in `.degreaser/integrations.json` at the selected project or home root. Codex and Pi share `.agents/skills/degreaser` with Cursor, kept until every owner is removed.
+Ownership receipts live in `.degreaser/integrations.json` at the selected project or home root. `doctor` labels owned content from an older package `outdated` (repair with `setup hooks`) and your own edits `modified`. It also works before `init`, reporting the missing RC. Codex and Pi share `.agents/skills/degreaser` with Cursor, kept until every owner is removed.
 
-Startup reads compact local context. It starts no models or reviews and is disabled in review workers. Missing executables or invalid local state do not block the host; use the CLI home view for state errors and `setup hooks` for repair.
+### Uninstall
+
+Remove the integrations for each scope you installed, with the same harnesses:
+
+```sh
+degreaser-axi setup hooks --harnesses cursor,codex,claude,pi --remove
+degreaser-axi setup hooks --harnesses cursor,codex,claude,pi --installation-scope user --remove
+```
+
+Removal works even without a receipt (a fresh clone or `.degreaser/` deleted): it deletes the startup hook entry and the skill files Degreaser generated, leaves edited or foreign content with a conflict or untouched, and prunes directories it emptied. Then delete `.degreaserrc.json`, the `/.degreaser/` line in `.gitignore`, `.degreaser/` and `<git-common-dir>/degreaser/dismissed.json` (the `dismiss` ledger; `git rev-parse --git-common-dir` prints the directory).
+
+Startup reads compact local context. It starts no models or reviews, is disabled in review workers and prints nothing in repositories without an RC. Missing executables or invalid local state do not block the host; an invalid RC prints one line pointing to `doctor`. Use the CLI home view for state errors and `setup hooks` for repair.
 
 Then invoke the skill:
 
@@ -213,9 +224,10 @@ After upgrading the installed package:
 
 ```sh
 degreaser-axi config sync
+degreaser-axi setup hooks --harnesses <your harnesses>
 ```
 
-That fills only missing settings with the installed defaults, including nested settings, and reports what it added. Existing values (turned-off aspects, zero retries, model overrides) stay. A complete file is left untouched. Sync does not discover models, install integrations or check the registry. Use `init` to create a missing RC and confirm the model and harnesses.
+`setup hooks` refreshes owned skills and startup hooks that `doctor` reports as `outdated`. `config sync` fills only missing settings with the installed defaults, including nested settings, and reports what it added. Existing values (turned-off aspects, zero retries, model overrides) stay. A complete file is left untouched. Sync does not discover models, install integrations or check the registry. Use `init` to create a missing RC and confirm the model and harnesses.
 
 Older sparse files remain valid. Home/startup context, doctor and review responses list missing settings with their defaults and suggest `config sync`; those reads never rewrite the file or block review solely for missing defaults. Explicit values stay pinned when package defaults change. `schemaVersion` versions the format, not the package: adding a defaulted field does not bump it. Unsupported versions, unknown fields and invalid settings are rejected without rewriting the file. Sync currently completes format v1; it does not guess conversions for future incompatible formats.
 

@@ -14,6 +14,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { inspectIntegrations } from "../src/integration-diagnostics.ts";
 import { prepareIntegrations } from "../src/integrations.ts";
+import { hash } from "../src/prompt.ts";
 
 test("inspection reports owned, missing, modified and unmanaged components without writing", () => {
   const root = mkdtempSync(join(realpathSync(tmpdir()), "degreaser-inspect-"));
@@ -191,4 +192,45 @@ test("linked Claude skills retain ownership and diagnose changed or missing link
   assert.equal(status(), "installed");
   prepareIntegrations(root, ["claude"], "project", { remove: true }).apply();
   assert.equal(existsSync(shared), false);
+});
+
+test("owned content from an older version is outdated, not modified", () => {
+  const root = mkdtempSync(join(realpathSync(tmpdir()), "degreaser-outdated-"));
+  const oldHome = process.env.HOME;
+  try {
+    process.env.HOME = root;
+    const repository = join(root, "project");
+    prepareIntegrations(repository, ["claude", "pi"], "project", {
+      skillInstall: "copy",
+    }).apply();
+    const receiptPath = join(repository, ".degreaser/integrations.json");
+    const receipt = JSON.parse(readFileSync(receiptPath, "utf8"));
+    const skill = join(repository, ".claude/skills/degreaser/SKILL.md");
+    writeFileSync(skill, "older skill");
+    receipt.files[skill].hash = hash("older skill");
+    const settingsPath = join(repository, ".claude/settings.json");
+    const settings = JSON.parse(readFileSync(settingsPath, "utf8"));
+    const hook = settings.hooks.SessionStart[0].hooks[0];
+    hook.command = hook.command.replace("startup-context", "old-context");
+    writeFileSync(settingsPath, JSON.stringify(settings));
+    receipt.hooks.claude.group = settings.hooks.SessionStart[0];
+    writeFileSync(receiptPath, JSON.stringify(receipt));
+    const claude = inspectIntegrations(repository).find(
+      (entry) => entry.harness === "claude" && entry.scope === "project",
+    );
+    assert.equal(claude?.files[0]?.status, "outdated");
+    assert.equal(claude?.hook?.status, "outdated");
+    assert.equal(claude?.status, "outdated");
+    writeFileSync(skill, "user edit");
+    assert.equal(
+      inspectIntegrations(repository).find(
+        (entry) => entry.harness === "claude" && entry.scope === "project",
+      )?.files[0]?.status,
+      "modified",
+    );
+  } finally {
+    if (oldHome === undefined) delete process.env.HOME;
+    else process.env.HOME = oldHome;
+    rmSync(root, { recursive: true, force: true });
+  }
 });

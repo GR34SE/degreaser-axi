@@ -1,10 +1,18 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { hash } from "../src/prompt.ts";
 import { fixture } from "./git-fixture.ts";
 
 const cli = fileURLToPath(
@@ -294,4 +302,61 @@ test("actual native Codex read-only sandbox refuses review but permits local hom
     assert.equal(result.status, 0, result.stdout + result.stderr);
     assert.match(result.stdout, /gpt-6-luna/);
   }
+});
+
+test("doctor before init reports the missing RC, native versions and integrations", (t) => {
+  const f = fixture(t);
+  rmSync(join(f.root, ".degreaserrc.json"));
+  const result = spawnSync(process.execPath, [cli, "doctor"], {
+    cwd: f.root,
+    encoding: "utf8",
+    timeout: 15000,
+    env: { HOME: f.root, PATH: `/usr/bin:/bin` },
+  });
+  assert.doesNotMatch(result.stdout, /must exist/);
+  assert.match(result.stdout, /configuration: missing/);
+  assert.match(result.stdout, /degreaser-axi init/);
+  assert.match(result.stdout, /integrations/);
+  assert.match(result.stdout, /supportedNativeVersion/);
+  assert.ok(!existsSync(join(f.root, ".degreaserrc.json")));
+  assert.ok(!existsSync(join(f.root, ".degreaser")));
+});
+
+test("doctor's repair for an outdated linked Claude skill keeps the link", (t) => {
+  const f = fixture(t);
+  rmSync(join(f.root, ".degreaserrc.json"));
+  const run = (args: string[]) =>
+    spawnSync(process.execPath, [cli, ...args], {
+      cwd: f.root,
+      encoding: "utf8",
+      timeout: 15000,
+      env: { HOME: f.root, PATH: `/usr/bin:/bin` },
+    });
+  const install = run([
+    "setup",
+    "hooks",
+    "--harnesses",
+    "claude,codex",
+    "--skill-install",
+    "link",
+  ]);
+  assert.equal(install.status, 0, install.stdout + install.stderr);
+  const shared = join(f.root, ".agents/skills/degreaser/SKILL.md");
+  const receiptPath = join(f.root, ".degreaser/integrations.json");
+  const receipt = JSON.parse(readFileSync(receiptPath, "utf8"));
+  writeFileSync(shared, "older skill");
+  receipt.files[shared].hash = hash("older skill");
+  writeFileSync(receiptPath, JSON.stringify(receipt));
+  const diagnosis = run(["doctor"]);
+  assert.match(diagnosis.stdout, /status: outdated/);
+  const repair = diagnosis.stdout.match(
+    /degreaser-axi (setup hooks --harnesses [^"\n]+)/,
+  );
+  assert.ok(repair, diagnosis.stdout);
+  const repaired = run((repair[1] ?? "").split(" "));
+  assert.equal(repaired.status, 0, repaired.stdout + repaired.stderr);
+  assert.ok(
+    lstatSync(join(f.root, ".claude/skills/degreaser")).isSymbolicLink(),
+  );
+  assert.doesNotMatch(run(["doctor"]).stdout, /status: outdated/);
 });

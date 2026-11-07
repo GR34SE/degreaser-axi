@@ -168,13 +168,20 @@ for (const existing of [false, true]) {
       assert.match(result.stdout, /candidates/);
       assert.match(result.stdout, /recommendation/);
       assert.match(result.stdout, /codex,gpt-6-luna/);
-      assert.match(result.stdout, /claude,claude-haiku-4-5-20251001/);
-      assert.match(result.stdout, /pi,openai\/gpt-6-luna/);
-      assert.match(result.stdout, /cursor,composer-2\.5-fast/);
-      assert.match(
-        result.stdout,
-        /recommendation:\n {2}agent: claude\n {2}model: claude-haiku-4-5-20251001/,
-      );
+      // A chosen --agent narrows discovery to that agent's catalog.
+      const others = [
+        /claude,claude-haiku-4-5-20251001/,
+        /pi,openai\/gpt-6-luna/,
+        /cursor,composer-2\.5-fast/,
+      ];
+      for (const other of others)
+        if (args.includes("--agent")) assert.doesNotMatch(result.stdout, other);
+        else assert.match(result.stdout, other);
+      if (!args.includes("--agent"))
+        assert.match(
+          result.stdout,
+          /recommendation:\n {2}agent: claude\n {2}model: claude-haiku-4-5-20251001/,
+        );
       assert.match(result.stdout, /degreaser-axi init --agent/);
       assert.equal(result.stderr, "");
       assert.deepEqual(f.unchanged(), before);
@@ -265,6 +272,14 @@ test("explicit selection persists exact identity and preserves RC controls, then
       .map((e) => [e.agent, e.model]),
     [["claude", "claude-haiku-4-5-20251001"]],
   );
+});
+
+test("explicit --agent probes only that agent's catalog", (t) => {
+  const f = setup(t);
+  const result = f.run(explicit);
+  assert.equal(result.status, 0, result.stdout);
+  assert.deepEqual([...new Set(f.events().map((e) => e.agent))], ["codex"]);
+  assert.ok(!existsSync(join(f.home, ".cursor")));
 });
 
 test("invalid selections and failed discovery never replace config or create product files", (t) => {

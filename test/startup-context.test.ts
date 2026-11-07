@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { once } from "node:events";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -72,11 +72,21 @@ test("Cursor sessionStart reads workspace_roots and uses additional_context", (t
   assert.match(payload.additional_context, /codex.*gpt-6-luna/i);
 });
 
-test("worker, corrupt config and corrupt history are silent", (t) => {
+test("repositories without a Degreaser config stay silent", (t) => {
+  const f = fixture(t);
+  rmSync(join(f.root, ".degreaserrc.json"));
+  assert.equal(hook(f.root), "");
+});
+
+test("worker and corrupt history are silent; an invalid config gets one doctor line", (t) => {
   const f = fixture(t);
   assert.equal(hook(f.root, { worker: "1" }), "");
   writeFileSync(join(f.root, ".degreaserrc.json"), "{");
-  assert.equal(hook(f.root), "");
+  assert.match(
+    JSON.parse(hook(f.root)).hookSpecificOutput.additionalContext,
+    /^Degreaser config invalid; run degreaser-axi doctor$/,
+  );
+  assert.equal(hook(f.root, { worker: "1" }), "");
   f.write(
     ".degreaserrc.json",
     JSON.stringify({ agent: "codex", model: "gpt-6-luna" }),

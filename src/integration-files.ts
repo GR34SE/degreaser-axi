@@ -1,6 +1,7 @@
 import {
   lstatSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   readlinkSync,
   rmdirSync,
@@ -94,7 +95,29 @@ export class IntegrationEdits {
       ([link, { after }]) => after === null && path.startsWith(`${link}/`),
     );
   }
-  apply() {
+  /** Removes directories this removal emptied, never a stop directory or anything above it. */
+  private prune(stops: readonly string[]) {
+    const emptied = [
+      ...[...this.changes].filter(
+        ([, c]) => c.before !== c.after && c.after === null,
+      ),
+      ...[...this.links].filter(([, c]) => c.after === null),
+    ].map(([path]) => dirname(path));
+    for (let dir of emptied)
+      while (
+        !stops.includes(dir) &&
+        stops.some((stop) => dir.startsWith(`${stop}/`))
+      ) {
+        try {
+          if (readdirSync(dir).length) break;
+          rmdirSync(dir);
+        } catch {
+          break;
+        }
+        dir = dirname(dir);
+      }
+  }
+  apply(stops: readonly string[] = []) {
     for (const [path, { before }] of this.links)
       if (readIntegrationLink(path) !== before) conflict(path);
     for (const [path, { before }] of this.changes)
@@ -133,6 +156,7 @@ export class IntegrationEdits {
           setLink(path, after);
           linked.push(path);
         }
+      this.prune(stops);
     } catch (error) {
       // Restore only this invocation's writes, never a concurrent edit.
       for (const path of linked.filter((p) => this.links.get(p)?.after))

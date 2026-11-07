@@ -236,7 +236,14 @@ export async function main(argv: string[]): Promise<void> {
     Object.entries(COMMANDS).map(([name, command]) => [
       name,
       (args: string[]) =>
-        withDiagnostics(name, () => execute(name, command, args)),
+        withDiagnostics(
+          (name === "setup" || name === "config") &&
+            args[0] &&
+            COMMANDS[`${name} ${args[0]}`]
+            ? `${name} ${args[0]}`
+            : name,
+          () => execute(name, command, args),
+        ),
     ]),
   );
   Object.setPrototypeOf(commands, null);

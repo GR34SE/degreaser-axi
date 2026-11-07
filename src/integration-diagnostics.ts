@@ -17,7 +17,13 @@ import {
 import { type Receipt, validateReceipt } from "./integrations.ts";
 import { hash } from "./prompt.ts";
 
-type Status = "installed" | "missing" | "modified" | "unmanaged" | "unverified";
+type Status =
+  | "installed"
+  | "missing"
+  | "modified"
+  | "outdated"
+  | "unmanaged"
+  | "unverified";
 type Component = { path: string; status: Status };
 type ReceiptState = "valid" | "missing" | "invalid" | "unreadable";
 
@@ -78,8 +84,9 @@ function inspectFile(
   if (!readable || !reliable) status = "unverified";
   else if (text === null) status = "missing";
   else if (!owned?.owners.includes(agent)) status = "unmanaged";
-  else if (hash(text) !== owned.hash || hash(expected) !== owned.hash)
-    status = "modified";
+  else if (hash(text) !== owned.hash) status = "modified";
+  // Our own earlier content that a package upgrade superseded; setup hooks repairs it.
+  else if (hash(expected) !== owned.hash) status = "outdated";
   else status = "installed";
   return { path: reportedPath, status };
 }
@@ -118,12 +125,10 @@ function inspectHook(
     let status: Status;
     if (!owned || owned.path !== path)
       status = marked.length ? "unmanaged" : "missing";
-    else if (
-      matches.length === 1 &&
-      marked.length === 1 &&
-      format.commands(owned.group)?.includes(format.command)
-    )
-      status = "installed";
+    else if (matches.length === 1 && marked.length === 1)
+      status = format.commands(owned.group)?.includes(format.command)
+        ? "installed"
+        : "outdated";
     else if (marked.length || matches.length) status = "modified";
     else status = "missing";
     return {
@@ -166,6 +171,7 @@ export function inspectIntegrations(repository: string) {
             "modified",
             "unmanaged",
             "missing",
+            "outdated",
             "installed",
           ] as const
         ).find((candidate) => statuses.includes(candidate)) ?? "unverified";

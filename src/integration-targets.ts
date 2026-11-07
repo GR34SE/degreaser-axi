@@ -70,6 +70,15 @@ const executable = portable === bin ? [process.execPath, bin] : [portable];
 export const HOOK_MARKER = "degreaser-startup-v1";
 const command = `if [ -z "\${DEGREASER_WORKER:-}" ]; then ${executable.map(quote).join(" ")} startup-context 2>/dev/null || :; fi # ${HOOK_MARKER}`;
 export const hookSpec = { marker: HOOK_MARKER, command, timeoutSeconds: 2 };
+const template =
+  /^(if \[ -z "\$\{DEGREASER_WORKER:-\}" \]; then ).+( startup-context(?: --cursor)? 2>\/dev\/null \|\| :; fi # degreaser-startup-v1)$/;
+/** A generated startup command rewritten to this install's executable, so commands written elsewhere compare equal. */
+export const withCurrentExecutable = (text: string) =>
+  text.replace(
+    template,
+    (_, head: string, tail: string) =>
+      `${head}${executable.map(quote).join(" ")}${tail}`,
+  );
 const cursorCommand = `if [ -z "\${DEGREASER_WORKER:-}" ]; then ${executable.map(quote).join(" ")} startup-context --cursor 2>/dev/null || :; fi # ${HOOK_MARKER}`;
 
 export interface HookFormat {
@@ -168,6 +177,7 @@ export function integrationTarget(
   if (agent === "pi")
     files.set(join(directory, "extensions/degreaser.ts"), piExtension());
   return {
+    directory,
     files,
     hookPath:
       agent === "pi"
