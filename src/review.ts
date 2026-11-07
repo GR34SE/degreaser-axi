@@ -12,6 +12,7 @@ import type { ResumeControls } from "./owner.ts";
 import {
   admissionLock,
   assertAvailable,
+  cleanInterruptedOwner,
   ownerPath,
   ownerRecoveryGuidance,
   verifyOwner,
@@ -225,7 +226,13 @@ export async function cancel(id: string | undefined, cwd: string) {
   }
   try {
     run = loadRun(run.repository, id);
-    if (observedStatus(run) !== "running") return renderReport(run);
+    const observed = observedStatus(run);
+    if (observed === "interrupted") {
+      // No owner remains to join its workers: stop only verified old workers, start nothing.
+      await cleanInterruptedOwner(run);
+      return renderReport(loadRun(run.repository, id));
+    }
+    if (observed !== "running") return renderReport(run);
     const owner = run.owner;
     if (!owner)
       throw new StateError(
