@@ -214,9 +214,11 @@ async function withDiagnostics(
   } catch (error) {
     exitCode = 2;
     if (error instanceof InputError || error instanceof StateError)
-      throw new AxiError(error.message, error.code, [
-        `degreaser-axi ${name} --help`,
-      ]);
+      throw new AxiError(
+        error.message,
+        error.code,
+        error.help ?? [`degreaser-axi ${name} --help`],
+      );
     if (error instanceof AxiError) throw error;
     const failure = diagnoseFailure(error, `${name} local operation`);
     return {

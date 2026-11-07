@@ -212,6 +212,8 @@ export async function executeWorker(
           status: event.status ?? "unknown",
         });
     }
+    // The stream ended; result and status calls are not worker inactivity.
+    clearTimeout(idle);
     const result = await turn.result;
     if (!outcome.failure) {
       if (result.status === "completed") outcome.status = "completed";

@@ -7,6 +7,7 @@ import { repositoryRoot } from "./git.ts";
 import { positiveInteger, prepareReview } from "./input.ts";
 import { InputError } from "./input-error.ts";
 import { discoverModels } from "./model-discovery.ts";
+import { assertNotWorker } from "./native-environment.ts";
 import type { ResumeControls } from "./owner.ts";
 import {
   admissionLock,
@@ -54,11 +55,7 @@ async function waitFor(run: Run, seconds: number) {
   return renderReport(run);
 }
 function nestedGuard() {
-  if (process.env.DEGREASER_WORKER === "1")
-    throw new StateError(
-      "nested-review",
-      "Workers cannot start nested reviews or resume runs.",
-    );
+  assertNotWorker("start nested reviews or resume runs");
 }
 async function startOwner(run: Run, controls?: ResumeControls) {
   const owner = spawn(
@@ -287,11 +284,7 @@ export function dismissCommand(
   values: Record<string, unknown>,
   cwd: string,
 ) {
-  if (process.env.DEGREASER_WORKER)
-    throw new StateError(
-      "nested-review",
-      "Workers cannot dismiss findings; the caller decides.",
-    );
+  assertNotWorker("dismiss findings; the caller decides");
   const reason = typeof values.reason === "string" ? values.reason.trim() : "";
   if (!reason)
     throw new InputError(
@@ -302,6 +295,13 @@ export function dismissCommand(
     repository,
     typeof values.run === "string" ? values.run : undefined,
   );
+  // Finding IDs are renumbered as aspects finish, so only dismiss settled runs.
+  if (observedStatus(run) === "running")
+    throw new StateError(
+      "run-active",
+      `${run.id} is still running and its finding IDs can change. Wait for it, then dismiss from the final report.`,
+      [`degreaser-axi wait ${run.id}`],
+    );
   const id = positionals[0];
   const finding = findings(run).find((f) => f.id === id);
   if (!finding)
