@@ -37,8 +37,8 @@ computer neither enables nor prevents OIDC publishing from GitHub.
    variable `RELEASE_AUTOMATION_ENABLED=true`. This enables release PRs, their
    auto-merge, draft releases and artifact preparation, not npm publication.
 
-Major dependency updates and minor updates to pre-1.0 packages are deliberately
-not auto-merged. They stay visible for compatibility work. The bot never fixes
+Major dependency updates and every update to an npm package whose current
+version is 0.x (runtime or development) are deliberately not auto-merged. They stay visible for compatibility work. The bot never fixes
 an incompatible API or bypasses a failed check. Deterministic and synthetic
 checks do not prove native worker/model compatibility.
 
@@ -59,8 +59,8 @@ runtime, package-age policy and disabled build permissions.
 3. Create the GitHub environment `npm`. Restrict deployment to `main`, without
    required human reviewers. Use GitHub-hosted runners. The publishing job
    uses OIDC with `id-token: write`, not an `NPM_TOKEN`.
-4. Check the repository/package metadata and the package's licensing terms
-   before the first public distribution. Provenance requires a public source
+4. Check the repository/package metadata before the first public
+   distribution. The package is MIT-licensed and ships `LICENSE`. Provenance requires a public source
    repository and a matching `repository.url`.
 5. Only after explicit authorization, set the repository Actions variable
    `NPM_PUBLISH_ENABLED=true`. Turning it off stops new publishing jobs;

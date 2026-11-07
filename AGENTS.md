@@ -91,8 +91,8 @@ once per lane. Release output: external/ignored, existing parent, new destinatio
 Renovate is the sole dependency updater; do not restore Dependabot version
 updates. Preserve exact pins, disabled lifecycle scripts and the seven-day
 minimum release age. Stable patch/minor updates and digest pins may auto-merge
-after required CI; major updates and pre-1.0 minor updates require compatibility
-work. Keep `@types/node` on the supported Node 24 major.
+after required CI; major updates and every update to an npm package whose
+current version is 0.x require compatibility work. Keep `@types/node` on the supported Node 24 major.
 
 Release Please owns versions, `CHANGELOG.md`, tags and release PRs. Runtime
 dependency updates use `fix(deps)` (patch); development and CI updates use

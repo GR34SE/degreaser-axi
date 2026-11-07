@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": false,
   "description": "Focused source-only code review for coding agents",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/GR34SE/degreaser-axi.git"

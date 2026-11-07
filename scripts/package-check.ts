@@ -66,6 +66,7 @@ try {
     assert.ok(
       entry === "package/package.json" ||
         entry === "package/README.md" ||
+        entry === "package/LICENSE" ||
         entry.startsWith("package/dist/"),
       `Unexpected package entry: ${entry}`,
     );
@@ -108,6 +109,15 @@ try {
     );
     run("pnpm", ["add", "--ignore-scripts", tarball], installDir, runtime);
     const installed = join(installDir, "node_modules/degreaser-axi");
+    assert.equal(
+      JSON.parse(await readFile(join(installed, "package.json"), "utf8"))
+        .license,
+      "MIT",
+    );
+    assert.match(
+      await readFile(join(installed, "LICENSE"), "utf8"),
+      /^MIT License\n\nCopyright \(c\) 2026 Degreaser contributors\n/,
+    );
     const readme = join(installed, "README.md");
     const documentation = await readFile(readme, "utf8");
     for (const [, target] of documentation.matchAll(

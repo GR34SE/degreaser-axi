@@ -46,7 +46,6 @@
     {
       "matchManagers": ["npm"],
       "matchCurrentVersion": "/^0\\./",
-      "matchUpdateTypes": ["minor"],
       "automerge": false
     },
     {

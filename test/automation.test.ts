@@ -160,20 +160,23 @@ test("dependency updates preserve exact versions, installation policy and bounde
   assert.equal(config.automergeType, "pr");
   assert.equal(config.platformAutomerge, true);
   const rules = config.packageRules;
-  assert.ok(
-    rules.some(
-      (rule: { matchUpdateTypes?: string[]; automerge?: boolean }) =>
-        rule.automerge === true &&
-        JSON.stringify(rule.matchUpdateTypes) ===
-          JSON.stringify(["minor", "patch", "pin", "digest"]),
-    ),
+  const automergeRule = rules.findIndex(
+    (rule: { matchUpdateTypes?: string[]; automerge?: boolean }) =>
+      rule.automerge === true &&
+      JSON.stringify(rule.matchUpdateTypes) ===
+        JSON.stringify(["minor", "patch", "pin", "digest"]),
   );
-  assert.ok(
-    rules.some(
-      (rule: { matchCurrentVersion?: string; automerge?: boolean }) =>
-        rule.matchCurrentVersion === "/^0\\./" && rule.automerge === false,
-    ),
+  const preStableRule = rules.findIndex(
+    (rule: { matchCurrentVersion?: string; automerge?: boolean }) =>
+      rule.matchCurrentVersion === "/^0\\./" && rule.automerge === false,
   );
+  assert.ok(automergeRule >= 0);
+  assert.ok(preStableRule > automergeRule);
+  assert.deepEqual(rules[preStableRule], {
+    matchManagers: ["npm"],
+    matchCurrentVersion: "/^0\\./",
+    automerge: false,
+  });
   for (const version of Object.values({
     ...manifest.dependencies,
     ...manifest.devDependencies,
