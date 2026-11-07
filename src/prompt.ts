@@ -36,51 +36,22 @@ const fenced = (name: string, body: string) => {
   return `<${tag}>\n${body}\n</${tag}>`;
 };
 
-// Git's core.quotePath=false still C-quotes controls, backslashes and quotes.
-function patchPath(path: string) {
-  const escapes: Record<string, string> = {
-    '"': '\\"',
-    "\\": "\\\\",
-    "\x07": "\\a",
-    "\b": "\\b",
-    "\t": "\\t",
-    "\n": "\\n",
-    "\v": "\\v",
-    "\f": "\\f",
-    "\r": "\\r",
-  };
-  const quoted = Array.from(
-    path,
-    (char) =>
-      escapes[char] ??
-      (char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127
-        ? `\\${char.charCodeAt(0).toString(8).padStart(3, "0")}`
-        : char),
-  ).join("");
-  return quoted === path ? path : `"${quoted}"`;
-}
-
 /** 1-based inclusive line range of each file section in the raw patch, keyed by new path. */
 export function patchIndex(patch: string, input: ReviewInput) {
-  const headers = new Map(
-    input.paths.map((p) => [
-      `diff --git ${patchPath(`a/${p.oldPath ?? p.path}`)} ${patchPath(`b/${p.path}`)}`,
-      p.path,
-    ]),
-  );
   const ranges = new Map<string, string>();
   const lines = patch.split("\n");
   if (lines.at(-1) === "") lines.pop();
-  let current: { path: string | undefined; start: number } | null = null;
-  const close = (end: number) => {
-    if (current?.path) ranges.set(current.path, `${current.start}-${end}`);
-  };
-  lines.forEach((line, i) => {
-    if (!line.startsWith("diff --git ")) return;
-    close(i);
-    current = { path: headers.get(line), start: i + 1 };
-  });
-  close(lines.length);
+  // Git writes patch sections in the same order as the raw path records, so
+  // sections map to paths by position; C-quoted headers need no parsing.
+  const starts = lines.flatMap((line, i) =>
+    line.startsWith("diff --git ") ? [i] : [],
+  );
+  if (starts.length === input.paths.length)
+    for (const [i, start] of starts.entries()) {
+      const path = input.paths[i]?.path;
+      if (path !== undefined)
+        ranges.set(path, `${start + 1}-${starts[i + 1] ?? lines.length}`);
+    }
   return { ranges, lines: lines.length };
 }
 
