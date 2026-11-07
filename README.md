@@ -35,7 +35,7 @@ pnpm link --global
 degreaser-axi --version
 ```
 
-Startup integrations call the installed executable, so keep this linked checkout at a stable path. `degreaser` is an alias of `degreaser-axi`. The examples use `degreaser-axi`. Registry installation and the skill's `npx` fallback require a future npm release; they are not available from this private package.
+Startup integrations call the installed executable, so keep this linked checkout at a stable path. `degreaser` is an alias of `degreaser-axi`. The examples use `degreaser-axi`. Registry installation and the skill's `npx` fallback require a future npm release; nothing has been published to npm yet.
 
 Run the rest **inside the Git repository you want to review**. Init writes `.degreaserrc.json`, installs the selected integrations, and adds `/.degreaser/` to the root `.gitignore` without touching the index. `--aspects low-value-comments` is a cheap first review.
 

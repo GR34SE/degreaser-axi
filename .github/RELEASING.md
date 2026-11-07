@@ -132,6 +132,9 @@ artifact, run **Release** from `main` with the existing `vX.Y.Z` tag input once
 publication is authorized. This is recovery, not a normal release trigger.
 Only existing draft releases whose tag belongs to `main` are accepted. The
 version must match the package, and the tarball must pass validation again.
+Recover pending drafts in increasing version order. Finalization marks the
+release as latest, so do not recover an older draft after a newer version has
+been published as latest.
 
 If that version exists on npm, the workflow verifies SHA-512 integrity against
 the tested tarball before skipping the publish. A different artifact or
