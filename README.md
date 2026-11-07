@@ -24,7 +24,7 @@ change
 
 ## Quick Start
 
-macOS, Node 24.0.0 or newer, Git, and an authenticated Codex, Claude Code, Pi or Cursor login. Linux, Windows, Droid and Grok Build are out of v1. Model calls go through [acpx](https://github.com/openclaw/acpx) to a harness you already authenticated. Degreaser has no API keys of its own and does not fall back to paid keys.
+Linux or macOS, Node 24.0.0 or newer, Git, and an authenticated Codex, Claude Code, Pi or Cursor login. Windows, Droid and Grok Build are out of v1. Model calls go through [acpx](https://github.com/openclaw/acpx) to a harness you already authenticated. Degreaser has no API keys of its own and does not fall back to paid keys.
 
 The package is currently unpublished. To use this checkout, build and link it:
 
@@ -317,7 +317,7 @@ pnpm check
 
 This runs deterministic tests, type checking, lint/format, build and a separate local-tarball installation check on your current Node and exactly Node 24.0.0. Supply a verified minimum-version executable; a missing runtime fails the check rather than skipping it. It needs no model account.
 
-The GitHub Actions workflow runs this gate, with runtime tests on macOS, for pushes to main, nightly and on manual dispatch. Pull requests check the installed package on current Node 24 only, and run just the documentation tests when they change nothing but `README.md` or `AGENTS.md`. The check is named `macOS deterministic`; live model tests are not part of it. Local checks do not establish a hosted CI pass.
+The GitHub Actions workflow runs this gate on Linux and macOS for pushes to main, nightly and on manual dispatch. Pull requests check the installed package on current Node 24 only, and run just the documentation tests when they change nothing but `README.md` or `AGENTS.md`. Runtime tests run on both systems. The required aggregate check is named `macOS deterministic`; live model tests are not part of it. Local checks do not establish a hosted CI pass.
 
 `pnpm qa` runs just the isolated init → review → report → partial failure → same-run resume scenario. Its external adapter and faults are synthetic; the compiled CLI, Git, owner and saved results are real. Live model reviews are separate and consume your selected subscription quota.
 

@@ -27,7 +27,7 @@ function yaml(path: string) {
   return document.toJS();
 }
 
-test("CI selects checks without path filters and requires the static and macOS jobs", () => {
+test("CI selects checks without path filters and requires the Linux and macOS jobs", () => {
   const workflow = yaml(".github/workflows/check.yml");
   assert.deepEqual(Object.keys(workflow.on).sort(), [
     "pull_request",
@@ -39,28 +39,47 @@ test("CI selects checks without path filters and requires the static and macOS j
   assert.equal(workflow.on.pull_request, null);
   assert.equal(workflow.on.schedule.length, 1);
   assert.deepEqual(workflow.permissions, { contents: "read" });
-  const { plan, static: lint, macos, check } = workflow.jobs;
+  const { plan, linux, macos, check } = workflow.jobs;
   assert.equal(check.name, "macOS deterministic");
   assert.equal(check.if, "always()");
-  assert.deepEqual(check.needs, ["plan", "static", "macos"]);
+  assert.deepEqual(check.needs, ["plan", "linux", "macos"]);
+  assert.equal(linux.needs, "plan");
+  assert.equal(linux.name, "Linux checks");
   assert.equal(macos.needs, "plan");
   // Self-hosted labels come only from repository variables, never from the
   // repository itself, and fork PRs always stay on hosted runners.
   const route = (variable: string, hosted: string) =>
     `\${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.${variable} || '${hosted}' }}`;
-  assert.equal(lint["runs-on"], route("CI_LINUX_RUNNER", "ubuntu-24.04"));
+  assert.equal(linux["runs-on"], route("CI_LINUX_RUNNER", "ubuntu-24.04"));
   assert.equal(macos["runs-on"], route("CI_MACOS_RUNNER", "macos-15"));
-  for (const job of [lint, macos]) {
+  for (const job of [linux, macos]) {
     assert.equal(job.if, undefined);
     assert.equal(job["continue-on-error"], undefined);
     assert.equal(job.permissions, undefined);
     assert.deepEqual(job.env, { CI: "true" });
   }
-  assert.match(
-    lint.steps.at(-1).run,
-    /^pnpm typecheck && pnpm lint$/,
-    "static job must typecheck and lint",
+  const typecheck = linux.steps.find(
+    (step: { run?: string }) => step.run === "pnpm typecheck && pnpm lint",
   );
+  assert.ok(typecheck);
+  assert.equal(typecheck.if, undefined);
+  const named = (
+    job: { steps: { name?: string; if?: string; run?: string }[] },
+    name: string,
+  ) => job.steps.find((step) => step.name === name);
+  for (const name of [
+    "Documentation contracts",
+    "Runtime regression suite",
+    "Installed package on current Node (PR)",
+    "Installed package on minimum and current Node (full acceptance)",
+    "Initialize disposable runner Git identity",
+  ]) {
+    const left = named(linux, name);
+    const right = named(macos, name);
+    assert.ok(left && right, name);
+    assert.equal(left.if, right.if, name);
+    assert.equal(left.run, right.run, name);
+  }
   const steps = macos.steps;
   const actions = steps.filter((step: { uses?: string }) => step.uses);
   for (const job of Object.values(workflow.jobs) as {
@@ -80,7 +99,7 @@ test("CI selects checks without path filters and requires the static and macOS j
   assert.equal(plan.steps[0].with["fetch-depth"], 0);
   // The pnpm installer executes node, which self-hosted runners need not
   // provide, so the current Node is set up first in every pnpm job.
-  for (const job of [lint, macos]) {
+  for (const job of [linux, macos]) {
     const jobSteps: { uses?: string; with?: Record<string, unknown> }[] =
       job.steps;
     const pnpm = jobSteps.findIndex((step) =>
@@ -99,19 +118,21 @@ test("CI selects checks without path filters and requires the static and macOS j
     });
   }
   assert.match(manifest.packageManager, /^pnpm@\d+\.\d+\.\d+$/);
-  const minimum = steps.findIndex(
-    (step: { with?: Record<string, string> }) =>
-      step.with?.["node-version"] === "24.0.0",
-  );
-  assert.equal(steps[minimum].if, "github.event_name != 'pull_request'");
-  assert.equal(steps[minimum + 1].if, steps[minimum].if);
+  for (const job of [linux, macos]) {
+    const minimum = job.steps.findIndex(
+      (step: { with?: Record<string, string> }) =>
+        step.with?.["node-version"] === "24.0.0",
+    );
+    assert.equal(job.steps[minimum].if, "github.event_name != 'pull_request'");
+    assert.equal(job.steps[minimum + 1].if, job.steps[minimum].if);
+  }
 });
 
 test("required aggregate fails for failed, cancelled or skipped dependencies", () => {
   const step = yaml(".github/workflows/check.yml").jobs.check.steps[0];
   const results = ["success", "failure", "cancelled", "skipped"];
   for (const plan of results)
-    for (const lint of results)
+    for (const linux of results)
       for (const macos of results) {
         const result = spawnSync(
           "bash",
@@ -120,43 +141,46 @@ test("required aggregate fails for failed, cancelled or skipped dependencies", (
             env: {
               PATH: process.env.PATH,
               PLAN_RESULT: plan,
-              STATIC_RESULT: lint,
+              LINUX_RESULT: linux,
               MACOS_RESULT: macos,
             },
           },
         );
         assert.equal(
           result.status === 0,
-          [plan, lint, macos].every((value) => value === "success"),
-          `${plan}/${lint}/${macos}`,
+          [plan, linux, macos].every((value) => value === "success"),
+          `${plan}/${linux}/${macos}`,
         );
       }
 });
 
 test("CI saves the minimum executable before changing Node, using the runner environment file", (t) => {
-  const steps = yaml(".github/workflows/check.yml").jobs.macos.steps;
-  const minimum = steps.findIndex(
-    (step: { with?: Record<string, string> }) =>
-      step.with?.["node-version"] === "24.0.0",
-  );
+  const jobs = yaml(".github/workflows/check.yml").jobs;
   const temp = mkdtempSync(resolve(tmpdir(), "degreaser-ci-env-"));
   t.after(() => rmSync(temp, { recursive: true, force: true }));
-  const environmentFile = resolve(temp, "environment");
-  const result = spawnSync(
-    "bash",
-    ["-eu", "-o", "pipefail", "-c", steps[minimum + 1].run],
-    {
-      env: { PATH: process.env.PATH, GITHUB_ENV: environmentFile },
-      encoding: "utf8",
-    },
-  );
-  assert.equal(result.status, 0, result.stderr);
-  const line = readFileSync(environmentFile, "utf8").trim();
-  assert.ok(line.startsWith("DEGREASER_NODE24_MIN="), line);
-  assert.equal(
-    realpathSync(line.slice(line.indexOf("=") + 1)),
-    realpathSync(process.execPath),
-  );
+  for (const id of ["linux", "macos"]) {
+    const steps = jobs[id].steps;
+    const minimum = steps.findIndex(
+      (step: { with?: Record<string, string> }) =>
+        step.with?.["node-version"] === "24.0.0",
+    );
+    const environmentFile = resolve(temp, `environment-${id}`);
+    const result = spawnSync(
+      "bash",
+      ["-eu", "-o", "pipefail", "-c", steps[minimum + 1].run],
+      {
+        env: { PATH: process.env.PATH, GITHUB_ENV: environmentFile },
+        encoding: "utf8",
+      },
+    );
+    assert.equal(result.status, 0, result.stderr);
+    const line = readFileSync(environmentFile, "utf8").trim();
+    assert.ok(line.startsWith("DEGREASER_NODE24_MIN="), line);
+    assert.equal(
+      realpathSync(line.slice(line.indexOf("=") + 1)),
+      realpathSync(process.execPath),
+    );
+  }
 });
 
 test("dependency updates preserve exact versions, installation policy and bounded PR volume", () => {
