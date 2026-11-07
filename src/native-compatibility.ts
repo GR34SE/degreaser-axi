@@ -72,7 +72,7 @@ export function assertNativeVersion(
         supportedNativeVersion: supported,
       },
     );
-  return order > 0
+  return version !== supported
     ? {
         version,
         notice: `Unverified newer ${agent} native version ${version} (verified ${supported}); proceeding. Report regressions or use a revalidated Degreaser release.`,

@@ -49,13 +49,13 @@ test("older or different-major Claude and Pi are refused", () => {
     refused(agent, observed);
 });
 
-test("Cursor accepts the verified date or later and refuses earlier dates", () => {
+test("Cursor accepts the verified date or later, notices any unverified build and refuses earlier dates", () => {
   const later = assertNativeVersion("cursor", "2026.11.06-abcdef0");
   assert.match(later.notice ?? "", /unverified/i);
   assert.ok(assertNativeVersion("cursor", "2027.1.2-abcdef0").notice);
-  assert.equal(
-    assertNativeVersion("cursor", "2026.11.05-abcdef0").notice,
-    undefined,
+  assert.match(
+    assertNativeVersion("cursor", "2026.11.05-abcdef0").notice ?? "",
+    /unverified/i,
   );
   refused("cursor", "2026.11.04-abcdef0");
   refused("cursor", "2025.12.31-abcdef0");
