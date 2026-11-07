@@ -258,7 +258,15 @@ test("examined paths keep only assessed files, and a clean result needs at least
     f.root,
   );
   const covered = ingestResult(
-    block({ ...clean, examinedPaths: ["current.ts", "outside.ts"] }),
+    block({
+      ...clean,
+      examinedPaths: [
+        "current.ts",
+        `${input.repository}/current.ts`,
+        "./current.ts",
+        "/elsewhere/outside.ts",
+      ],
+    }),
     "low-value-comments",
     input,
   );

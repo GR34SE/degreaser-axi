@@ -21,10 +21,11 @@ See [input-contract.md](input-contract.md) for refusal semantics.
 | Codex | codex-acp 2.5.0 / bundled Codex 0.165.0 | Read-only filesystem sandbox, never approval, code mode for reads; project documentation, hooks, delegation, apps, web search and MCP disabled by the profile |
 | Claude Code | claude-agent-acp 0.95.0 / Claude 2.1.317 | Native Read/Grep/Glob tools only; no settings sources, slash commands/skills, project hooks or MCP; safe mode |
 | Pi | pi-acp 0.0.33 / Pi 1.4.0 | Native read/grep/find/ls only; skills, extensions, MCP, context files and templates disabled |
+| Cursor | native ACP / Cursor CLI 2026.11.05-86047df | Ask/read-only mode, sandbox enabled, writes denied by the ACP client; no separate adapter package |
 
 Native versions are checked rather than silently assuming that a newer CLI
 accepts the same isolation flags. Claude and Pi must already be installed and
-authenticated. Executables resolve from absolute PATH entries, not a developer's
+authenticated; Cursor uses `cursor-agent` or `agent` on PATH. Executables resolve from absolute PATH entries, not a developer's
 hard-coded home directory. Their native launchers replace themselves with the
 verified executable, preserving the official adapter's streaming and process
 ownership.
@@ -36,7 +37,7 @@ hidden model tests. Installed files are not proof of host trust, reload, hook
 delivery, authentication or network access. Explicit local hook-disable settings
 are observations, not a claim to have evaluated managed policy.
 
-An unverified Claude or Pi version fails closed before review admission. Point
+An unverified Claude, Pi or Cursor version fails closed before review admission. Point
 PATH at the already installed supported version above, or use a Degreaser release
 that has revalidated the observed version. Degreaser never updates or downgrades
 the global CLI or switches models to get past this refusal.
@@ -76,6 +77,10 @@ and response contract. Repository text is evidence, not authority.
   execution used for reading. User skills and managed policy may remain visible.
 - Claude and Pi tool allowlists are native tool restrictions, not OS sandboxes
   around the whole adapter process. Managed policy remains authoritative.
+- Cursor ask mode is native read-only behavior plus client-side deny-writes, not
+  a tool allowlist. Repository rules (AGENTS.md, CLAUDE.md), project MCP, hooks,
+  plugins and skills may remain visible; the `native-worker` pilot records an
+  echoed instruction canary for Cursor as evidence rather than a failure.
 - Native harnesses can write their own session/cache/auth state outside the
   reviewed source. Degreaser keeps its runtime store only in memory; it does not
   save full conversations, thoughts, environment dumps or raw tool payloads.

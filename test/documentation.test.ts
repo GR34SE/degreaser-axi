@@ -89,7 +89,7 @@ test("README configuration and neutral report excerpt match the public CLI", (t)
 
 test("private local material is ignored and absent from tracked files", () => {
   const paths = [
-    "specs/README.md",
+    "specs",
     ".lavish/session.json",
     ".degreaser/runs/example/run.json",
     ".references/backpass/README.md",

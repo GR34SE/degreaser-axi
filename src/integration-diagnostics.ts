@@ -1,13 +1,16 @@
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
-import type { Agent } from "./config.ts";
-import { readIntegrationFile } from "./integration-files.ts";
+import { AGENTS, type Agent } from "./config.ts";
 import {
-  HOOK_MARKER,
-  hookSpec,
+  readIntegrationFile,
+  readIntegrationLink,
+} from "./integration-files.ts";
+import {
+  hookFormat,
   type InstallationScope,
   integrationTarget,
+  isMarked,
 } from "./integration-targets.ts";
 import { type Receipt, validateReceipt } from "./integrations.ts";
 import { hash } from "./prompt.ts";
@@ -44,6 +47,25 @@ function inspectFile(
   receipt: Receipt | undefined,
   reliable: boolean,
 ): Component {
+  const linked = receipt?.files[dirname(path)];
+  if (linked) {
+    // A Claude skill installed as a symlink to the shared .agents copy.
+    let target: string | null = null;
+    try {
+      target = readIntegrationLink(dirname(path));
+    } catch {
+      // A non-link entry at the directory is a modification.
+    }
+    return {
+      path: dirname(path),
+      status:
+        target === null
+          ? "missing"
+          : hash(`symlink:${target}`) === linked.hash
+            ? "installed"
+            : "modified",
+    };
+  }
   const { text, readable } = read(path);
   const owned = receipt?.files[path];
   let status: Status;
@@ -76,24 +98,16 @@ function inspectHook(
       (!hooks || typeof hooks !== "object" || Array.isArray(hooks))
     )
       throw new Error("Invalid hooks");
+    const format = hookFormat(agent);
     const groups =
-      (hooks as Record<string, unknown> | undefined)?.SessionStart ?? [];
+      (hooks as Record<string, unknown> | undefined)?.[format.event] ?? [];
     if (
       !Array.isArray(groups) ||
-      groups.some(
-        (group) =>
-          !group || typeof group !== "object" || !Array.isArray(group.hooks),
-      )
+      groups.some((group) => format.commands(group) === null)
     )
       throw new Error("Invalid hook groups");
     const owned = receipt?.hooks[agent];
-    const marked = groups.filter((group) =>
-      group.hooks.some(
-        (hook: { command?: unknown }) =>
-          typeof hook?.command === "string" &&
-          hook.command.includes(HOOK_MARKER),
-      ),
-    );
+    const marked = groups.filter((group) => isMarked(format, group));
     const matches =
       owned?.path === path
         ? groups.filter((group) => isDeepStrictEqual(group, owned.group))
@@ -104,7 +118,7 @@ function inspectHook(
     else if (
       matches.length === 1 &&
       marked.length === 1 &&
-      owned.group.hooks?.some((hook) => hook.command === hookSpec.command)
+      format.commands(owned.group)?.includes(format.command)
     )
       status = "installed";
     else if (marked.length || matches.length) status = "modified";
@@ -130,7 +144,7 @@ export function inspectIntegrations(repository: string) {
       ),
     );
     const reliable = receipt.state === "valid" || receipt.state === "missing";
-    for (const harness of ["codex", "claude", "pi"] as const) {
+    for (const harness of AGENTS) {
       const target = integrationTarget(harness, repository, scope);
       const files = [...target.files].map(([path, expected]) =>
         inspectFile(path, expected, harness, receipt.receipt, reliable),

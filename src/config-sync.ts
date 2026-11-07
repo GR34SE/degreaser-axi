@@ -8,14 +8,11 @@ import {
 } from "./config.ts";
 import { repositoryRoot } from "./git.ts";
 import { InputError } from "./input-error.ts";
+import { assertNotWorker } from "./native-environment.ts";
 import { atomicWrite, StateError } from "./storage.ts";
 
 export function syncConfig(cwd: string) {
-  if (process.env.DEGREASER_WORKER)
-    throw new StateError(
-      "nested-review",
-      "Workers cannot synchronize configuration.",
-    );
+  assertNotWorker("synchronize configuration");
   const path = join(repositoryRoot(cwd), ".degreaserrc.json");
   const before = readConfigText(path);
   if (before === null)
