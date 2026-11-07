@@ -469,7 +469,9 @@ test("symlinks are reviewed as links: target text reaches the worker and quotes 
   assert.match(
     assemblePrompt(audit, "low-value-comments", "/p.diff").text,
     /newLink: \.\.\/skills\/real/,
-=======
+  );
+});
+
 test("semantically empty optional reason is omitted without inventing required content", () => {
   for (const reason of [null, "", "  \n"])
     assert.deepEqual(
@@ -500,6 +502,5 @@ test("semantically empty optional reason is omitted without inventing required c
         "low-value-comments",
       ),
     /schema/i,
->>>>>>> fix/results-format
   );
 });
