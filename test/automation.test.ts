@@ -62,7 +62,16 @@ test("CI selects checks without path filters and requires the Linux and macOS jo
     (step: { run?: string }) => step.run === "pnpm typecheck && pnpm lint",
   );
   assert.ok(typecheck);
-  assert.equal(typecheck.if, undefined);
+  assert.equal(
+    typecheck.if,
+    "${{ !cancelled() && steps.build.outcome == 'success' }}",
+  );
+  assert.ok(
+    linux.steps.indexOf(typecheck) >
+      linux.steps.findIndex(
+        (step: { name?: string }) => step.name === "Runtime regression suite",
+      ),
+  );
   const named = (
     job: { steps: { name?: string; if?: string; run?: string }[] },
     name: string,
