@@ -4,7 +4,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { validateConfig } from "../src/config.ts";
+import { ASPECT_IDS, validateConfig } from "../src/config.ts";
 import { queueFixture } from "./queue-fixture.ts";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
@@ -42,6 +42,15 @@ test("public documentation links resolve for source readers without a build", ()
       );
     }
   }
+});
+
+test("README aspect table lists every built-in aspect in catalog order", () => {
+  const readme = readFileSync(resolve(root, "README.md"), "utf8");
+  assert.deepEqual(
+    [...readme.matchAll(/^\| `([a-z-]+)` \|/gm)].map((match) => match[1]),
+    [...ASPECT_IDS],
+  );
+  assert.ok(readme.includes(`All ${ASPECT_IDS.length} built-in aspects`));
 });
 
 test("public contract configuration and report examples match the public CLI", (t) => {

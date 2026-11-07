@@ -312,7 +312,12 @@ test("short coverage attributes incomplete limitations and full reports separate
     (row: { aspect: string }) => row.aspect === "low-value-comments",
   );
   assert.ok(!("reason" in clean));
-  assert.equal(short.coverage[0].rejected, 1);
+  assert.equal(
+    short.coverage.find(
+      (row: { aspect: string }) => row.aspect === "missed-reuse",
+    ).rejected,
+    1,
+  );
   const full = decode(f.run(["report", "--full"]).stdout);
   assert.ok(
     full.coverage
@@ -326,7 +331,7 @@ test("short coverage attributes incomplete limitations and full reports separate
   );
   assert.deepEqual(
     full.configuration,
-    ["missed-reuse", "masked-errors", "low-value-comments", "scope-creep"].map(
+    ["masked-errors", "scope-creep", "missed-reuse", "low-value-comments"].map(
       (aspect) => ({
         aspect,
         agent: "codex",
@@ -336,7 +341,7 @@ test("short coverage attributes incomplete limitations and full reports separate
   );
   assert.deepEqual(
     full.execution.map((row: { aspect: string }) => row.aspect),
-    ["missed-reuse", "masked-errors", "low-value-comments"],
+    ["masked-errors", "missed-reuse", "low-value-comments"],
   );
   assert.equal(full.coordinator[0].aspect, "scope-creep");
   assert.equal(full.coordinator[0].status, "not-applicable");
@@ -364,8 +369,8 @@ test("short coverage attributes incomplete limitations and full reports separate
   saveRun(run);
   const mixedUsage = decode(f.run(["report", "--full"]).stdout);
   assert.equal(mixedUsage.usage, "unknown");
-  assert.deepEqual(mixedUsage.execution[0].usage, { inputTokens: 17 });
-  assert.equal(mixedUsage.execution[1].usage, "unknown");
+  assert.equal(mixedUsage.execution[0].usage, "unknown");
+  assert.deepEqual(mixedUsage.execution[1].usage, { inputTokens: 17 });
   for (const task of executed) {
     const attempt = task.attempts.at(-1);
     assert.ok(attempt);
@@ -373,8 +378,8 @@ test("short coverage attributes incomplete limitations and full reports separate
   }
   saveRun(run);
   assert.deepEqual(decode(f.run(["report"]).stdout).usage, [
-    { aspect: "missed-reuse", inputTokens: 17, outputTokens: 3 },
     { aspect: "masked-errors", inputTokens: 17, outputTokens: 3 },
+    { aspect: "missed-reuse", inputTokens: 17, outputTokens: 3 },
     { aspect: "low-value-comments", inputTokens: 17, outputTokens: 3 },
   ]);
   const audit = f.run([
@@ -600,7 +605,11 @@ test("running reports are immediate saved-result observations with same-run acti
   ]);
   assert.equal(start.status, 3, start.stdout);
   await until(
-    () => !!f.state().tasks[0]?.result,
+    () =>
+      !!f
+        .state()
+        .tasks.find((task) => task.assignment.aspect === "missed-reuse")
+        ?.result,
     "First useful result before read",
   );
   const state = f.state();

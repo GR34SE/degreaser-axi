@@ -142,9 +142,9 @@ test("public admission discovers only selected exact identities, deduplicates an
     sessions.map((e) => [e.agent, e.model]),
     [
       ["codex", "exact-codex"],
-      ["codex", "gpt-6-luna"],
-      ["claude", "claude-haiku-4-5-20251001"],
       ["pi", "openai/gpt-6-luna"],
+      ["claude", "claude-haiku-4-5-20251001"],
+      ["codex", "gpt-6-luna"],
     ],
   );
   assert.equal(f.events().filter((e) => e.type === "prompt").length, 5);

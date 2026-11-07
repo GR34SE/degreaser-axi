@@ -282,9 +282,9 @@ test("persisted wait and concurrency are not review identity and resume does not
 test("a killed owner exposes interrupted and racing resumes admit only one nonoverlapping replacement", async (t) => {
   const f = queueFixture(t, { concurrency: 1 });
   f.setPlan({
-    workers: { "low-value-comments": { hang: true, descendant: true } },
+    workers: { "convention-drift": { hang: true, descendant: true } },
   });
-  f.start(["--aspects", "masked-errors,low-value-comments,convention-drift"]);
+  f.start(["--aspects", "masked-errors,convention-drift,low-value-comments"]);
   await until(
     () => f.lifecycle().some((e) => e.type === "descendant"),
     "Old attempt has a real descendant",
@@ -292,7 +292,7 @@ test("a killed owner exposes interrupted and racing resumes admit only one nonov
   const old = f.state();
   assert.ok(old.owner);
   const previousOwner = old.owner;
-  const oldWorker = f.events().find((e) => e.aspect === "low-value-comments");
+  const oldWorker = f.events().find((e) => e.aspect === "convention-drift");
   assert.equal(old.tasks[1]?.attempts[0]?.sessionId, oldWorker?.sessionId);
   // Cleanup on a red run owns exactly this detached fixture process group.
   t.after(() => {

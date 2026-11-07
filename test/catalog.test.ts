@@ -5,7 +5,7 @@ import { ASPECT_IDS } from "../src/config.ts";
 
 const root = new URL("../dist/assets/", import.meta.url);
 
-test("distribution carries the fixed sixteen rubrics and 96 contextual examples", () => {
+test("distribution carries the fixed seventeen rubrics and 102 contextual examples", () => {
   assert.deepEqual(
     readdirSync(new URL("aspects/", root)).sort(),
     ASPECT_IDS.map((id) => `${id}.md`).sort(),
@@ -53,6 +53,13 @@ test("each neighboring rubric exposes its reciprocal routing boundary", () => {
       .split("**Not here")[1]
       ?.split("## ")[0] ?? "";
   const pairs: [string, string][] = [
+    ["unnecessary-complexity", "unnecessary-layers"],
+    ["unnecessary-complexity", "speculative-flexibility"],
+    ["unnecessary-complexity", "wrong-abstraction"],
+    ["unnecessary-complexity", "unidiomatic-code"],
+    ["unnecessary-complexity", "structural-erosion"],
+    ["unnecessary-complexity", "unjustified-defense"],
+    ["unnecessary-complexity", "missed-reuse"],
     ["missed-reuse", "reinvented-infrastructure"],
     ["missed-reuse", "unidiomatic-code"],
     ["missed-reuse", "convention-drift"],

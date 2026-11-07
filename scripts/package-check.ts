@@ -155,7 +155,7 @@ try {
     );
     assert.equal(
       (await readdir(join(installed, "dist/assets/aspects"))).length,
-      16,
+      17,
     );
     for (const asset of [
       "worker.md",
@@ -194,7 +194,7 @@ writeFileSync(join(cwd, ".gitignore"), ".degreaserrc.json\\n/.degreaser/\\n");
 writeFileSync(join(cwd, ".degreaserrc.json"), JSON.stringify({ agent: "codex", model: "exact-fixture-id" }));
 writeFileSync(join(cwd, "source"), "installed input smoke\\n");
 const input = prepareReview(["--scope", "worktree", "--task", "Package smoke"], cwd);
-assert.equal(input.config.assignments.length, 16);
+assert.equal(input.config.assignments.length, 17);
 assert.deepEqual(input.paths.map(p => p.path), [".gitignore", "source"]);
 assert.match(input.patch, /\\+installed input smoke/);
 console.log("Installed input/config schemas and real-Git boundary passed.");

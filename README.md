@@ -4,7 +4,7 @@
 
 # Degreaser
 
-Code review for coding agents. Degreaser checks for unnecessary complexity, broken contracts and misleading verification. It runs 16 focused reviewers in fresh, read-only sessions and returns findings with code quotes and suggested corrections. Your agent decides what to fix.
+Code review for coding agents. Degreaser checks for unnecessary complexity, broken contracts and misleading verification. It runs 17 focused reviewers in fresh, read-only sessions and returns findings with code quotes and suggested corrections. Your agent decides what to fix.
 
 ## Install
 
@@ -43,32 +43,33 @@ degreaser-axi report
 
 If the review returns `running`, follow its `degreaser-axi wait <run-id>` command. Keep the code unchanged until it finishes. A partial review is not a clean result.
 
-Reviews read source; they do not run tests or apply fixes. Review context goes to your selected model provider, uses its quota, and is saved locally in ignored `.degreaser/` files. All 16 reviewers run by default; use `--aspects` to select fewer or `--concurrency` to limit simultaneous calls.
+Reviews read source; they do not run tests or apply fixes. Review context goes to your selected model provider, uses its quota, and is saved locally in ignored `.degreaser/` files. All 17 reviewers run by default; use `--aspects` to select fewer or `--concurrency` to limit simultaneous calls.
 
 See `degreaser-axi --help` for commands and options, or `degreaser-axi doctor` for setup diagnostics. Details: [configuration and scopes](https://github.com/GR34SE/degreaser-axi/blob/main/assets/input-contract.md), [results and limitations](https://github.com/GR34SE/degreaser-axi/blob/main/assets/result-contract.md), [worker restrictions](https://github.com/GR34SE/degreaser-axi/blob/main/assets/native-profiles.md).
 
 ## Review aspects
 
-All 16 built-in aspects are enabled by default. Each reviewer checks one question:
+All 17 built-in aspects are enabled by default. Each reviewer checks one question. Reports list aspects in this order: simplicity first, then from the most to the least damaging slop.
 
 | Aspect | Review question |
 | --- | --- |
-| `missed-reuse` | Does the repo or an existing dependency already solve this? |
-| `unnecessary-layers` | Does this wrapper, service or factory add useful behavior or a boundary? |
-| `speculative-flexibility` | Do these options and extension points serve a current requirement? |
+| `unnecessary-complexity` | Is this the simplest implementation possible? |
 | `masked-errors` | Does a fallback turn failure into apparent success? |
-| `unjustified-defense` | Does this check protect a real boundary or possible state? |
-| `low-value-comments` | Does the comment explain something the code cannot? |
-| `convention-drift` | Does this introduce another way to do the same thing without a reason? |
-| `scope-creep` | Did the change add features or refactoring outside the task? |
-| `contract-bypass` | Does a cast, suppression or default hide a real mismatch? |
-| `low-value-tests` | Would this test detect broken behavior, or just confirm its own mock? |
-| `incomplete-integration` | Is the new code connected to the real user path? |
-| `wrong-abstraction` | Does a shared mechanism combine cases with conflicting rules? |
-| `reinvented-infrastructure` | Does a handwritten cache, parser or similar mechanism miss required semantics? |
-| `unidiomatic-code` | Can a native construct remove unnecessary logic without changing behavior? |
-| `structural-erosion` | Does this change add responsibilities and branching to an overloaded unit? |
 | `verification-theater` | Does a runtime or tooling check prove the property it claims to verify? |
+| `contract-bypass` | Does a cast, suppression or default hide a real mismatch? |
+| `incomplete-integration` | Is the new code connected to the real user path? |
+| `low-value-tests` | Would this test detect broken behavior, or just confirm its own mock? |
+| `scope-creep` | Did the change add features or refactoring outside the task? |
+| `reinvented-infrastructure` | Does a handwritten cache, parser or similar mechanism miss required semantics? |
+| `missed-reuse` | Does the repo or an existing dependency already solve this? |
+| `wrong-abstraction` | Does a shared mechanism combine cases with conflicting rules? |
+| `structural-erosion` | Does this change add responsibilities and branching to an overloaded unit? |
+| `speculative-flexibility` | Do these options and extension points serve a current requirement? |
+| `unnecessary-layers` | Does this wrapper, service or factory add useful behavior or a boundary? |
+| `unjustified-defense` | Does this check protect a real boundary or possible state? |
+| `convention-drift` | Does this introduce another way to do the same thing without a reason? |
+| `unidiomatic-code` | Can a native construct remove unnecessary logic without changing behavior? |
+| `low-value-comments` | Does the comment explain something the code cannot? |
 
 A wrapper, comment or validation check is not automatically a problem. Reviewers must establish a concrete consequence and check reasons to keep the code. See the [catalog and aspect boundaries](https://github.com/GR34SE/degreaser-axi/blob/main/assets/catalog.md) for details.
 

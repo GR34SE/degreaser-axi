@@ -11,6 +11,7 @@
 **Boundaries:** Do not report a layer just because it is short. Check consumers outside the module before recommending removal.
 
 **Not here (another reviewer):**
+- More mechanism than the requirements need inside one implementation, such as manual phases or an extra pass, without an added layer: unnecessary-complexity.
 - An option, parameter or extension point without a current consumer: speculative-flexibility.
 - A shared layer combining cases with divergent rules and accumulating flags: wrong-abstraction.
 

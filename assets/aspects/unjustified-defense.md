@@ -11,6 +11,7 @@
 **Boundaries:** Static types do not establish runtime validity. Network, disk, trust, public API and concurrency boundaries need protection.
 
 **Not here (another reviewer):**
+- Excess state, phases or passes in the main logic rather than in a check or handler: unnecessary-complexity.
 - What an error handler returns, such as a fallback pretending success: masked-errors.
 - Missing boundary validation, such as a cast instead of a check: contract-bypass. This aspect reports excessive checks, not absent ones.
 

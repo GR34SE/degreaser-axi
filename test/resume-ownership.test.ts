@@ -129,7 +129,7 @@ test("a reused child PID gets inspection guidance without signalling it or rewri
 test("cancelled work resumes, while findings and their attempt evidence remain byte-for-byte stable", async (t) => {
   const f = queueFixture(t, { concurrency: 1 });
   f.setPlan({
-    workers: { "low-value-comments": { resultGate: f.gate("blocked") } },
+    workers: { "convention-drift": { resultGate: f.gate("blocked") } },
     results: {
       "masked-errors": {
         aspect: "masked-errors",
@@ -154,7 +154,7 @@ test("cancelled work resumes, while findings and their attempt evidence remain b
       },
     },
   });
-  f.start(["--aspects", "masked-errors,low-value-comments,convention-drift"]);
+  f.start(["--aspects", "masked-errors,convention-drift,low-value-comments"]);
   await until(
     () => f.events().length === 2,
     "Committed finding and active peer",

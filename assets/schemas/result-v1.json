@@ -6,7 +6,7 @@
   "additionalProperties": false,
   "required": ["aspect", "status", "findings", "limitations"],
   "properties": {
-    "aspect": { "type": "string", "enum": ["missed-reuse", "unnecessary-layers", "speculative-flexibility", "masked-errors", "unjustified-defense", "low-value-comments", "convention-drift", "scope-creep", "contract-bypass", "low-value-tests", "incomplete-integration", "wrong-abstraction", "reinvented-infrastructure", "unidiomatic-code", "structural-erosion", "verification-theater"] },
+    "aspect": { "type": "string", "enum": ["unnecessary-complexity", "masked-errors", "verification-theater", "contract-bypass", "incomplete-integration", "low-value-tests", "scope-creep", "reinvented-infrastructure", "missed-reuse", "wrong-abstraction", "structural-erosion", "speculative-flexibility", "unnecessary-layers", "unjustified-defense", "convention-drift", "unidiomatic-code", "low-value-comments"] },
     "status": { "enum": ["findings", "no-findings", "not-applicable", "incomplete"] },
     "findings": { "type": "array", "items": { "$ref": "#/definitions/finding" } },
     "limitations": { "type": "array", "items": { "$ref": "#/definitions/text" } },

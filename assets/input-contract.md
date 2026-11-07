@@ -47,22 +47,23 @@ Example with Codex and `gpt-6-luna`; confirm the exact model available in your n
     "runTimeoutSeconds": 900
   },
   "aspects": {
-    "missed-reuse": true,
-    "unnecessary-layers": true,
-    "speculative-flexibility": true,
+    "unnecessary-complexity": true,
     "masked-errors": true,
-    "unjustified-defense": true,
-    "low-value-comments": true,
-    "convention-drift": true,
-    "scope-creep": true,
+    "verification-theater": true,
     "contract-bypass": true,
-    "low-value-tests": true,
     "incomplete-integration": true,
-    "wrong-abstraction": true,
+    "low-value-tests": true,
+    "scope-creep": true,
     "reinvented-infrastructure": true,
-    "unidiomatic-code": true,
+    "missed-reuse": true,
+    "wrong-abstraction": true,
     "structural-erosion": true,
-    "verification-theater": true
+    "speculative-flexibility": true,
+    "unnecessary-layers": true,
+    "unjustified-defense": true,
+    "convention-drift": true,
+    "unidiomatic-code": true,
+    "low-value-comments": true
   },
   "exclude": []
 }

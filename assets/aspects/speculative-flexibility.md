@@ -11,6 +11,7 @@
 **Boundaries:** No local caller does not mean no public API consumer. Record uncertainty when requirements are missing rather than asserting a defect.
 
 **Not here (another reviewer):**
+- State, phases or passes that serve current requirements in a more complicated way than needed, without an unused variant: unnecessary-complexity.
 - A layer with no behavior or variants, such as pass-through code or a single-product factory: unnecessary-layers.
 - Variants are used but have conflicting rules and accumulating mutual exclusions: wrong-abstraction.
 - An unrequested user-facing product feature such as a format, endpoint or permission: scope-creep.

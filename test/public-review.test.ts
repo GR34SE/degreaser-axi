@@ -510,12 +510,12 @@ test("public default/narrowed/restored selections retain exact overrides and exc
   assert.equal(narrowed.status, 0, narrowed.stdout);
   assert.deepEqual(f.input().workers, [
     { aspect: "masked-errors", agent: "codex", model: "exact-codex" },
+    { aspect: "verification-theater", agent: "pi", model: "openai/gpt-6-luna" },
     {
       aspect: "contract-bypass",
       agent: "claude",
       model: "claude-haiku-4-5-20251001",
     },
-    { aspect: "verification-theater", agent: "pi", model: "openai/gpt-6-luna" },
   ]);
   assert.equal(f.input().config.concurrency, 1);
   assert.deepEqual(

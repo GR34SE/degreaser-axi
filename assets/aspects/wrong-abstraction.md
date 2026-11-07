@@ -11,6 +11,7 @@
 **Boundaries:** Textual similarity alone does not justify merging, and flag count alone does not justify splitting.
 
 **Not here (another reviewer):**
+- One case implemented with more mechanism than its requirements need, without divergent cases sharing it: unnecessary-complexity.
 - A layer without behavior: unnecessary-layers.
 - An option or variant without a current consumer: speculative-flexibility.
 - One rule scattered through an overloaded unit without a shared mechanism for different cases: structural-erosion.

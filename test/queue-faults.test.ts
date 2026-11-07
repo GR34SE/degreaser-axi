@@ -495,14 +495,14 @@ for (const useful of [false, true]) {
     f.setPlan({
       workers: {
         "missed-reuse": useful ? {} : { hang: true, descendant: true },
-        "unnecessary-layers": { hang: true, descendant: true },
-        "speculative-flexibility": {},
+        "speculative-flexibility": { hang: true, descendant: true },
+        "unnecessary-layers": {},
       },
     });
     const start = Date.now();
     f.start([
       "--aspects",
-      "missed-reuse,unnecessary-layers,speculative-flexibility",
+      "missed-reuse,speculative-flexibility,unnecessary-layers",
     ]);
     const originalDeadline = f.state().deadline;
     const done = f.finish();
