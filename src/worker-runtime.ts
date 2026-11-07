@@ -10,7 +10,14 @@ import {
 import { isolatedCommand } from "./native-environment.ts";
 import type { NativeProfile } from "./native-profile.ts";
 import { workerInstruction } from "./prompt.ts";
-import { type WorkerFailure, workerFailure } from "./worker-failure.ts";
+import {
+  failureDiagnostic,
+  safeStopReason,
+  type WorkerDiagnostic,
+  type WorkerFailure,
+  type WorkerStage,
+  workerFailure,
+} from "./worker-failure.ts";
 
 export interface WorkerRequest {
   cwd: string;
@@ -33,6 +40,10 @@ export interface WorkerOutcome {
   sessionId?: string;
   output: string;
   failure?: WorkerFailure;
+  /** Stage and safe machine codes of a failed attempt; absent when nothing failed. */
+  diagnostic?: WorkerDiagnostic;
+  /** Native stop reason of a finished turn, when one was reported. */
+  stopReason?: string;
   cleanupFailed: boolean;
   usage: AcpRuntimeUsageBreakdown | null;
   limitations: string[];
@@ -143,6 +154,8 @@ export async function executeWorker(
     }, request.idleMs);
   };
   let handle: AcpRuntimeHandle | undefined;
+  let stage: WorkerStage = "session-setup";
+  let cause: unknown;
   try {
     if (request.signal?.aborted) stop("cancelled");
     // Only Claude honors a system prompt (acpx replaces Claude Code's own), so
@@ -172,6 +185,7 @@ export async function executeWorker(
       outcome.sessionId = sessionId;
       request.onSessionReady?.(sessionId);
     }
+    stage = "model-check";
     const advertised = await runtime.getStatus({ handle });
     if (!advertised.models?.availableModelIds.includes(profile.model)) {
       outcome.failure = "model-unavailable";
@@ -193,6 +207,7 @@ export async function executeWorker(
       outcome.failure = "model-unavailable";
       return outcome;
     }
+    stage = "turn-start";
     const turn = runtime.startTurn({
       handle,
       mode: "prompt",
@@ -205,6 +220,7 @@ export async function executeWorker(
     });
     await turn.promptStarted;
     request.onPromptStarted?.();
+    stage = "turn-stream";
     active();
     for await (const event of turn.events) {
       active();
@@ -228,7 +244,13 @@ export async function executeWorker(
     }
     // The stream ended; result and status calls are not worker inactivity.
     clearTimeout(idle);
+    if (!outcome.failure) stage = "turn-result";
     const result = await turn.result;
+    if (result.status !== "failed") {
+      const reason = safeStopReason(result.stopReason);
+      if (reason) outcome.stopReason = reason;
+    }
+    if (result.status === "failed") cause = result.error;
     if (!outcome.failure) {
       if (result.status === "completed") outcome.status = "completed";
       else {
@@ -240,9 +262,11 @@ export async function executeWorker(
           failure === "runtime" ? (stopped ?? failure) : failure;
       }
     }
+    if (!outcome.failure) stage = "usage";
     const status = await runtime.getStatus({ handle });
     outcome.usage = status.usage?.cumulative ?? null;
   } catch (error) {
+    cause = error;
     const failure = workerFailure(error);
     outcome.failure ??= failure === "runtime" ? (stopped ?? failure) : failure;
   } finally {
@@ -279,7 +303,15 @@ export async function executeWorker(
       );
     }
     request.signal?.removeEventListener("abort", abort);
-    if (outcome.failure) outcome.status = "failed";
+    if (outcome.failure) {
+      outcome.status = "failed";
+      outcome.diagnostic = failureDiagnostic(
+        outcome.failure === "cleanup" ? "cleanup" : stage,
+        outcome.failure,
+        cause,
+        outcome.stopReason,
+      );
+    }
     records.clear();
   }
   return outcome;

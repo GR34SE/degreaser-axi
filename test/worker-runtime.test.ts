@@ -286,3 +286,39 @@ test("the shared worker instruction travels once: as Claude's system prompt, els
     }
   }
 });
+
+for (const [scenario, stage, failure, recovery, stopReason] of [
+  ["session-fail", "session-setup", "runtime", "inspect", undefined],
+  ["startup-hang", "session-setup", "timeout", "resume", undefined],
+  ["mismatch", "model-check", "model-unavailable", "change-model", undefined],
+  ["rate-limit", "turn-result", "rate-limited", "wait-for-quota", undefined],
+  ["output-limit", "turn-stream", "output-limit", "resume", "cancelled"],
+  ["refusal", "turn-result", undefined, undefined, "refusal"],
+] as const) {
+  test(`synthetic ${scenario} keeps its lifecycle stage and no sensitive text`, async () => {
+    const { executeWorker } = await import("../src/worker-runtime.ts");
+    const f = await setup(scenario);
+    try {
+      const result = await executeWorker(
+        {
+          cwd: f.cwd,
+          prompt: "Synthetic source review",
+          maxTurns: 2,
+          timeoutMs: scenario === "startup-hang" ? 1500 : 10_000,
+        },
+        f.profile,
+      );
+      assert.equal(result.failure, failure);
+      assert.equal(result.stopReason, stopReason);
+      if (failure) {
+        assert.equal(result.diagnostic?.stage, stage);
+        assert.equal(result.diagnostic?.recovery, recovery);
+      } else assert.equal(result.diagnostic, undefined);
+      const saved = JSON.stringify(result.diagnostic ?? {});
+      assert.ok(!saved.includes("synthetic-secret"));
+      assert.ok(!/Synthetic (?:setup|rate)/.test(saved));
+    } finally {
+      await rm(f.cwd, { recursive: true, force: true });
+    }
+  });
+}
