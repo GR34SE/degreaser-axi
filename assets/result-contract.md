@@ -288,3 +288,19 @@ rechecked. Their saved evidence is not migrated or overwritten.
 Worker-marked callers cannot review or resume; ordinary wait/cancel remain
 available. Killed callers do not own the detached run. Killed owners produce
 interrupted/1 and same-run resume guidance, retaining committed evidence.
+
+## Report example
+
+A representative one-aspect report excerpt:
+
+```text
+status: completed
+evidence: source-only
+scope: worktree
+aspects: 1/1
+count: 1
+shown: 1
+rejected: 0
+```
+
+For example, `finding F1` can quote `// Return the sum of two numbers.` and explain why it repeats the function below it. The quote check establishes that the code exists, not that the recommendation is correct. Zero findings is equally valid.
