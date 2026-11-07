@@ -237,6 +237,7 @@ export async function ownRun(
       started: () => void,
     ): Promise<WorkerResult | null> {
       let merged: WorkerResult | null = null;
+      const basePrompt = text;
       for (let attempt = 0; attempt <= input.config.maxRetries; attempt++) {
         if (stopped()) {
           task.status = "cancelled";
@@ -374,6 +375,9 @@ export async function ownRun(
         } catch (error) {
           task.status = "failed";
           const runStopped = stopped();
+          // Same prompt and model; the validator's short message tells the retry what to correct.
+          if (error instanceof ResultError)
+            text = `${basePrompt}\n\nYour previous final result block was rejected: ${error.message.slice(0, 500)}\nReturn a corrected block that follows the response contract exactly. Do not invent evidence to satisfy the format.`;
           const failure =
             error instanceof ResultError
               ? "invalid-output"

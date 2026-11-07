@@ -18,6 +18,15 @@ before schema validation; other paths remain invalid. Old evidence uses the old 
 binaries and gitlinks cannot supply source quotes. Missing Git objects are
 unavailable evidence, never an empty source file.
 
+Wire forms: the final block must be one well-formed JSON object whose schema
+fields are exactly the documented ones. The only canonicalization is omitting a
+top-level `reason` that is null, empty or whitespace-only when the status does
+not require one; the persisted result is the strictly validated canonical form.
+A missing or empty `reason` for `not-applicable`, malformed JSON, a different
+aspect, unknown fields and every other schema violation remain `invalid-output`.
+A rejected attempt is retried (within `maxRetries`, same model) with the
+validator's short message appended to the prompt; the raw payload is not echoed.
+
 Each unsupported finding is rejected separately, with its one-based index and
 reason available in `report --full`. Valid neighbors survive. If every finding
 is rejected, the aspect becomes incomplete, not no-findings. This checks literal

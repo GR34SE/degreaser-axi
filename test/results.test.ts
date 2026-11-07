@@ -42,7 +42,9 @@ test("only the last complete assistant block is eligible, with strict status and
     `${block(clean)}<degreaser-result>bad</degreaser-result>`,
     block({ ...clean, aspect: "masked-errors" }),
     block({ ...clean, extra: true }),
-    block({ ...clean, reason: null }),
+    block({ ...clean, status: "not-applicable", reason: null }),
+    block({ ...clean, status: "not-applicable", reason: " " }),
+    block({ ...clean, reason: 5 }),
     block({ ...clean, status: "findings" }),
     block({ ...clean, status: "not-applicable" }),
     block({ ...clean, status: "incomplete", limitations: [" "] }),
@@ -412,5 +414,38 @@ test("quotes tolerate CRLF, copied diff markers and repo-path spellings but neve
         input.repository,
       ),
     /schema/,
+  );
+});
+
+test("semantically empty optional reason is omitted without inventing required content", () => {
+  for (const reason of [null, "", "  \n"])
+    assert.deepEqual(
+      parseResult(block({ ...clean, reason }), "low-value-comments"),
+      clean,
+    );
+  const incomplete = {
+    ...clean,
+    status: "incomplete",
+    limitations: ["Ran out of budget."],
+  };
+  assert.deepEqual(
+    parseResult(block({ ...incomplete, reason: "" }), "low-value-comments"),
+    incomplete,
+  );
+  assert.throws(
+    () =>
+      parseResult(
+        block({ ...clean, status: "incomplete", reason: null }),
+        "low-value-comments",
+      ),
+    /schema/i,
+  );
+  assert.throws(
+    () =>
+      parseResult(
+        block({ ...clean, unknown: null, reason: null }),
+        "low-value-comments",
+      ),
+    /schema/i,
   );
 });
