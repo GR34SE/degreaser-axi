@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/GR34SE/degreaser-axi/main/assets/branding/degreaser.png" alt="Degreaser — Removes slop!" width="760">
+  <img src="https://raw.githubusercontent.com/GR34SE/degreaser-axi/main/docs/images/degreaser.png" alt="Degreaser — Removes slop!" width="760">
 </p>
 
 # Degreaser
@@ -45,7 +45,7 @@ If the review returns `running`, follow its `degreaser-axi wait <run-id>` comman
 
 Reviews read source; they do not run tests or apply fixes. Review context goes to your selected model provider, uses its quota, and is saved locally in ignored `.degreaser/` files. All 17 reviewers run by default; use `--aspects` to select fewer or `--concurrency` to limit simultaneous calls.
 
-See `degreaser-axi --help` for commands and options, or `degreaser-axi doctor` for setup diagnostics. Details: [configuration and scopes](https://github.com/GR34SE/degreaser-axi/blob/main/assets/input-contract.md), [results and limitations](https://github.com/GR34SE/degreaser-axi/blob/main/assets/result-contract.md), [worker restrictions](https://github.com/GR34SE/degreaser-axi/blob/main/assets/native-profiles.md).
+See `degreaser-axi --help` for commands and options, or `degreaser-axi doctor` for setup diagnostics. Details: [configuration and scopes](https://github.com/GR34SE/degreaser-axi/blob/main/docs/input-contract.md), [results and limitations](https://github.com/GR34SE/degreaser-axi/blob/main/docs/result-contract.md), [worker restrictions](https://github.com/GR34SE/degreaser-axi/blob/main/docs/harnesses.md).
 
 ## Review aspects
 
@@ -71,7 +71,7 @@ All 17 built-in aspects are enabled by default. Each reviewer checks one questio
 | `unidiomatic-code` | Can a native construct remove unnecessary logic without changing behavior? |
 | `low-value-comments` | Does the comment explain something the code cannot? |
 
-A wrapper, comment or validation check is not automatically a problem. Reviewers must establish a concrete consequence and check reasons to keep the code. See the [catalog and aspect boundaries](https://github.com/GR34SE/degreaser-axi/blob/main/assets/catalog.md) for details.
+A wrapper, comment or validation check is not automatically a problem. Reviewers must establish a concrete consequence and check reasons to keep the code. See the [catalog and aspect boundaries](https://github.com/GR34SE/degreaser-axi/blob/main/docs/aspects.md) for details.
 
 For a one-run subset of enabled aspects:
 
@@ -109,7 +109,7 @@ degreaser-axi review --scope worktree --task "Add CSV import" --aspects missed-r
 - `maxRetries` counts extra attempts. The limits above are defaults; `maxTurns` is enforced natively only by Claude and is advisory for other workers.
 - `exclude` adds literal repository-relative files or directory prefixes, not globs. It narrows assessed coverage, not worker read access.
 
-`degreaser-axi config sync` fills missing settings with installed defaults without changing explicit choices. See the [configuration contract](https://github.com/GR34SE/degreaser-axi/blob/main/assets/input-contract.md) and [JSON schema](https://github.com/GR34SE/degreaser-axi/blob/main/assets/schemas/config-v1.json) for the full format and bounds.
+`degreaser-axi config sync` fills missing settings with installed defaults without changing explicit choices. See the [configuration contract](https://github.com/GR34SE/degreaser-axi/blob/main/docs/input-contract.md) and [JSON schema](https://github.com/GR34SE/degreaser-axi/blob/main/src/config/config.schema.json) for the full format and bounds.
 
 ## License
 

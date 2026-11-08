@@ -25,27 +25,31 @@
   ],
   "packageManager": "pnpm@12.14.0",
   "bin": {
-    "degreaser": "dist/bin/degreaser-axi.js",
-    "degreaser-axi": "dist/bin/degreaser-axi.js"
+    "degreaser": "dist/main.js",
+    "degreaser-axi": "dist/main.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "docs"
   ],
   "scripts": {
-    "test": "pnpm build && node --test --test-concurrency=2 test/*.test.ts",
+    "test": "pnpm build && node test/run.ts --test-concurrency=2",
+    "test:tooling": "node --test --test-concurrency=2 'test/live/**/*.test.ts'",
     "typecheck": "tsc --noEmit",
     "lint": "biome ci",
     "format": "biome check --write",
-    "build": "node scripts/build.ts",
-    "skill:generate": "node scripts/generate-skill.ts",
-    "skill:check": "node scripts/generate-skill.ts --check",
-    "package:check": "pnpm build && node scripts/package-check.ts",
-    "release:notes": "node scripts/release-notes.ts",
-    "release:prepare": "node scripts/prepare-release.ts",
+    "build": "node tools/build.ts",
+    "skill:generate": "node tools/build.ts --skill-only",
+    "skill:check": "node tools/build.ts --check-skill",
+    "docs:generate": "node tools/generate-docs.ts",
+    "docs:check": "node tools/generate-docs.ts --check",
+    "package:check": "pnpm build && node test/package/check.ts",
+    "release:notes": "node tools/release/notes.ts",
+    "release:prepare": "node tools/release/prepare.ts",
     "qa": "pnpm build && node test/qa/scenario.mjs",
-    "check": "pnpm test && pnpm typecheck && pnpm lint && node scripts/package-check.ts",
-    "test:install": "node scripts/native-install-check.ts",
-    "test:live": "node scripts/test-live.ts"
+    "check": "pnpm test && pnpm typecheck && pnpm lint && node test/package/check.ts",
+    "test:install": "node test/install/run.ts",
+    "test:live": "node test/live/run.ts"
   },
   "dependencies": {
     "@agentclientprotocol/claude-agent-acp": "0.95.0",

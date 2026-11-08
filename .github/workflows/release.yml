@@ -126,7 +126,7 @@ jobs:
       - name: Validate the exact release commit
         run: pnpm test && pnpm typecheck && pnpm lint
       - name: Test and retain the tarball on minimum and current Node
-        run: node scripts/package-check.ts --pack-destination "$RUNNER_TEMP/release"
+        run: node test/package/check.ts --pack-destination "$RUNNER_TEMP/release"
       - name: Check publication without publishing
         run: |
           set -euo pipefail

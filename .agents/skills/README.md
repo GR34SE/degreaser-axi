@@ -13,7 +13,7 @@ External skills are installed with the [Skills CLI](https://skills.sh/docs/cli),
 | [test-audit](test-audit/SKILL.md) | Existing custom local test-review instructions; not replaced with a different upstream skill. |
 | [write-degreaser-aspect](write-degreaser-aspect/SKILL.md) | Project-authored rubrics, boundaries, evidence and six teaching examples. |
 
-The generated [product skill](../../assets/skills/degreaser/SKILL.md) stays outside active development skill directories. It ships as a package asset; development never installs it into the actual user's projects or global harness directories.
+The [product skill source](../../src/install/skill/guidance.ts) renders to `dist/install/skill/SKILL.md` during build, outside active development skill directories. It ships as a package asset; development never installs it into the actual user's projects or global harness directories.
 
 ## Install and update
 

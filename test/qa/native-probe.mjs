@@ -6,7 +6,10 @@ import { pathToFileURL } from "node:url";
 
 const [installed, temporary] = process.argv.slice(2);
 const { nativeProfile } = await import(
-  pathToFileURL(join(installed, "dist/src/native-profile.js"))
+  pathToFileURL(join(installed, "dist/modules/harness/common/profile.js"))
+);
+const { createFactory } = await import(
+  pathToFileURL(join(installed, "dist/cli/factory.js"))
 );
 const bin = join(temporary, "native-fixtures");
 mkdirSync(bin, { recursive: true });
@@ -32,7 +35,7 @@ for (const name of [
   mkdirSync(process.env[name], { recursive: true });
 }
 for (const agent of ["codex", "claude", "pi", "cursor"]) {
-  const profile = await nativeProfile({
+  const profile = await nativeProfile(createFactory(), {
     agent,
     model:
       agent === "pi"
@@ -42,7 +45,7 @@ for (const agent of ["codex", "claude", "pi", "cursor"]) {
           : "exact",
   });
   assert.equal(profile.environment.DEGREASER_WORKER, "1");
-  const wrapper = join(installed, "dist/bin", `${agent}-worker.js`);
+  const wrapper = join(installed, "dist/modules/harness", agent, "launcher.js");
   const result = spawnSync(
     process.execPath,
     [wrapper, ...(agent === "codex" ? ["--version"] : ["--mode", "rpc"])],
@@ -69,7 +72,7 @@ for (const agent of ["codex", "claude", "pi", "cursor"]) {
   }
 }
 await assert.rejects(
-  nativeProfile({ agent: "pi", model: "unqualified" }),
+  nativeProfile(createFactory(), { agent: "pi", model: "unqualified" }),
   /provider-qualified/,
 );
 writeFileSync(
@@ -78,7 +81,7 @@ writeFileSync(
   { mode: 0o755 },
 );
 await assert.rejects(
-  nativeProfile({ agent: "claude", model: "exact" }),
+  nativeProfile(createFactory(), { agent: "claude", model: "exact" }),
   /Unsupported claude native version/,
 );
 console.log(

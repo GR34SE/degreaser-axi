@@ -3,8 +3,7 @@
   "files": {
     "includes": [
       "src/**",
-      "bin/**",
-      "scripts/**",
+      "tools/**",
       "test/**",
       "*.json",
       "!skills-lock.json",
@@ -12,6 +11,17 @@
     ]
   },
   "formatter": { "indentStyle": "space" },
+  "overrides": [
+    {
+      "includes": [
+        "src/**/*.schema.json",
+        "src/**/rubric.md",
+        "src/review/attempt/prompt/*.md",
+        "test/fixtures/skill-baseline.md"
+      ],
+      "formatter": { "enabled": false }
+    }
+  ],
   "linter": { "enabled": true, "rules": { "preset": "recommended" } },
   "assist": { "actions": { "source": { "organizeImports": "on" } } }
 }

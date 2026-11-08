@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import { setTimeout } from "node:timers/promises";
-import { ownRun } from "../../dist/src/owner.js";
-import { loadInput, loadRun, saveRun } from "../../dist/src/storage.js";
+import { createFactory } from "../../dist/cli/factory.js";
+import { ownRun } from "../../dist/review/owner/index.js";
+import { loadInput, loadRun, saveRun } from "../../dist/state/store.js";
 
 const [mode, repository, id] = process.argv.slice(2);
 try {
   if (mode === "owner") {
-    await ownRun(repository, id);
+    await ownRun(createFactory(), repository, id);
   } else if (mode === "write") {
     const run = loadRun(repository, id);
     run.deadline += 1000;
