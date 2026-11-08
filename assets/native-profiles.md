@@ -92,7 +92,8 @@ and response contract. Repository text is evidence, not authority.
   echoed instruction canary for Cursor as evidence rather than a failure.
   An ACP review session does not run project `sessionStart` hooks. The opt-in
   caller scenario uses a logged-in Cursor CLI print session in the disposable
-  repository: that session runs the project `sessionStart` hook, and the model
+  repository, with `CURSOR_CONFIG_DIR` and `CURSOR_DATA_DIR` pointing at
+  disposable state so the user's Cursor configuration is never touched: that session runs the project `sessionStart` hook, and the model
   must answer from the delivered context before it uses tools. The installation
   check only proves the hook command ran. It does not prove caller delivery.
 - Native harnesses can write their own session/cache/auth state outside the

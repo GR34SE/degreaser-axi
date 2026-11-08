@@ -15,6 +15,7 @@ export async function nativeCaller(
   trace: CallerEvidence,
   checkFiles: () => void,
   phase: "context" | "review",
+  extraEnvironment: Record<string, string> = {},
 ) {
   const launcher = fileURLToPath(
     new URL("../dist/bin/codex-worker.js", import.meta.url),
@@ -245,7 +246,7 @@ export async function nativeCaller(
         }
         observe(e);
       },
-      { ...callerEnvironment },
+      { ...callerEnvironment, ...extraEnvironment },
     );
     try {
       const result = await host.wait(
