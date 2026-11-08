@@ -80,6 +80,7 @@ test("CI selects checks without path filters and requires the Linux and macOS jo
   for (const name of [
     "Documentation contracts",
     "Runtime regression suite",
+    "Live tooling regression suite",
     "Installed package on current Node (PR)",
     "Installed package on minimum and current Node (full acceptance)",
     "Initialize disposable runner Git identity",

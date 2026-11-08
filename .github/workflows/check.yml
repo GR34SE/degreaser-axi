@@ -92,6 +92,9 @@ jobs:
       - name: Runtime regression suite
         if: needs.plan.outputs.scope == 'full'
         run: node test/run.ts --test-concurrency=4
+      - name: Live tooling regression suite
+        if: ${{ !cancelled() && steps.build.outcome == 'success' && needs.plan.outputs.scope == 'full' }}
+        run: pnpm test:tooling
       # Run after a test failure too, so one PR run reports both results.
       - name: Typecheck and lint
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
@@ -152,6 +155,9 @@ jobs:
       - name: Runtime regression suite
         if: needs.plan.outputs.scope == 'full'
         run: node test/run.ts --test-concurrency=4
+      - name: Live tooling regression suite
+        if: ${{ !cancelled() && steps.build.outcome == 'success' && needs.plan.outputs.scope == 'full' }}
+        run: pnpm test:tooling
       # Run after a test failure too, so one PR run reports both results.
       - name: Installed package on current Node (PR)
         if: ${{ !cancelled() && steps.build.outcome == 'success' && github.event_name == 'pull_request' }}

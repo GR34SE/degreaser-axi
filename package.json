@@ -47,7 +47,7 @@
     "release:notes": "node tools/release/notes.ts",
     "release:prepare": "node tools/release/prepare.ts",
     "qa": "pnpm build && node test/qa/scenario.mjs",
-    "check": "pnpm test && pnpm typecheck && pnpm lint && node test/package/check.ts",
+    "check": "pnpm test && pnpm test:tooling && pnpm typecheck && pnpm lint && node test/package/check.ts",
     "test:install": "node test/install/run.ts",
     "test:live": "node test/live/run.ts"
   },
