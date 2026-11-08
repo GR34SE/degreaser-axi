@@ -42,7 +42,7 @@
     "package:check": "pnpm build && node scripts/package-check.ts",
     "release:notes": "node scripts/release-notes.ts",
     "release:prepare": "node scripts/prepare-release.ts",
-    "qa": "pnpm build && node scripts/qa/scenario.mjs",
+    "qa": "pnpm build && node test/qa/scenario.mjs",
     "check": "pnpm test && pnpm typecheck && pnpm lint && node scripts/package-check.ts",
     "test:install": "node scripts/native-install-check.ts",
     "test:live": "node scripts/test-live.ts"
