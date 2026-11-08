@@ -5,9 +5,14 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const installed = process.argv[2];
-await import(pathToFileURL(join(installed, "dist/src/init-terminal.js")));
+await import(
+  pathToFileURL(join(installed, "dist/cli/commands/init/prompts.js"))
+);
 const { prepareReview } = await import(
-  pathToFileURL(join(installed, "dist/src/input.js"))
+  pathToFileURL(join(installed, "dist/review/prepare/index.js"))
+);
+const { createFactory } = await import(
+  pathToFileURL(join(installed, "dist/cli/factory.js"))
 );
 const cwd = mkdtempSync(join(process.argv[3], "input-repo-"));
 assert.equal(spawnSync("git", ["init"], { cwd }).status, 0);
@@ -18,7 +23,14 @@ writeFileSync(
 );
 writeFileSync(join(cwd, "source"), "installed input smoke\n");
 const input = prepareReview(
-  ["--scope", "worktree", "--task", "Package smoke"],
+  createFactory(),
+  {
+    scope: "worktree",
+    task: "Package smoke",
+    controls: {},
+    pathPatterns: [],
+    waitSeconds: 480,
+  },
   cwd,
 );
 assert.equal(input.config.assignments.length, 17);
@@ -28,7 +40,7 @@ assert.deepEqual(
 );
 assert.match(input.patch, /\+installed input smoke/);
 console.log("Installed input/config schemas and real-Git boundary passed.");
-const cli = join(installed, "dist/bin/degreaser-axi.js");
+const cli = join(installed, "dist/main.js");
 for (const args of [
   [
     "review",

@@ -9,14 +9,14 @@ Implemented package: ESM TypeScript, Linux and macOS, Node 24+, Codex/Claude Cod
 ### Behavior to preserve
 
 1. **Explicit scope.** `review` requires `--scope` and exactly one of `--task` / `--task-file`. `worktree` compares HEAD with final staged + unstaged + nonignored new contents. `branch` includes committed and local work relative to the merge-base with an explicit `--base`; never guess main/develop/upstream. `repository` is an explicit audit, never a fallback for an empty diff. Repeatable `--path` narrows assessed coverage; the rest of the repo remains context.
-2. **One shared input, one aspect per worker.** The coordinator resolves Git scope once using a temporary index, without changing the user's index or refs. Workers receive the same input, the common instruction, response contract and one rubric. They may inspect connected code but cannot widen the review. All 17 built-in aspects are enabled by default; `ASPECT_IDS` order is their review priority (`unnecessary-complexity` first, then the most to the least damaging slop). Use semantic IDs (`missed-reuse`, `scope-creep`), never old A01–A16 aliases; see [catalog and boundaries](assets/catalog.md).
+2. **One shared input, one aspect per worker.** The coordinator resolves Git scope once using a temporary index, without changing the user's index or refs. Workers receive the same input, the common instruction, response contract and one rubric. They may inspect connected code but cannot widen the review. All 17 built-in aspects are enabled by default; `ASPECT_IDS` order is their review priority (`unnecessary-complexity` first, then the most to the least damaging slop). Use semantic IDs (`missed-reuse`, `scope-creep`), never old A01–A16 aliases; see [catalog and boundaries](docs/aspects.md).
 3. **Evidence before findings.** Each finding names a concrete consequence, checked counterargument, exact old/new source quote and correction direction. A wrapper, comment, loop, cast or validation is not inherently slop. `not-applicable`, `no-findings` and `incomplete` are distinct. Invalid output, rejected quotes and missing coverage cannot become a clean review. Quotes are checked against the resolved Git blobs; findings remain source-only, not test or runtime evidence.
-4. **Restricted workers.** Each attempt starts a fresh session with the selected exact agent/model. No edits, installations, tests, application execution, web access, delegation or recursive Degreaser calls. Repository instructions are evidence, not worker commands. Enforce restrictions through native profiles, not prompts alone; report each adapter's actual guarantees. Codex's read-only sandbox still permits shell-based reads. See [native profiles](assets/native-profiles.md).
+4. **Restricted workers.** Each attempt starts a fresh session with the selected exact agent/model. No edits, installations, tests, application execution, web access, delegation or recursive Degreaser calls. Repository instructions are evidence, not worker commands. Enforce restrictions through native profiles, not prompts alone; report each adapter's actual guarantees. Codex's read-only sandbox still permits shell-based reads. See [native profiles](docs/harnesses.md).
 5. **Wait for the result.** A separate owner process runs each review and exits with it. `review` can return `running`; the caller stays in its active turn, reattaches with `wait <run-id>` and does not edit until the run ends. A tool timeout or process handle is not completion. `report` reads saved progress; `cancel` stops owned workers and preserves useful results.
 6. **Bounded, resumable execution.** Default concurrency admits all enabled aspects, after the first worker reaches its initial model turn; a positive limit caps active workers. Retry is bounded and never switches model, provider or account. `resume` reruns only unresolved aspects with matching input/prompt identity and retains successful peers. Changed code, task, scope or rubrics require a new review. Auth/model/quota failures are not reasons for blind retries.
 7. **Local, honest state.** Runs live in ignored `.degreaser/`, as schema-validated JSON with atomic writes and one owner. Corrupt or incompatible state fails explicitly; never reset it into empty success. No full worker transcripts or credentials are stored by Degreaser. Task text, patches and quotes can be sensitive. `dismiss` records the user's reason for retaining a finding's code; it does not apply a fix. Its local ledger is shared across worktrees in Git's common directory.
 
-Exit codes describe completeness, not whether findings exist: **0** completed/no-changes; **1** partial/failed/interrupted; **2** rejected command/input; **3** still running. Read the structured status too. Zero findings in a partial review is not a pass. See [result-contract.md](assets/result-contract.md) for full semantics.
+Exit codes describe completeness, not whether findings exist: **0** completed/no-changes; **1** partial/failed/interrupted; **2** rejected command/input; **3** still running. Read the structured status too. Zero findings in a partial review is not a pass. See [result-contract.md](docs/result-contract.md) for full semantics.
 
 ### Onboarding and boundaries
 
@@ -34,16 +34,16 @@ Outside v1: custom rubrics, automatic apply, model judge, semantic finding merge
 
 | Concern | Entry points |
 | --- | --- |
-| Public CLI and command contracts | `src/cli.ts`, `src/commands.ts`, `README.md` |
-| Scope, config and resolved input | `src/scope.ts`, `src/input.ts`, `src/config.ts`, `src/git.ts`; `assets/input-contract.md` |
-| Run lifecycle and continuation | `src/review.ts`, `src/owner.ts`, `src/ownership.ts`, `src/freshness.ts`, `src/storage.ts` |
-| Worker launch and restrictions | `src/worker-runtime.ts`, `src/native-profile.ts`, `src/native-launch.ts`, `src/model-discovery.ts`; `assets/native-profiles.md` |
-| Prompts, findings and reports | `src/prompt.ts`, `src/results.ts`, `src/report.ts`, `src/dismissals.ts`; `assets/worker.md`, `assets/response.md`, `assets/result-contract.md` |
-| Rubrics and persisted schemas | `assets/aspects/`, `assets/catalog.md`, `assets/schemas/` |
-| Init, integrations and generated skill | `src/init.ts`, `src/integrations.ts`, `src/integration-targets.ts`, `src/guidance.ts`; `assets/skills/degreaser/SKILL.md` |
-| Validation and packaging | `test/`, `test/qa/`, `scripts/test-live.ts`, `scripts/package-check.ts`, `.github/workflows/check.yml` |
+| Public CLI and command contracts | `src/cli/`, command-local specs and handlers in `src/cli/commands/`; `README.md` |
+| Scope, config and resolved input | `src/review/prepare/`, `src/config/`, `src/util/git/`; `docs/input-contract.md` |
+| Run lifecycle and continuation | `src/review/owner/`, `src/review/attempt/`, `src/state/` |
+| Worker launch and restrictions | `src/modules/harness/`, per-harness launchers and profiles; `docs/harnesses.md` |
+| Prompts, findings and reports | `src/review/attempt/prompt/`, `src/review/ingest/`, `src/report/`, `src/state/`; `docs/result-contract.md` |
+| Rubrics and persisted schemas | `src/modules/aspect/`, schemas colocated with their owning domain; `docs/aspects.md` |
+| Init, integrations and generated skill | `src/cli/commands/init/`, `src/install/`, `src/install/skill/`; build renders `dist/install/skill/SKILL.md` |
+| Validation and packaging | Colocated `src/**/*.test.ts`, `test/e2e/`, `test/docs/`, `test/qa/`, `test/package/`, opt-in `test/live/` and `test/install/`; build/release tools in `tools/` |
 
-Read the relevant contract before editing. Build/runtime must work from public `assets/` without private files. Generate the product skill from `src/guidance.ts` with `pnpm skill:generate`; never hand-edit it. Keep README short and written for users: purpose, requirements, working installation, one basic workflow, essential limitations and license. Link to existing public contracts for configuration, commands and review details instead of duplicating them. Contributor instructions, validation procedures and project design rules belong in AGENTS.md, not README. Do not add development handoff or private links. Until publication is separately authorized, document the working checkout installation and label registry installation as unavailable. Do not describe an unpublished package as released.
+Read the relevant contract before editing. Build/runtime must work from public colocated resources without private files. Build mirrors these resources into `dist/`. Generate the product skill from `src/install/skill/guidance.ts` with `pnpm skill:generate`; never hand-edit it. Keep README short and written for users: purpose, requirements, working installation, one basic workflow, essential limitations and license. Link to existing public contracts for configuration, commands and review details instead of duplicating them. Contributor instructions, validation procedures and project design rules belong in AGENTS.md, not README. Do not add development handoff or private links. Until publication is separately authorized, document the working checkout installation and label registry installation as unavailable. Do not describe an unpublished package as released.
 
 ### Private intent and history
 
@@ -64,10 +64,11 @@ For product intent, start from `specs/README.md` and `specs/pending/degreaser.md
 | `pnpm install --frozen-lockfile --ignore-scripts` | Restore pinned dependencies |
 | `pnpm test` | Build + deterministic Node tests, concurrency 2 |
 | `pnpm typecheck`; `pnpm lint` | Types; lint/format (`pnpm format` writes fixes) |
-| `pnpm build` | Compiled JS, packaged assets, generated-skill drift |
+| `pnpm build` | Compiled JS, mirrored resources, registry-derived schema vocabularies and limits, generated-skill drift |
 | `pnpm qa` | Isolated init/review/report/partial/resume with a synthetic adapter |
 | `pnpm package:check` | Separate installed tarballs on minimum/current Node; set `DEGREASER_NODE24_MIN` to a verified Node 24.0.0 binary |
 | `pnpm check` | Aggregate deterministic gates; QA and live tests are separate |
+| `pnpm test:tooling` | Deterministic tests for the opt-in live tooling, without model inference |
 | `pnpm test:install --harnesses codex,claude,pi,cursor` | After build: native installation discovery in disposable homes, no inference; select installed harnesses. Cursor's ACP session does not run sessionStart; the check proves that hook with the logged-in CLI on a disposable repo |
 | `pnpm test:live --help` | Opt-in native/model scenarios; unsupported/unrun is never passed |
 | `pnpm release:prepare --since <ancestor> --output <new-directory>` | From a clean committed checkout after checks: tested tarball, checksum and draft notes; no publishing |

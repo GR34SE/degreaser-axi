@@ -24,7 +24,7 @@ fs.openSync = (path, ...args) => {
   const fault = plan();
   if (
     fault.mode === "before-admission" &&
-    process.argv[1]?.endsWith("/run-owner.js") &&
+    process.argv[1]?.endsWith("/review/owner/process.js") &&
     String(path).endsWith("/run.json")
   ) {
     fs.writeFileSync(fault.marker, "");
@@ -37,7 +37,7 @@ fs.readFileSync = (path, ...args) => {
   const name = path instanceof URL ? fileURLToPath(path) : String(path);
   const value = read(path, ...args);
   if (
-    name.includes("/aspects/low-value-comments.md") &&
+    name.includes("/modules/aspect/low-value-comments/rubric.md") &&
     (!fault.afterAdmission || admitted)
   ) {
     if (fault.mode === "prompt-mismatch") return `${value}\nChanged rubric.`;

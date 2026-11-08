@@ -1,0 +1,62 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "files", "hooks"],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "files": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["hash", "owners"],
+        "properties": {
+          "hash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "owners": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "hooks": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "group", "created", "others"],
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "group": {
+            "type": "object"
+          },
+          "created": {
+            "type": "boolean"
+          },
+          "others": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          }
+        }
+      }
+    }
+  },
+  "$id": "https://degreaser.dev/schemas/integrations-v1.json"
+}

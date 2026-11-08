@@ -36,7 +36,7 @@ jobs:
         env:
           CI_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           CI_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: node scripts/ci-plan.ts
+        run: node tools/ci-plan.ts
 
   # CI_LINUX_RUNNER and CI_MACOS_RUNNER repository variables may name
   # self-hosted runner labels; unset, jobs use GitHub-hosted runners. Each PR
@@ -88,20 +88,23 @@ jobs:
         run: pnpm build
       - name: Documentation contracts
         if: needs.plan.outputs.scope == 'documentation'
-        run: node --test --test-concurrency=4 test/documentation.test.ts
+        run: node --test --test-concurrency=4 test/docs/documentation.test.ts
       - name: Runtime regression suite
         if: needs.plan.outputs.scope == 'full'
-        run: node --test --test-concurrency=4 test/*.test.ts
+        run: node test/run.ts --test-concurrency=4
+      - name: Live tooling regression suite
+        if: ${{ !cancelled() && steps.build.outcome == 'success' && needs.plan.outputs.scope == 'full' }}
+        run: pnpm test:tooling
       # Run after a test failure too, so one PR run reports both results.
       - name: Typecheck and lint
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: pnpm typecheck && pnpm lint
       - name: Installed package on current Node (PR)
         if: ${{ !cancelled() && steps.build.outcome == 'success' && github.event_name == 'pull_request' }}
-        run: node scripts/package-check.ts --current-node-only
+        run: node test/package/check.ts --current-node-only
       - name: Installed package on minimum and current Node (full acceptance)
         if: ${{ !cancelled() && steps.build.outcome == 'success' && github.event_name != 'pull_request' }}
-        run: node scripts/package-check.ts
+        run: node test/package/check.ts
 
   macos:
     name: macOS runtime
@@ -148,17 +151,20 @@ jobs:
         run: pnpm build
       - name: Documentation contracts
         if: needs.plan.outputs.scope == 'documentation'
-        run: node --test --test-concurrency=4 test/documentation.test.ts
+        run: node --test --test-concurrency=4 test/docs/documentation.test.ts
       - name: Runtime regression suite
         if: needs.plan.outputs.scope == 'full'
-        run: node --test --test-concurrency=4 test/*.test.ts
+        run: node test/run.ts --test-concurrency=4
+      - name: Live tooling regression suite
+        if: ${{ !cancelled() && steps.build.outcome == 'success' && needs.plan.outputs.scope == 'full' }}
+        run: pnpm test:tooling
       # Run after a test failure too, so one PR run reports both results.
       - name: Installed package on current Node (PR)
         if: ${{ !cancelled() && steps.build.outcome == 'success' && github.event_name == 'pull_request' }}
-        run: node scripts/package-check.ts --current-node-only
+        run: node test/package/check.ts --current-node-only
       - name: Installed package on minimum and current Node (full acceptance)
         if: ${{ !cancelled() && steps.build.outcome == 'success' && github.event_name != 'pull_request' }}
-        run: node scripts/package-check.ts
+        run: node test/package/check.ts
 
   check:
     name: macOS deterministic

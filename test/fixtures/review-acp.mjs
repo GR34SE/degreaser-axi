@@ -6,6 +6,7 @@ import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { Readable, Writable } from "node:stream";
 import { setTimeout } from "node:timers/promises";
+import { sendResult } from "./review-result.mjs";
 
 const require = createRequire(import.meta.url);
 const sdk = createRequire(require.resolve("acpx/runtime"));
@@ -237,49 +238,14 @@ const connection = new AgentSideConnection(
           -32000,
           "Synthetic permission denied before result",
         );
-      const planned = step.result ??
-        plan.results?.[aspect] ?? {
-          aspect,
-          status: "no-findings",
-          findings: [],
-          limitations: [],
-        };
-      // A planned object without coverage declares the whole persisted scope;
-      // coverage tests set examinedPaths explicitly.
-      const result =
-        typeof planned === "string"
-          ? planned
-          : { examinedPaths: assessedPaths(), ...planned };
-      if (plan.toolOnly)
-        await connection.sessionUpdate({
-          sessionId: p.sessionId,
-          update: {
-            sessionUpdate: "tool_call",
-            toolCallId: "synthetic",
-            title: "Synthetic tool",
-            kind: "read",
-            status: "completed",
-            content: [
-              { type: "content", content: { type: "text", text: result } },
-            ],
-          },
-        });
-      else
-        await connection.sessionUpdate({
-          sessionId: p.sessionId,
-          update: {
-            sessionUpdate: "agent_message_chunk",
-            content: {
-              type: "text",
-              text:
-                typeof result === "string"
-                  ? result
-                  : "<degreaser-result>" +
-                    JSON.stringify(result) +
-                    "</degreaser-result>",
-            },
-          },
-        });
+      await sendResult(
+        connection,
+        p.sessionId,
+        plan,
+        step,
+        aspect,
+        assessedPaths,
+      );
       record({ type: "output" });
       if (plan.permissionDenied)
         throw new RequestError(

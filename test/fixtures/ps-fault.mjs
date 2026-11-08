@@ -9,7 +9,7 @@ childProcess.spawnSync = (command, ...args) => {
   if (
     command === "/bin/ps" &&
     marker &&
-    process.argv[1]?.endsWith("/run-owner.js") &&
+    process.argv[1]?.endsWith("/review/owner/process.js") &&
     fs.existsSync(marker)
   )
     return {
