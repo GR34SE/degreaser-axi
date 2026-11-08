@@ -58,6 +58,11 @@ function causeChain(error: unknown) {
   return chain;
 }
 
+/** Cursor returns this sentence, and no result block, when the account must add billing. */
+export function billingRefusal(text: string): boolean {
+  return /^\s*add a payment method to continue\s*$/i.test(text);
+}
+
 /** Prefer machine causes, including wrapped errors, to unstructured provider prose. */
 export function workerFailure(error: unknown): WorkerFailure {
   const chain = causeChain(error);

@@ -90,6 +90,9 @@ and response contract. Repository text is evidence, not authority.
   a tool allowlist. Repository rules (AGENTS.md, CLAUDE.md), project MCP, hooks,
   plugins and skills may remain visible; the `native-worker` pilot records an
   echoed instruction canary for Cursor as evidence rather than a failure.
+  An ACP review session does not run project `sessionStart` hooks. Caller
+  startup context is the interactive CLI hook, proved separately by the
+  installation check on a disposable repository.
 - Native harnesses can write their own session/cache/auth state outside the
   reviewed source. Degreaser keeps its runtime store only in memory; it does not
   save full conversations, thoughts, environment dumps or raw tool payloads.

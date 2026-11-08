@@ -232,6 +232,9 @@ retries or fallback. Rate-limit reports name the same run and suggest explicit
 resume with concurrency 1 after the selected account becomes available.
 Disabled or suspended accounts are `account-disabled`, not transient quota:
 restore access to the selected account with its provider before resuming.
+Assistant text that is only `Add a payment method to continue`, with no result
+block, is the same account failure. It is not invalid output and it is not
+retried.
 Waiting or lowering concurrency does not restore account access. Classification
 prefers explicit machine codes and HTTP status metadata, with constrained
 message fallback; a bare number 429 in unrelated prose is not a rate limit.

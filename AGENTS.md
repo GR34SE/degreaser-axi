@@ -68,7 +68,7 @@ For product intent, start from `specs/README.md` and `specs/pending/degreaser.md
 | `pnpm qa` | Isolated init/review/report/partial/resume with a synthetic adapter |
 | `pnpm package:check` | Separate installed tarballs on minimum/current Node; set `DEGREASER_NODE24_MIN` to a verified Node 24.0.0 binary |
 | `pnpm check` | Aggregate deterministic gates; QA and live tests are separate |
-| `pnpm test:install --harnesses codex,claude,pi` | After build: native installation discovery in disposable homes, no inference; select installed harnesses (Cursor unsupported) |
+| `pnpm test:install --harnesses codex,claude,pi,cursor` | After build: native installation discovery in disposable homes, no inference; select installed harnesses. Cursor's ACP session does not run sessionStart; the check proves that hook with the logged-in CLI on a disposable repo |
 | `pnpm test:live --help` | Opt-in native/model scenarios; unsupported/unrun is never passed |
 | `pnpm release:prepare --since <ancestor> --output <new-directory>` | From a clean committed checkout after checks: tested tarball, checksum and draft notes; no publishing |
 
