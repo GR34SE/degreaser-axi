@@ -11,6 +11,7 @@ import type { Agent } from "../src/config.ts";
 import { ownerAlive } from "../src/ownership.ts";
 import type { Run } from "../src/storage.ts";
 import { CallerEvidence } from "./caller-evidence.ts";
+import { stopCursorAt } from "./cursor-process.ts";
 import { nativeCaller } from "./live-caller-native.ts";
 
 const cli = fileURLToPath(
@@ -59,13 +60,22 @@ function latest(cwd: string): Run | undefined {
   );
 }
 
-export async function liveCaller(
-  agent: Exclude<Agent, "cursor">,
-  model: string,
-) {
+export async function liveCaller(agent: Agent, model: string) {
   const cwd = await realpath(
     await mkdtemp(join(tmpdir(), "degreaser-caller-flow-")),
   );
+  // Cursor's supported config/data overrides keep every Cursor write under
+  // disposable state; login stays in the user's existing credential store.
+  const cursorState =
+    agent === "cursor"
+      ? await realpath(await mkdtemp(join(tmpdir(), "degreaser-cursor-")))
+      : undefined;
+  const cursorEnvironment: Record<string, string> = cursorState
+    ? {
+        CURSOR_CONFIG_DIR: join(cursorState, "config"),
+        CURSOR_DATA_DIR: join(cursorState, "data"),
+      }
+    : {};
   const before = policy();
   const trace = new CallerEvidence(agent, model);
   const evidence: Record<string, unknown> = {
@@ -83,7 +93,7 @@ export async function liveCaller(
     assert.equal(sync("git", ["init", "--initial-branch=main"]).status, 0);
     await writeFile(
       join(cwd, ".gitignore"),
-      "/.degreaser/\n.degreaserrc.json\n.agents/\n.codex/\n.claude/\n.pi/\ncontinuation.txt\n",
+      `/.degreaser/\n.degreaserrc.json\n.agents/\n.codex/\n.claude/\n.pi/\n${agent === "cursor" ? ".cursor/\n" : ""}continuation.txt\n`,
     );
     await writeFile(
       join(cwd, "source.ts"),
@@ -142,6 +152,7 @@ export async function liveCaller(
       emptyContext,
       check,
       "context",
+      cursorEnvironment,
     );
     assert.deepEqual(
       policy(),
@@ -164,7 +175,7 @@ export async function liveCaller(
 Discover and read the installed degreaser skill, then follow it. Do not do your own review.
 The installed unpublished CLI command is ${command}.
 Run exactly one review: ${command} review --scope worktree --task 'Add a source-level sum helper; review the synthetic comment only' --aspects low-value-comments --wait 1
-${agent === "codex" ? "For this exercise use yield_time_ms=1 on the review command." : agent === "claude" ? "For this exercise use Bash with timeout=61000 and run_in_background=true on the review command." : "Use normal bash with no timeout argument."}
+${agent === "codex" ? "For this exercise use yield_time_ms=1 on the review command." : agent === "claude" ? "For this exercise use Bash with timeout=61000 and run_in_background=true on the review command." : agent === "cursor" ? "Keep each Degreaser command in the foreground until that process exits. Do not set a command timeout. If a command is backgrounded, wait for its completion notification and do not start another review." : "Use normal bash with no timeout argument."}
 Use the installed skill's waiting instructions. Keep this task active through the result.
 Do not edit source or Git index. Only AFTER a terminal result is visible to you, perform this separately authorized continuation: write exactly '${nonce}' to continuation.txt with no newline. Do not change anything else or configure permissions. Finish with the observed run status.`;
     evidence.native = await nativeCaller(
@@ -175,6 +186,7 @@ Do not edit source or Git index. Only AFTER a terminal result is visible to you,
       trace,
       check,
       "review",
+      cursorEnvironment,
     );
     assert.deepEqual(
       policy(),
@@ -236,12 +248,12 @@ Do not edit source or Git index. Only AFTER a terminal result is visible to you,
       continuation > terminal,
       "Caller continued before terminal evidence",
     );
-    if (agent !== "pi")
+    if (agent !== "pi" && agent !== "cursor")
       assert.ok(
         trace.events.some((e) => e.kind === "result" && e.yielded),
         "No tracked native tool yield",
       );
-    if (agent !== "pi") {
+    if (agent !== "pi" && agent !== "cursor") {
       const yielded = trace.events.find(
         (e) =>
           e.kind === "result" &&
@@ -276,6 +288,7 @@ Do not edit source or Git index. Only AFTER a terminal result is visible to you,
       context,
       check,
       "context",
+      cursorEnvironment,
     );
     check();
     assert.equal(violation, undefined);
@@ -303,7 +316,9 @@ Do not edit source or Git index. Only AFTER a terminal result is visible to you,
       run = latest(cwd);
     }
     const joined = !run?.owner || !ownerAlive(run.owner);
+    if (agent === "cursor") stopCursorAt(cwd);
     evidence.ownerJoined = joined;
+    if (cursorState) await rm(cursorState, { recursive: true, force: true });
     evidence.globalPolicyUnchanged =
       JSON.stringify(policy()) === JSON.stringify(before);
     evidence.passed =

@@ -18,6 +18,7 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { assertNativeVersion } from "../src/native-compatibility.ts";
 import { callerProcess } from "./caller-process.ts";
+import { stopCursorAt } from "./cursor-process.ts";
 
 const { values } = parseArgs({
   options: { harnesses: { type: "string" }, help: { type: "boolean" } },
@@ -146,29 +147,6 @@ function cursorProjects() {
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-/** Stop only Cursor processes whose working directory is the disposable repo. */
-function stopCursorAt(directory: string) {
-  const listed = spawnSync("ps", ["-ax", "-o", "pid=,command="], {
-    encoding: "utf8",
-  });
-  for (const line of listed.stdout.split("\n")) {
-    if (!line.includes("cursor-agent") && !line.includes("index.js")) continue;
-    const pid = Number(line.trim().split(/\s+/)[0]);
-    if (!pid || pid === process.pid) continue;
-    const cwdOut = spawnSync(
-      "lsof",
-      ["-a", "-p", String(pid), "-d", "cwd", "-Fn"],
-      { encoding: "utf8" },
-    );
-    if (!cwdOut.stdout.includes(directory)) continue;
-    try {
-      process.kill(pid, "SIGKILL");
-    } catch {
-      // The process exited between listing and the signal.
-    }
-  }
 }
 
 async function check(name: string, run: () => Promise<void>) {
