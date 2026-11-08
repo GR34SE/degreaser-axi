@@ -64,8 +64,9 @@ export async function liveCaller(agent: Agent, model: string) {
   const cwd = await realpath(
     await mkdtemp(join(tmpdir(), "degreaser-caller-flow-")),
   );
-  // Cursor's supported config/data overrides keep every Cursor write under
-  // disposable state; login stays in the user's existing credential store.
+  // Only this outer caller process receives these overrides. They move Cursor's
+  // CLI config, chats and project records on the verified build; login, ambient
+  // hooks and built-in cache/session state stay put. See assets/native-profiles.md.
   const cursorState =
     agent === "cursor"
       ? await realpath(await mkdtemp(join(tmpdir(), "degreaser-cursor-")))

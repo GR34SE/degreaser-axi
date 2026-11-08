@@ -99,8 +99,8 @@ and response contract. Repository text is evidence, not authority.
   built-in cache/session activity are not moved, and Degreaser does not pass
   these variables to review workers. That session runs the project
   `sessionStart` hook, and the model must answer from the delivered context
-  before it uses tools. The installation
-  check only proves the hook command ran. It does not prove caller delivery.
+  before it uses tools. The installation check only proves the hook command
+  ran. It does not prove caller delivery.
 - Native harnesses can write their own session/cache/auth state outside the
   reviewed source. Degreaser keeps its runtime store only in memory; it does not
   save full conversations, thoughts, environment dumps or raw tool payloads.
