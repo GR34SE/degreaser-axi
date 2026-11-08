@@ -55,7 +55,14 @@ export function callerProcess(
         if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
       }
   };
-  child.stderr.resume();
+  let stderr = "";
+  child.stderr.on("data", (chunk: Buffer) => {
+    if (stderr.length < 2000) stderr += chunk.toString("utf8");
+  });
+  const stderrDetail = () =>
+    stderr
+      .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[redacted]")
+      .slice(0, 400);
   child.stdout.on("data", (chunk: Buffer) => {
     bytes += chunk.length;
     if (bytes > 16_777_216) {
@@ -93,7 +100,11 @@ export function callerProcess(
   child.on("error", fail);
   child.stdin.on("error", fail);
   child.on("close", (code) =>
-    fail(new Error(`Native caller closed (${code}) before expected event`)),
+    fail(
+      new Error(
+        `Native caller closed (${code}) before expected event${stderrDetail() ? `: ${stderrDetail()}` : ""}`,
+      ),
+    ),
   );
   function wait(
     match: (event: Record<string, unknown>) => boolean,

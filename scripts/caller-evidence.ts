@@ -14,6 +14,18 @@ function content(value: unknown): string {
     .map((v) => String(v.text ?? ""))
     .join("\n");
 }
+function cursorPayload(value: unknown) {
+  const result = object(object(value).result);
+  const success = object(result.success);
+  const failure = object(result.failure ?? result.error ?? result.rejected);
+  return Object.keys(success).length ? success : failure;
+}
+function cursorText(payload: Record<string, unknown>) {
+  return ["stdout", "stderr", "output", "content", "interleavedOutput"]
+    .map((key) => payload[key])
+    .filter((item): item is string => typeof item === "string")
+    .join("\n");
+}
 
 export interface CallerEvent {
   kind: "call" | "result";
@@ -207,6 +219,34 @@ export class CallerEvidence {
           this.result(block.tool_use_id, content(block.content));
         if (event.type === "assistant" && block.type === "text")
           this.assistant(String(block.text));
+      }
+    } else if (this.agent === "cursor") {
+      if (event.type === "result" && typeof event.result === "string")
+        this.assistant(event.result);
+      for (const block of items(object(event.message).content))
+        if (block.type === "text") this.assistant(String(block.text));
+      const entry = Object.entries(object(event.tool_call)).find(([, body]) =>
+        object(object(body).args),
+      );
+      if (event.type !== "tool_call" || !entry) return;
+      const [name, body] = entry;
+      const args = object(object(body).args);
+      const known = this.events.some(
+        (e) => e.kind === "call" && e.id === String(event.call_id),
+      );
+      if (
+        event.subtype === "started" ||
+        (event.subtype === "completed" && !known)
+      )
+        this.call(event.call_id, name, args);
+      if (event.subtype === "completed") {
+        const payload = cursorPayload(body);
+        const exit = payload.exitCode ?? payload.exit_code;
+        this.result(
+          event.call_id,
+          cursorText(payload),
+          typeof exit === "number" ? exit : undefined,
+        );
       }
     } else if (event.method === "rawResponseItem/completed") {
       const item = object(object(event.params).item);

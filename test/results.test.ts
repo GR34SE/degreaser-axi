@@ -4,7 +4,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { prepareReview } from "../src/input.ts";
 import { assemblePrompt, patchIndex } from "../src/prompt.ts";
-import { ingestResult, parseResult } from "../src/results.ts";
+import { ingestResult, parseResult, ResultError } from "../src/results.ts";
 import { fixture } from "./git-fixture.ts";
 
 const clean = {
@@ -63,6 +63,33 @@ test("only the last complete assistant block is eligible, with strict status and
     },
   ])
     assert.deepEqual(parseResult(block(result), "low-value-comments"), result);
+});
+
+test("a billing-only refusal is an account failure, not output text", () => {
+  assert.throws(
+    () =>
+      parseResult(
+        "\n\nAdd a payment method to continue\n",
+        "low-value-comments",
+      ),
+    (error) =>
+      error instanceof ResultError && error.failure === "account-disabled",
+  );
+  assert.throws(
+    () =>
+      parseResult(
+        "The comment says Add a payment method to continue.",
+        "low-value-comments",
+      ),
+    (error) => error instanceof ResultError && error.failure === undefined,
+  );
+  assert.deepEqual(
+    parseResult(
+      `Add a payment method to continue\n${block(clean)}`,
+      "low-value-comments",
+    ),
+    clean,
+  );
 });
 
 test("literal persisted old/new quotes survive mixed rejection, with zero neighborhood tolerance", (t) => {
