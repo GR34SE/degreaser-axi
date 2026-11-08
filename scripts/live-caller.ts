@@ -76,10 +76,6 @@ export async function liveCaller(agent: Agent, model: string) {
         CURSOR_DATA_DIR: join(cursorState, "data"),
       }
     : {};
-  const previousEnvironment = Object.fromEntries(
-    Object.keys(cursorEnvironment).map((key) => [key, process.env[key]]),
-  );
-  Object.assign(process.env, cursorEnvironment);
   const before = policy();
   const trace = new CallerEvidence(agent, model);
   const evidence: Record<string, unknown> = {
@@ -322,9 +318,6 @@ Do not edit source or Git index. Only AFTER a terminal result is visible to you,
     const joined = !run?.owner || !ownerAlive(run.owner);
     if (agent === "cursor") stopCursorAt(cwd);
     evidence.ownerJoined = joined;
-    for (const [key, value] of Object.entries(previousEnvironment))
-      if (value === undefined) delete process.env[key];
-      else process.env[key] = value;
     if (cursorState) await rm(cursorState, { recursive: true, force: true });
     evidence.globalPolicyUnchanged =
       JSON.stringify(policy()) === JSON.stringify(before);
