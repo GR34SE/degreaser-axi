@@ -11,6 +11,7 @@ import type { Agent } from "../src/config.ts";
 import { ownerAlive } from "../src/ownership.ts";
 import type { Run } from "../src/storage.ts";
 import { CallerEvidence } from "./caller-evidence.ts";
+import { stopCursorAt } from "./cursor-process.ts";
 import { nativeCaller } from "./live-caller-native.ts";
 
 const cli = fileURLToPath(
@@ -343,27 +344,5 @@ Do not edit source or Git index. Only AFTER a terminal result is visible to you,
       true,
       "Global policy changed; stop and report",
     );
-  }
-}
-
-function stopCursorAt(directory: string) {
-  const listed = spawnSync("ps", ["-ax", "-o", "pid=,command="], {
-    encoding: "utf8",
-  });
-  for (const line of listed.stdout.split("\n")) {
-    if (!line.includes("cursor-agent") && !line.includes("index.js")) continue;
-    const pid = Number(line.trim().split(/\s+/)[0]);
-    if (!pid || pid === process.pid) continue;
-    const cwdOut = spawnSync(
-      "lsof",
-      ["-a", "-p", String(pid), "-d", "cwd", "-Fn"],
-      { encoding: "utf8" },
-    );
-    if (!cwdOut.stdout.includes(directory)) continue;
-    try {
-      process.kill(pid, "SIGKILL");
-    } catch {
-      // The process exited between listing and the signal.
-    }
   }
 }
