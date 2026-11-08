@@ -4,7 +4,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { prepareReview } from "../src/input.ts";
 import { assemblePrompt, patchIndex } from "../src/prompt.ts";
-import { ingestResult, parseResult } from "../src/results.ts";
+import { ingestResult, parseResult, ResultError } from "../src/results.ts";
 import { fixture } from "./git-fixture.ts";
 
 const clean = {
@@ -63,6 +63,75 @@ test("only the last complete assistant block is eligible, with strict status and
     },
   ])
     assert.deepEqual(parseResult(block(result), "low-value-comments"), result);
+});
+
+test("only the exact billing sentence, with no result block, is an account failure", (t) => {
+  for (const text of [
+    "\n\nAdd a payment method to continue\n",
+    "ADD A PAYMENT METHOD TO CONTINUE",
+  ])
+    assert.throws(
+      () => parseResult(text, "low-value-comments"),
+      (error) => {
+        assert.ok(error instanceof ResultError);
+        assert.equal(error.failure, "account-disabled");
+        return true;
+      },
+    );
+  for (const text of [
+    "Add a payment method to continue before the next review.",
+    "The comment says Add a payment method to continue.",
+    "ADD A PAYMENT METHOD TO CONTINUE.",
+  ])
+    assert.throws(
+      () => parseResult(text, "low-value-comments"),
+      (error) => {
+        assert.ok(error instanceof ResultError);
+        assert.equal(error.failure, undefined);
+        assert.match(error.message, /Missing final result block/);
+        return true;
+      },
+    );
+  assert.deepEqual(
+    parseResult(
+      `Add a payment method to continue\n${block(clean)}`,
+      "low-value-comments",
+    ),
+    clean,
+  );
+  const f = fixture(t);
+  const quote = "Add a payment method to continue";
+  f.write("pay.ts", "export const value = 1;\n");
+  f.git("add", ".");
+  f.git("commit", "-m", "Base");
+  f.write("pay.ts", `${quote}\nexport const value = 1;\n`);
+  const input = prepareReview(
+    [
+      "--scope",
+      "worktree",
+      "--task",
+      "Synthetic comment",
+      "--aspects",
+      "low-value-comments",
+    ],
+    f.root,
+  );
+  const ingested = ingestResult(
+    block({
+      ...clean,
+      status: "findings",
+      findings: [
+        {
+          ...finding("pay.ts", "new", quote),
+          evidence: "The new line repeats a provider billing sentence.",
+        },
+      ],
+    }),
+    "low-value-comments",
+    input,
+  );
+  assert.deepEqual(ingested.rejections, []);
+  assert.equal(ingested.result.findings[0]?.quote, quote);
 });
 
 test("literal persisted old/new quotes survive mixed rejection, with zero neighborhood tolerance", (t) => {
