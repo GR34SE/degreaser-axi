@@ -3,7 +3,6 @@ import { closeSync, openSync, unlinkSync, writeFileSync } from "node:fs";
 import { loadavg, totalmem } from "node:os";
 import { setTimeout } from "node:timers/promises";
 import type { ProcessIdentity } from "../../../src/state/run.ts";
-import { processTable } from "../../../src/util/exec/process-table.ts";
 
 export function localRead(command: string, args: string[]) {
   const result = spawnSync(command, args, {
@@ -65,7 +64,26 @@ export interface FleetProcess extends ProcessIdentity {
   parent: number;
   cpu: number;
 }
-export const processes = (): FleetProcess[] => processTable();
+export function processes(): FleetProcess[] {
+  return localRead("/bin/ps", ["-axo", "pid=,ppid=,pgid=,lstart=,stat=,%cpu="])
+    .trim()
+    .split("\n")
+    .flatMap((line) => {
+      const f = line.trim().split(/\s+/);
+      if (f.length !== 10) throw new Error("Unrecognized process measurement");
+      return f[8]?.startsWith("Z")
+        ? []
+        : [
+            {
+              pid: Number(f[0]),
+              parent: Number(f[1]),
+              group: Number(f[2]),
+              started: f.slice(3, 8).join(" "),
+              cpu: Number(f[9]),
+            },
+          ];
+    });
+}
 export function sameProcess(a: ProcessIdentity, b: ProcessIdentity) {
   return a.pid === b.pid && a.group === b.group && a.started === b.started;
 }

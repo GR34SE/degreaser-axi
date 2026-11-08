@@ -2,7 +2,6 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, realpathSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { processTable } from "../../src/util/exec/process-table.ts";
 
 export async function cleanupRuns({
   repo,
@@ -20,7 +19,29 @@ export async function cleanupRuns({
   const adapter = join(external, "review-acp.mjs");
   const canonicalRepo = existsSync(repo) ? realpathSync(repo) : repo;
   for (;;) {
-    const rows = processTable();
+    const result = spawnSync(
+      "/bin/ps",
+      ["-ww", "-axo", "pid=,stat=,command="],
+      {
+        encoding: "utf8",
+        timeout: 3_000,
+        env: { PATH: "/usr/bin:/bin", LC_ALL: "C" },
+      },
+    );
+    if (result.error || result.status !== 0)
+      throw new Error(
+        `Cannot inspect QA processes; retained ${temp}: ${result.error ?? result.stderr}`,
+      );
+    const rows = result.stdout
+      .trim()
+      .split("\n")
+      .map((line) => {
+        const match = /^\s*(\d+)\s+(\S+)\s+(.+)$/.exec(line);
+        if (!match)
+          throw new Error(`Cannot parse process list; retained ${temp}`);
+        return { pid: Number(match[1]), state: match[2], command: match[3] };
+      })
+      .filter((row) => !row.state.startsWith("Z"));
     const owners = rows.filter(
       (row) =>
         row.command.includes(ownerMarker) &&
