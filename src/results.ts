@@ -3,6 +3,7 @@ import { Ajv } from "ajv";
 import type { AspectId } from "./config.ts";
 import { git } from "./git.ts";
 import type { ReviewInput } from "./input.ts";
+import { billingRefusal } from "./worker-failure.ts";
 
 export interface Finding {
   location: {
@@ -43,7 +44,15 @@ export interface Rejection {
     | "range-out-of-bounds"
     | "quote-mismatch";
 }
-export class ResultError extends Error {}
+export class ResultError extends Error {
+  /** Set when assistant text is an account block rather than a malformed review. */
+  failure?: "account-disabled";
+  constructor(message: string, failure?: "account-disabled") {
+    super(message);
+    this.name = "ResultError";
+    if (failure) this.failure = failure;
+  }
+}
 const ajv = new Ajv({ strict: true, allErrors: true });
 const validate = ajv.compile<WorkerResult>(
   JSON.parse(
@@ -114,8 +123,14 @@ export function parseResult(
     close = "</degreaser-result>";
   const start = text.lastIndexOf(open);
   const end = text.indexOf(close, start + open.length);
-  if (start < 0 || end < 0)
+  if (start < 0 || end < 0) {
+    if (billingRefusal(text))
+      throw new ResultError(
+        "The selected account cannot continue until a payment method is available.",
+        "account-disabled",
+      );
     throw new ResultError("Missing final result block.");
+  }
   let value: unknown;
   try {
     value = JSON.parse(text.slice(start + open.length, end));

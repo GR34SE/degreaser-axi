@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import type { Agent } from "../src/config.ts";
+import { assertNativeVersion } from "../src/native-compatibility.ts";
 import { type CallerEvidence, items, object } from "./caller-evidence.ts";
 import { callerEnvironment, callerProcess } from "./caller-process.ts";
 import { assertClaudeModel } from "./live-profile.ts";
@@ -24,12 +25,18 @@ export async function nativeCaller(
     { cwd, env: callerEnvironment, encoding: "utf8", timeout: 20_000 },
   );
   assert.equal(version.status, 0, "Native version probe failed");
-  const nativeVersion = version.stdout.match(/\b\d+\.\d+\.\d+\b/)?.[0];
-  assert.equal(
-    nativeVersion,
-    { codex: "0.165.0", claude: "2.1.317", pi: "1.4.0" }[agent],
-    "Revalidate changed native caller version before inference",
-  );
+  const nativeVersion = version.stdout.match(/\b\d+\.\d+\.\d+\b/)?.[0] ?? "";
+  if (agent === "codex")
+    assert.equal(
+      nativeVersion,
+      "0.165.0",
+      "Revalidate changed bundled Codex before inference",
+    );
+  else {
+    const accepted = assertNativeVersion(agent, nativeVersion);
+    if (accepted.notice)
+      console.log(JSON.stringify({ agent, notice: accepted.notice }));
+  }
   let session: string | undefined;
   let starts = 0;
   const observe = (e: Record<string, unknown>) => {

@@ -476,11 +476,11 @@ export async function ownRun(
           task.status = "failed";
           const runStopped = stopped();
           // Same prompt and model; the validator's short message tells the retry what to correct.
-          if (error instanceof ResultError)
+          if (error instanceof ResultError && !error.failure)
             text = `${basePrompt}\n\nYour previous final result block was rejected: ${error.message.slice(0, 500)}\nReturn a corrected block that follows the response contract exactly. Do not invent evidence to satisfy the format.`;
           const failure =
             error instanceof ResultError
-              ? "invalid-output"
+              ? (error.failure ?? "invalid-output")
               : workerFailure(error);
           record.failure =
             failure === "runtime" || failure === "cancelled"

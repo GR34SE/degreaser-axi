@@ -201,3 +201,21 @@ test("retries retain their cap slot and join the prior process before a fresh se
     ["invalid-output", null],
   );
 });
+
+test("a payment-method refusal is an account failure and is not retried", (t) => {
+  const f = queueFixture(t, { maxRetries: 1 });
+  f.setPlan({
+    worker: { result: "\n\nAdd a payment method to continue" },
+  });
+  assert.equal(f.start(["--aspects", "low-value-comments"]).status, 3);
+  const done = f.finish();
+  assert.equal(done.status, 1, done.stdout);
+  const task = f.state().tasks[0];
+  assert.equal(task?.attempts.length, 1);
+  assert.equal(task?.attempts[0]?.failure, "account-disabled");
+  assert.equal(task?.attempts[0]?.diagnostic?.stage, "result-validation");
+  assert.equal(task?.attempts[0]?.diagnostic?.recovery, "fix-account");
+  assert.equal(f.events().length, 1);
+  assert.match(done.stdout, /account-disabled/);
+  assert.doesNotMatch(done.stdout, /invalid-output/);
+});
