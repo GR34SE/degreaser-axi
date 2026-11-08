@@ -52,7 +52,7 @@ export async function runScenario(node, packageRoot) {
     mkdirSync(home);
     mkdirSync(join(external, "node_modules"));
     for (const name of ["register.mjs", "loader.mjs"])
-      cpSync(join(root, "scripts/qa", name), join(external, name));
+      cpSync(join(root, "test/qa", name), join(external, name));
     cpSync(
       join(root, "test/fixtures/review-acp.mjs"),
       join(external, "review-acp.mjs"),
