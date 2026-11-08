@@ -39,7 +39,7 @@ export function updateHook(
   remove: boolean,
 ) {
   const format = hookFormat(runtime, agent);
-  // The SDK edits only the nested SessionStart format; Cursor's flat sessionStart is ours.
+  // The SDK edits nested SessionStart, not Cursor's flat sessionStart.
   const cursor = HARNESSES[agent].integration.hook.kind === "flat";
   const text = edits.read(path);
   const settings = parseObject(text ?? "{}", path);
@@ -62,8 +62,6 @@ export function updateHook(
   const previous = receipt.hooks[agent];
   if (previous && previous.path !== path) conflict(path);
   const marked = groups.filter((group) => isMarked(format, group));
-  // Without a receipt (fresh clone, new worktree), our marked entry is ours;
-  // removal additionally requires it to be the entry this version writes, from any install.
   const generated = cursor
     ? { command: format.command }
     : (
@@ -105,7 +103,6 @@ export function updateHook(
     const leftover = Object.keys(cleaned).filter(
       (key) => !cursor || key !== "version",
     );
-    // An emptied file without a receipt cannot be shown to be user-created; it holds nothing now.
     edits.set(
       path,
       (previous?.created ?? true) && leftover.length === 0

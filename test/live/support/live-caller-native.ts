@@ -43,7 +43,6 @@ export async function nativeCaller(
     version.stderr || "Native version probe failed",
   );
   const rawVersion = version.stdout.trim();
-  // Cursor's supported token keeps the release hash; a bare date is unrecognized.
   const nativeVersion =
     agent === "cursor"
       ? (rawVersion.split(/\s+/)[0] ?? "")

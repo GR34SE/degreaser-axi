@@ -22,7 +22,6 @@ export function createRun(
   runtime: Runtime,
   input: ReviewInput,
   prepareTasks: (patchFile: string) => RunTask[],
-  now: () => number = runtime.now,
 ): Run {
   checked(input, stateSchema<ReviewInput>("input"), "input/review.json");
   const root = statePath(input.repository);
@@ -32,7 +31,7 @@ export function createRun(
       input.repository,
       ["check-ignore", "--no-index", ".degreaser/probe"],
       {
-        allowFailure: true,
+        allowFailure: (status) => status === 1,
       },
     ) === null
   )
@@ -44,7 +43,7 @@ export function createRun(
   mkdirSync(root, { recursive: true, mode: 0o700 });
   const runs = statePath(input.repository, "runs");
   mkdirSync(runs, { recursive: true, mode: 0o700 });
-  const stamp = new Date(now()).toISOString().replace(/[-:]/g, "");
+  const stamp = new Date(runtime.now()).toISOString().replace(/[-:]/g, "");
   let id: string, dir: string;
   for (;;) {
     id = `r-${stamp.slice(0, 8)}-${stamp.slice(9, 13)}-${randomBytes(2).toString("hex")}`;
@@ -66,8 +65,8 @@ export function createRun(
     schemaVersion: 1,
     id,
     repository: input.repository,
-    createdAt: now(),
-    deadline: now() + input.config.limits.runTimeoutSeconds * 1000,
+    createdAt: runtime.now(),
+    deadline: runtime.now() + input.config.limits.runTimeoutSeconds * 1000,
     status: "running",
     owner: null,
     identity: reviewIdentity(
@@ -84,7 +83,6 @@ export function createRun(
   const patchJson = join(dir, "input", "patch.json");
   checked(input.patch, stateSchema<string | null>("patch"), patchJson);
   atomicWrite(patchJson, JSON.stringify(input.patch));
-  // Workers read this raw copy by line range; patch.json stays the integrity record.
   if (input.patch !== null) atomicWrite(patchFile, input.patch);
   saveRun(run);
   writeJson(

@@ -22,7 +22,6 @@ function register(path: URL): string {
   return schema.$id;
 }
 
-/** Schemas and their references are loaded on first use, not during import. */
 export function schema<T>(
   path: URL,
   references: readonly URL[] = [],

@@ -59,7 +59,6 @@ test("short coverage attributes incomplete limitations and full reports separate
   const incomplete = short.coverage.find(
     (row: { aspect: string }) => row.aspect === "masked-errors",
   );
-  // Reason is not repeated; harness/profile limitations appear once at run level.
   assert.equal(incomplete.reason, "Could not inspect the error handler.");
   assert.ok(incomplete.limitations.includes("Generated caller skipped."));
   assert.ok(
@@ -127,14 +126,12 @@ test("short coverage attributes incomplete limitations and full reports separate
       () => !alive(owner.pid),
       "Owner exits before stored metadata fixture",
     );
-  // Synthetic saved metadata tests presentation, not a live provider usage claim.
   const executed = run.tasks.filter((task) => task.attempts.length);
   for (const task of executed) {
     const attempt = task.attempts.at(-1);
     assert.ok(attempt);
     attempt.usage =
       task.assignment.aspect === "missed-reuse" ? { inputTokens: 17 } : {};
-    // Earlier saved task summaries can be stale; only attempt metadata is attributed.
     task.usage = { inputTokens: 999 };
   }
   saveRun(run);

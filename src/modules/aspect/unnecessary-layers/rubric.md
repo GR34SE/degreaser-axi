@@ -6,7 +6,7 @@
 
 **Applies when:** The change adds or extends an intermediate layer: wrapper, service, factory, adapter, interface, re-export or delegating class. Otherwise return not-applicable.
 
-**Evidence:** Trace caller → layer → implementation. Name the layer's cost and explain how necessary boundaries such as a public API, DI seam, transaction or model mapping would be preserved.
+**Evidence:** Trace caller → layer → implementation. Name the layer's cost and explain where its ownership and dependencies move if removed. Preserve necessary boundaries such as a public API, current DI seam, transaction, model mapping or internal domain boundary; inlining that makes callers know another domain's internals is not removal of complexity.
 
 **Boundaries:** Do not report a layer just because it is short. Check consumers outside the module before recommending removal.
 

@@ -23,7 +23,6 @@ export function positiveInteger(
   return number;
 }
 
-/** Plain repository-relative patterns; scope.ts alone adds Git pathspec magic. */
 function validPathPatterns(values: unknown): string[] {
   const patterns = (values ?? []) as string[];
   for (const pattern of patterns) {

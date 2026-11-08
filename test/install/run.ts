@@ -43,7 +43,6 @@ async function check(name: string, run: () => Promise<void>) {
 
 try {
   sync("git", ["init", "-q"]);
-  // Startup context stays empty until a repository config exists.
   writeFileSync(
     join(cwd, ".degreaserrc.json"),
     `${JSON.stringify({ agent: "codex", model: "gpt-6-luna" })}\n`,

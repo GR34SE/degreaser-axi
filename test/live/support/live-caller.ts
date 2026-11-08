@@ -25,8 +25,7 @@ export async function liveCaller(agent: Agent, model: string) {
   const cwd = await realpath(
     await mkdtemp(join(tmpdir(), "degreaser-caller-flow-")),
   );
-  // Cursor's supported config/data overrides keep every Cursor write under
-  // disposable state; login stays in the user's existing credential store.
+  // Cursor login still uses the user's credential store despite these overrides.
   const cursorState =
     agent === "cursor"
       ? await realpath(await mkdtemp(join(tmpdir(), "degreaser-cursor-")))

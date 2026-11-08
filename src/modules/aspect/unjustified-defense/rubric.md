@@ -6,7 +6,7 @@
 
 **Applies when:** The change adds validation, type/null checks, guards, try/catch or retry around data or operations. Otherwise return not-applicable.
 
-**Evidence:** Document the data path, upstream guarantees and every relevant entry into the function. Report only redundant checks for states that cannot occur.
+**Evidence:** Document the data path, upstream guarantees and every relevant entry into the function. Before calling a repeated predicate redundant, check for mutation, asynchronous gaps, external rereads or a new consumer between the checks. Report only checks whose rejected state cannot occur on that path.
 
 **Boundaries:** Static types do not establish runtime validity. Network, disk, trust, public API and concurrency boundaries need protection.
 

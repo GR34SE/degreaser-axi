@@ -4,8 +4,7 @@ export const meta = {
   id: "structural-erosion",
   title: "Structural Erosion",
   summary:
-    "Does this change add responsibilities and branching to an overloaded unit?",
-  applicability: "paths",
+    "Does this change create or worsen coupling between responsibilities?",
   boundaries: [
     {
       other: "missed-reuse",

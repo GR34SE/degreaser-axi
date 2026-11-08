@@ -1,5 +1,3 @@
-// Opt-in observation only. The compiled runtime, profiles, adapters and results
-// are unchanged; no prompt, native output, environment or tool payload is saved.
 import { appendFileSync } from "node:fs";
 import { registerHooks } from "node:module";
 

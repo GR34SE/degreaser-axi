@@ -4,7 +4,6 @@ import { executionFailure } from "./exec/failure.ts";
 export const PERMISSION_GUIDANCE =
   "Use the host's supported per-command approval if available, or run this command in an authorized session or authorized terminal. Do not change global policy, install permission rules or retry the fleet. Local home/report/finding/wait reads remain available where permitted.";
 
-/** Translate known causes, never publish raw native output or guess from environment hints. */
 export function diagnoseFailure(
   error: unknown,
   operation: string,

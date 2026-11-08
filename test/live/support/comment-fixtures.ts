@@ -1,8 +1,3 @@
-// Held-out measurement fixture for the low-value-comments rubric. It builds a
-// disposable Git repository (base commit without comments, then worktree edits
-// that add them) and states the expected verdict per comment. It is a manual,
-// model-backed measurement aid and is deliberately not part of `pnpm test`.
-// Usage: node test/live/support/comment-fixtures.ts <empty-directory>
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -10,7 +5,6 @@ import { dirname, join } from "node:path";
 export interface Expectation {
   id: string;
   file: string;
-  /** Substring of the comment text that identifies it in a finding quote. */
   marker: string;
   verdict: "REPORT" | "PRESERVE";
   note: string;
@@ -106,7 +100,7 @@ export const webhook = z.object({ id: z.string(), type: z.string() }).passthroug
 `,
     changed: `import { z } from "zod";
 
-// Keep passthrough(): the payment SDK (v14) adds an undocumented "_meta" key to
+// Keep passthrough(): the payment SDK adds an undocumented "_meta" key to
 // events, and .strict() would reject every real delivery in production.
 export const webhook = z.object({ id: z.string(), type: z.string() }).passthrough();
 `,
@@ -131,6 +125,13 @@ export function invoiceTotalCents(unitCents: number, quantity: number): number {
 };
 
 const supporting: Record<string, string> = {
+  "docs/payment-integration.md": `# Synthetic integration contract
+
+This fixture's payment SDK appends an undocumented "_meta" field to every
+delivered event. The consumer must accept and preserve that field; switching
+the validator to strict rejection would reject real deliveries in this
+fictional integration. This is a fixture fact, not a claim about a published SDK.
+`,
   "package.json": JSON.stringify(
     {
       name: "billing-lib",
@@ -170,28 +171,28 @@ export const expectations: Expectation[] = [
     file: "src/retry.ts",
     marker: "responsible for working out",
     verdict: "REPORT",
-    note: "verbose narration; recommend keeping only the seconds-not-milliseconds fact",
+    note: "narrates the visible seconds variable and millisecond conversion; no independently established vendor trap",
   },
   {
     id: "P1",
     file: "src/counter.ts",
     marker: "Do not add an await",
-    verdict: "PRESERVE",
-    note: "concurrency trap",
+    verdict: "REPORT",
+    note: "the shared Map read/write and asynchronous function expose the interleaving risk; the comment supplies no hidden cause",
   },
   {
     id: "P2",
     file: "src/webhook.ts",
     marker: "Keep passthrough()",
     verdict: "PRESERVE",
-    note: "external library constraint",
+    note: "external delivery behavior established by docs/payment-integration.md, absent from the schema's types",
   },
   {
     id: "P3",
     file: "src/index.ts",
     marker: "Returns the invoice total",
-    verdict: "PRESERVE",
-    note: "documentation obligation and thrown-error contract",
+    verdict: "REPORT",
+    note: "visible cents/RangeError contract is not a trap; reconcile CONTRIBUTING.md's stated JSDoc rule before removal (no lint configuration or executable check is supplied)",
   },
 ];
 
@@ -208,16 +209,7 @@ export function buildFixture(dir: string): void {
   for (const [path, text] of Object.entries(supporting)) put(path, text);
   for (const [path, v] of Object.entries(files)) put(path, v.base);
   git("add", "-A");
-  git(
-    "-c",
-    "user.name=fixture",
-    "-c",
-    "user.email=fixture@example.invalid",
-    "commit",
-    "-q",
-    "-m",
-    "base",
-  );
+  git("commit", "-q", "-m", "base");
   for (const [path, v] of Object.entries(files)) put(path, v.changed);
 }
 

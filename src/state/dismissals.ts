@@ -8,7 +8,6 @@ import { json } from "../util/json.ts";
 import type { Dismissal } from "./dismissal.ts";
 import { validDismissals } from "./schema.ts";
 
-/** Kept per Git repository, not per worktree, so decisions outlive worktrees. */
 function dismissalsFile(runtime: Runtime, repository: string) {
   const common = requireGit(runtime, repository, [
     "rev-parse",
@@ -61,7 +60,6 @@ export function recordDismissal(
 
 const BUDGET = 16_384;
 
-/** Newest dismissals for the assessed paths, bounded so prompts stay small. */
 export function relevantDismissals(
   runtime: Runtime,
   repository: string,

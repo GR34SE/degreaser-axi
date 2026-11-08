@@ -5,7 +5,6 @@ export const meta = {
   title: "Low Value Tests",
   summary:
     "Would this test detect broken behavior, or just confirm its own mock?",
-  applicability: "paths",
   boundaries: [
     {
       other: "verification-theater",

@@ -67,13 +67,11 @@ export function prepareReview(
     baseRef: request.baseRef ?? null,
     task: request.task,
     ...(request.taskFile ? { taskFile: request.taskFile } : {}),
-    // Absent rather than empty keeps unnarrowed review identities unchanged.
     ...(request.pathPatterns.length
       ? { pathPatterns: request.pathPatterns }
       : {}),
     waitSeconds: request.waitSeconds,
     config,
-    // Absent rather than empty keeps identities of reviews without dismissals.
     ...(dismissed.length ? { dismissed } : {}),
     ...scope,
     workers,

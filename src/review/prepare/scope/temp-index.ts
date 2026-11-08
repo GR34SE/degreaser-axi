@@ -26,8 +26,7 @@ export function resolveTree(runtime: Runtime, repository: string): string {
       ? statSync(userIndex, { bigint: true })
       : null;
     const indexGit = (args: string[], options: { input?: string } = {}) => {
-      // Copies and preparatory writes must not hide racily clean entries.
-      // Whole seconds avoid rounding the original nanoseconds upward.
+      // Newer index mtimes can hide racily clean edits.
       if (sourceStat)
         utimesSync(
           index,
@@ -51,18 +50,15 @@ export function resolveTree(runtime: Runtime, repository: string): string {
     } else {
       indexGit(["read-tree", "--empty"]);
     }
-    // One recursive pathspec: Git matches pathspecs per file, so listing every
-    // file as its own literal pathspec is quadratic and times out on monorepos.
-    // Unignored run state is excluded so it is never hashed into objects; Git
-    // rejects that exclude for an ignored .degreaser, which `add -A` skips
-    // anyway. Removing run state from the temporary index is a safety net.
+    // Per-file pathspecs make Git's matching quadratic. Git rejects an explicit
+    // .degreaser exclusion when ignored, so add it only when unignored.
     const stateIgnored =
       git(
         runtime,
         repository,
         ["check-ignore", "-q", "--no-index", ".degreaser"],
         {
-          allowFailure: true,
+          allowFailure: (status) => status === 1,
           index,
         },
       ) !== null;

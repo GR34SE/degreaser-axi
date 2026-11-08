@@ -167,7 +167,9 @@ test("cancel of an interrupted run stops verified orphan workers and starts noth
   t.after(() => {
     try {
       process.kill(-owner.pid, "SIGKILL");
-    } catch {}
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
+    }
   });
   await until(
     () => (f.state().owner?.heartbeat ?? 0) > owner.heartbeat,

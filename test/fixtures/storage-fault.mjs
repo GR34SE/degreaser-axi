@@ -1,4 +1,3 @@
-// Synthetic filesystem faults at the real writer/prompt boundary. Never shipped.
 import fs from "node:fs";
 import { syncBuiltinESMExports } from "node:module";
 import { fileURLToPath } from "node:url";
@@ -68,7 +67,6 @@ fs.renameSync = (source, destination) => {
       }),
     );
     if (fault.mode === "write-failure") {
-      // Fail once: the owner must not retry a later mutation over the last commit.
       fs.unlinkSync(planPath);
       throw Object.assign(new Error("Synthetic disk failure SECRET-canary"), {
         code: "EIO",

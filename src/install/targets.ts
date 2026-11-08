@@ -36,10 +36,8 @@ export function skillInstallChoice(
 
 export interface HookFormat {
   event: string;
-  /** The managed startup command for this harness. */
   command: string;
   version?: number;
-  /** Commands in a hook group, or null when the group is malformed. */
   commands(group: unknown): unknown[] | null;
 }
 export function hookFormat(runtime: Runtime, agent: Agent): HookFormat {

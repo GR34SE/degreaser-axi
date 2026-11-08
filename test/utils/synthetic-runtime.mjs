@@ -1,4 +1,3 @@
-// Synthetic adapter boundary only. Git, coordinator, owner, acpx and persistence remain real.
 import { registerHooks } from "node:module";
 import { pathToFileURL } from "node:url";
 

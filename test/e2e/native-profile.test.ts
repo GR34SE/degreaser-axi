@@ -65,7 +65,6 @@ test("native effective configuration disables web under the production Codex pro
       agent: "codex",
       model: "gpt-6-luna",
     });
-    // Native stdio diagnostics only, no listening port, thread or turn.
     const child = spawn(
       process.execPath,
       [

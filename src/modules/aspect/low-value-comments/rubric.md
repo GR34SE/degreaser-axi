@@ -2,101 +2,93 @@
 
 `low-value-comments` · default ON
 
-**Question:** Would removing this comment lose a specific reason, constraint, contract or trap that names, types and nearby code do not convey?
+**Question:** Does this comment prevent a concrete maintenance or usage trap that cannot be derived from the code?
 
-**Applies when:** The change adds or edits comments or docstrings. Otherwise return not-applicable.
+**Applies when:** The assessed change contains added or edited explanatory comments or docstrings. In a repository audit, assess existing comments too. Otherwise return not-applicable.
 
-**Evidence:** Quote the comment and surrounding code. State what the comment adds beyond the symbol name, signature and visible statements. Check repository and language documentation conventions, and whether the symbol is part of a real public contract. Name the wrong maintenance decision the comment would prevent or the contract that would be lost; if you cannot, the comment is a candidate.
+**Rule:** Zero explanatory comments by default. Keep only the minimum warning needed to prevent a specific, non-obvious mistake whose cause is not recoverable from names, types, implementation or connected callers. Explaining what code does, why a developer likes it, or how an algorithm works does not meet this bar. Correctness, brevity and usefulness as a summary do not justify a comment. Extra narration creates a second, drifting description that developers and coding agents can mistake for authority.
 
-**Boundaries:** Preserve a comment whose removal would lose a rationale, a hidden constraint (ordering, concurrency, external-library or vendor behavior), a security fact, a real contract such as thrown errors or units, or a documentation obligation set by the language, a linter or repository docs, including required headers and tool directives. Being exported, written as JSDoc, long, or mentioning security is not enough; an export inside an internal module is not a public API unless the repository says so. Describing what the code visibly does, restating a name or signature, or narrating a sequence of steps is not rationale. When one useful fact is buried in narration, report the comment and recommend keeping only that fact. Only for a comment on the lines immediately beside a test assertion: matching arithmetic does not keep a comment that only repeats that assertion. When that comment's arithmetic does not equal the assertion, report it. If it also states a fact that appears nowhere else in the change, the recommendation keeps only that fact and does not offer to delete it.
+**Evidence:** Apply the trap test to every assessed explanatory comment, including one-line summaries on functions, fields and constants, not just long or inaccurate comments. Quote the comment and its code, then inspect the relevant implementation and callers. For preservation, identify the tempting wrong change or use, its concrete consequence, and the hidden fact the comment supplies. Check that fact against available source or an established external contract; the comment's own claim is not proof. If no such trap remains after that check, report the comment for removal and show which information is recoverable or irrelevant. Redundant narration is the defect; it need not cause a runtime bug. Group repeated instances and list their locations rather than silently ignoring short ones. Do not invent a trap to justify a comment or claim an external fact is false merely because its source is unavailable; state that uncertainty.
+
+**Boundaries:** Exported symbols, public APIs, JSDoc form, security vocabulary, complicated code and documentation conventions are not exemptions. A visible thrown error or unit conversion is still visible code. Prefer clearer names, types or simpler code when they can remove the need for an explanation; do not invent an abstraction just to remove a comment. A real warning buried in narration must be reduced to that warning, not deleted. An inaccurate warning needs correction, not preservation for sounding important. Treat legally required notices and machine-consumed directives as operational content, not explanatory prose; verify the requirement or consumer before proposing removal. A prose-documentation rule does not make narration useful: identify the conflict and recommend reconciling that rule rather than silently breaking its check. Deliberate bad-comment teaching samples are evidence fixtures, not production comments to clean up.
 
 **Not here (another reviewer):**
-- Comments suppressing type checking or lint rules, such as @ts-ignore, # type: ignore or eslint-disable: contract-bypass.
+- Type/lint suppression directives such as `@ts-ignore`, `# type: ignore` or `eslint-disable`: contract-bypass. Explanatory prose beside a directive still faces this aspect's trap test.
 
-Teaching excerpts; context states omitted setup. These have not been executed as programs or model evaluations.
-
-Sources / inspiration: S01. Teaching excerpts; context states omitted setup. These have not been executed as programs or model evaluations.
+Sources / inspiration: product-specific zero-comment policy. Teaching excerpts state their external assumptions; they are not executed programs or model efficacy measurements.
 
 ## low-value-comments-B1 · REPORT
 
-**Context:** The repository has no comment convention. The function is short and its steps are visible.
+**Context:** The function's operations and callers are available. No external condition changes their meaning.
 
 ```typescript
-// First we check whether the session has expired. If it has, we remove it
-// from the store. Finally we return whether a session is still active.
+// First discard expired sessions, then report whether this session remains.
 function pruneSession(id: string): boolean {
   if (store.get(id)!.expiresAt < clock.now()) store.delete(id);
   return store.has(id);
 }
 ```
 
-**Why:** The comment narrates the three visible statements in order. It gives no reason, constraint or contract, and it will drift when the code changes.
+**Why:** The comment restates the body. Removing it loses no hidden fact and exposes no maintenance trap. Delete it, without manufacturing a replacement warning.
 
 ## low-value-comments-B2 · REPORT
 
-**Context:** `formatPrice` is exported from an internal module that no package entry point re-exports. No linter rule or repository document requires doc comments there.
+**Context:** This is a public export. Its implementation is available and no tool consumes the docstring.
 
 ```typescript
-/**
- * Formats a price.
- * @param cents - The price in cents.
- * @param currency - The currency.
- * @returns The formatted price.
- */
-export function formatPrice(cents: number, currency: string): string {
-  return new Intl.NumberFormat("en", { style: "currency", currency }).format(cents / 100);
+/** Returns the total in cents; throws RangeError for a negative quantity. */
+export function totalCents(unitCents: number, quantity: number): number {
+  if (quantity < 0) throw new RangeError("quantity must not be negative");
+  return unitCents * quantity;
 }
 ```
 
-**Why:** Every line repeats the name or the parameter types. Export and JSDoc form are not a documented contract. Public API documentation, or a stated rule requiring it, would reverse the verdict; see G3.
+**Why:** Both the units and error are explicit in the name and body. Calling this API documentation does not create a hidden trap. Remove the docstring; public visibility does not reverse the verdict.
 
 ## low-value-comments-B3 · REPORT
 
-**Context:** The comment is long, but one sentence holds a constraint the code does not show. The rest paraphrases the body.
+**Context:** The finance integration's contract requires UTC ISO timestamps. Its rejection of other date formats is not represented by the row's string type.
 
 ```typescript
-// This helper turns a record into a row for the export. It copies the id and
-// the name, formats the date and returns the row. The finance system rejects
-// rows whose date is not zero-padded ISO 8601, so keep toISOString.
-function toRow(r: Record): Row {
-  return { id: r.id, name: r.name, date: r.date.toISOString() };
+// Copy the id, format the date, then return the row. The finance importer
+// rejects locale-formatted dates; keep the UTC ISO timestamp.
+function toRow(record: Record): Row {
+  return { id: record.id, date: record.date.toISOString() };
 }
 ```
 
-**Why:** The paraphrase adds nothing and hides the external-system constraint. Report it and recommend keeping only the sentence about the date format, not removing the whole comment.
+**Why:** Keep only the importer warning. The first sentence narrates code and obscures the one fact preventing a plausible but incompatible formatting change.
 
 ## low-value-comments-G1 · PRESERVE
 
-**Context:** The vendor has a documented batch limit; the number does not follow from domain logic.
+**Context:** The vendor silently truncates a request after its first 50 IDs. The request schema accepts any array length; the integration contract establishes this behavior.
 
 ```typescript
-// Vendor accepts at most 50 IDs per request; see integration contract.
+// The vendor silently drops IDs after the first 50; larger batches lose work.
 const batchSize = 50;
 ```
 
-**Why:** The comment preserves the reason for a constraint needed during future changes.
+**Why:** A larger batch looks like a harmless optimization. The comment supplies the external behavior and data-loss consequence that the constant cannot express.
 
 ## low-value-comments-G2 · PRESERVE
 
-**Context:** Resource shutdown order is a concurrency and data-loss trap that cannot easily be inferred from method names alone.
+**Context:** Closing the socket discards this queue library's acknowledged messages still in its internal buffer. Drain flushes that buffer; these external semantics are established by the library contract, not the caller's method names.
 
 ```go
-// Drain before closing the socket so acknowledged messages are not lost.
+// Close discards the library's acknowledged buffer; drain first to avoid loss.
 queue.Drain()
 socket.Close()
 ```
 
-**Why:** The comment describes the consequence of incorrect ordering instead of repeating the code.
+**Why:** The warning prevents a plausible shutdown reorder using a hidden library lifetime rule. It does not merely announce the current order.
 
 ## low-value-comments-G3 · PRESERVE
 
-**Context:** This is a public Go package. Go documentation conventions call for comments on exported names, and this repository enforces them with a linter.
+**Context:** A native binding retains the supplied buffer by reference until flush. Its signature and wrapper do not expose that ownership rule; the binding contract does.
 
-```go
-// GetUser returns the user with the given ID or ErrNotFound.
-func GetUser(ctx context.Context, id string) (User, error) {
-    return store.Get(ctx, id)
-}
+```typescript
+// The binding retains this buffer until flush; reusing it corrupts queued frames.
+native.send(frame);
 ```
 
-**Why:** The comment partly repeats the name but provides required public API documentation and an error contract. Similarity to B2 is not enough to report it.
+**Why:** The tempting buffer reuse is unsafe for a reason unavailable in the call's code or types. Even this short comment earns its place through a specific trap, not through public API status.

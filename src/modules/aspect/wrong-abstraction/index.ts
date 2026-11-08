@@ -4,7 +4,6 @@ export const meta = {
   id: "wrong-abstraction",
   title: "Wrong Abstraction",
   summary: "Does a shared mechanism combine cases with conflicting rules?",
-  applicability: "paths",
   boundaries: [
     {
       other: "structural-erosion",

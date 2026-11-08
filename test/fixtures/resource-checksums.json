@@ -6,22 +6,5 @@
   "src/review/prepare/patch.schema.json": "e93967d2e046bd4aa1de63545adfe335147c7c21910783364008406907584deb",
   "src/review/ingest/result.schema.json": "b97953d237aaa1d8e3874e733538ed2ac2c2a71a187648a373f004e404329868",
   "src/state/run.schema.json": "6f737774ad9a46b102f206ca6004fa88c061856e9a7f87c69d492f5ad5c5494a",
-  "src/state/state.schema.json": "317cd176fbb9904112f777bc0fd28a79a8411eab83c9ac2070980e3fc3aba91e",
-  "src/modules/aspect/structural-erosion/rubric.md": "700437efa0b8d25cbd07c9284ef0341067c61f9ff31944a68007aaeb1d3345f7",
-  "src/modules/aspect/speculative-flexibility/rubric.md": "f85c6660a494fd35b6233919dce99417b8b3b72018733b1a4cb60438a4cfd614",
-  "src/modules/aspect/unnecessary-layers/rubric.md": "48772a9d67d2a686166099284e670e195382282b0742ef05d52524a5536ab3e8",
-  "src/modules/aspect/masked-errors/rubric.md": "b3fa5b34b07cf7c348e035052d698e203f2e679c5bf8556d56cb7fd48ff203b0",
-  "src/modules/aspect/incomplete-integration/rubric.md": "7811aa6b2eeab1ce318479dc972442f65d3215fdb03af882cd72c8ebd43d71a5",
-  "src/modules/aspect/convention-drift/rubric.md": "002c686e64f24c09e53982da75a5e67fc507860e3ac173a19de93054206ee27b",
-  "src/modules/aspect/unjustified-defense/rubric.md": "99ae4c85af49d145acb623ac49b31d44e34c5346dc8ee3ec5d24515e2a13e6c0",
-  "src/modules/aspect/scope-creep/rubric.md": "add3d91020ebb718ba0f522d75089baeffddbcfd75021f2f76adf2f7f4850baa",
-  "src/modules/aspect/verification-theater/rubric.md": "96f34d529482f3b7acf2556197e4f3dc9d9d694319b8f3169366e9fe88204170",
-  "src/modules/aspect/missed-reuse/rubric.md": "64d3848caf44dd287ef1e6a442c1f3608f2adfee99ffa562aa002ac7519b8a4c",
-  "src/modules/aspect/low-value-comments/rubric.md": "cb1cf6e8fec1d49c4c6269ceec6798ba5af0fc16185006baf9f01449110e681f",
-  "src/modules/aspect/reinvented-infrastructure/rubric.md": "b469f2ee8289bec12b65b5399ae600a34c4dd2b6ebe61b6dc2f1063e79009b12",
-  "src/modules/aspect/contract-bypass/rubric.md": "e8b07cbebc7775f804fcbde21ea08afd7c30a5d68b53e3d1b027c7416751388e",
-  "src/modules/aspect/wrong-abstraction/rubric.md": "a1cef471b4c1b6795f54a6dede87c81ee205dacf67deb4f49481755eea513f83",
-  "src/modules/aspect/unidiomatic-code/rubric.md": "f6637c113f18f97563e6cbe9e0e347f18bd54ec29b89f8b003ad1582bffed3b3",
-  "src/modules/aspect/unnecessary-complexity/rubric.md": "f26d75650314f43908e07525c75f8874a347759218f8c876db70326a7f62634c",
-  "src/modules/aspect/low-value-tests/rubric.md": "eda49e33523cfe6eb149856bdc996f7a20a34d8415320bb69385f0f3c07b8bec"
+  "src/state/state.schema.json": "317cd176fbb9904112f777bc0fd28a79a8411eab83c9ac2070980e3fc3aba91e"
 }

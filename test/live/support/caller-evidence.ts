@@ -41,7 +41,6 @@ export interface CallerEvent {
   skillLoaded?: boolean | undefined;
 }
 
-// Project only control evidence. Never retain prompts, reasoning or tool payloads.
 export class CallerEvidence {
   readonly events: CallerEvent[] = [];
   readonly context = {
@@ -159,9 +158,7 @@ export class CallerEvidence {
             output.slice(output.indexOf("{"), output.lastIndexOf("}") + 1),
           ),
         );
-      } catch {
-        /* Native text output is also supported. */
-      }
+      } catch {}
       if (typeof envelope.output === "string") output = envelope.output;
       if (typeof envelope.exit_code === "number") exit = envelope.exit_code;
     }
@@ -254,9 +251,7 @@ export class CallerEvidence {
         let args: unknown = {};
         try {
           args = JSON.parse(String(item.arguments));
-        } catch {
-          /* Unsupported tool argument encoding is not evidence. */
-        }
+        } catch {}
         this.call(item.call_id, item.name, args);
       }
       if (item.type === "custom_tool_call")

@@ -7,21 +7,15 @@ import type { Unresolved } from "../../ingest/types.ts";
 import { patchSectionOwners } from "../../prepare/scope/diff.ts";
 import type { ReviewInput } from "../../types.ts";
 
-/**
- * Untrusted text gets a delimiter derived from its own digest, like a MIME
- * boundary: embedded text cannot contain the closing tag of its own block.
- */
 const fenced = (name: string, body: string) => {
   const tag = `${name}-${hash(body).slice(0, 16)}`;
   return `<${tag}>\n${body}\n</${tag}>`;
 };
 
-/** 1-based inclusive line range of each file section in the raw patch, keyed by new path. */
 export function patchIndex(patch: string, input: ReviewInput) {
   const ranges = new Map<string, string>();
   const lines = patch.split("\n");
   if (lines.at(-1) === "") lines.pop();
-  // Sections map to paths by Git output order; C-quoted headers need no parsing.
   const starts = lines.flatMap((line, i) =>
     line.startsWith("diff --git ") ? [i] : [],
   );
@@ -36,7 +30,6 @@ export function patchIndex(patch: string, input: ReviewInput) {
   return { ranges, lines: lines.length };
 }
 
-/** The shared worker instruction; also the first section of every assembled prompt. */
 export const workerInstruction = (maxTurns: number) =>
   readFileSync(new URL("./worker.md", import.meta.url), "utf8").replaceAll(
     "{maxTurns}",
@@ -48,7 +41,6 @@ export function assemblePrompt(
   aspect: AspectId,
   patchFile: string,
   inlineBytes = 60_000,
-  /** Assess only these paths; the patch index still covers the whole input. */
   focus?: ReadonlySet<string>,
 ) {
   const instruction = workerInstruction(input.config.limits.maxTurns);
@@ -111,7 +103,6 @@ export function assemblePrompt(
   return { text, promptHash: hash(text) };
 }
 
-/** Appended to the assigned prompt for a focused pass; not part of prompt identity. */
 export function continuationSection(
   portion: string[],
   examined: number,
@@ -125,7 +116,6 @@ export function continuationSection(
   ].join("\n\n");
 }
 
-/** Resume of an incomplete result whose declared coverage was already full. */
 export function obligationSection(unresolved: Unresolved[], examined: number) {
   return [
     "# Unresolved obligations",

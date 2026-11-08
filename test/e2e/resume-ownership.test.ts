@@ -226,7 +226,6 @@ test("retry and resume retain production source-only profile, fresh sessions, on
         e.prompt?.match(/Assigned aspect: [a-z-]+$/gm)?.length === 1,
     ),
   );
-  // Declared full coverage left an obligation open, so resume targets it.
   assert.ok(events[1]?.prompt?.startsWith(events[0]?.prompt ?? "\0"));
   assert.match(events[2]?.prompt ?? "", /# Unresolved obligations/);
   assert.equal(

@@ -46,8 +46,6 @@ test("CI selects checks without path filters and requires the Linux and macOS jo
   assert.equal(linux.needs, "plan");
   assert.equal(linux.name, "Linux checks");
   assert.equal(macos.needs, "plan");
-  // Self-hosted labels come only from repository variables, never from the
-  // repository itself, and fork PRs always stay on hosted runners.
   const route = (variable: string, hosted: string) =>
     `\${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.${variable} || '${hosted}' }}`;
   assert.equal(linux["runs-on"], route("CI_LINUX_RUNNER", "ubuntu-24.04"));
@@ -108,8 +106,7 @@ test("CI selects checks without path filters and requires the Linux and macOS jo
   }
   assert.equal(actions[0].with["persist-credentials"], false);
   assert.equal(plan.steps[0].with["fetch-depth"], 0);
-  // The pnpm installer executes node, which self-hosted runners need not
-  // provide, so the current Node is set up first in every pnpm job.
+  // pnpm/action-setup executes Node, which self-hosted runners need not provide.
   for (const job of [linux, macos]) {
     const jobSteps: { uses?: string; with?: Record<string, unknown> }[] =
       job.steps;

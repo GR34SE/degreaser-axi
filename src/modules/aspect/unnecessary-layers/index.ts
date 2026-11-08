@@ -5,7 +5,6 @@ export const meta = {
   title: "Unnecessary Layers",
   summary:
     "Does this wrapper, service or factory add useful behavior or a boundary?",
-  applicability: "paths",
   boundaries: [
     {
       other: "speculative-flexibility",

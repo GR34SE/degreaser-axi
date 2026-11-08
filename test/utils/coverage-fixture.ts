@@ -45,8 +45,7 @@ export const run = (f: ReturnType<typeof setup>) => {
 export const portionSizes = (prompts: readonly { prompt?: string }[]) =>
   prompts.map((event) => (event.prompt ?? "").match(/paths\[(\d+)\]:/)?.[1]);
 
-export /** Extra assessed files plus the fixture's source.ts, in Git path order. */
-function writeSeries(f: ReturnType<typeof queueFixture>, count: number) {
+export function writeSeries(f: ReturnType<typeof queueFixture>, count: number) {
   const names = Array.from(
     { length: count },
     (_, i) => `f${String(i).padStart(2, "0")}.ts`,

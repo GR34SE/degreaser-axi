@@ -267,8 +267,6 @@ export async function liveNativeWorker(agent: Agent, model: string) {
     assert.equal(result.status, "completed");
     assert.ok(evidence.promptStarted && evidence.readNonceVerified);
     assert.ok(tools.some((t) => t.status === "completed"));
-    // Cursor has no switch to drop AGENTS.md/CLAUDE.md/skills; its profile
-    // discloses that limitation, so a leaked marker is evidence, not a failure.
     assert.ok(
       (agent === "cursor" || !evidence.ambientMarkerLeaked) &&
         evidence.writeUnchanged &&

@@ -11,8 +11,6 @@ const manifest = JSON.parse(
   readFileSync(resolve(root, "package.json"), "utf8"),
 );
 
-// npm install refuses a package whose os field misses the target. This is that
-// check, loaded from the npm that is actually on PATH.
 function checkPlatform(os: string) {
   const located = spawnSync("npm", ["root", "-g"], { encoding: "utf8" });
   assert.equal(located.status, 0, located.stderr);

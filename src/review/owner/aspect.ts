@@ -34,8 +34,6 @@ export async function reviewAspect(
       "input-changed",
       `Prompt identity for ${task.assignment.aspect} differs from ${join(dir, "run.json")}. Start a new review with the current package.`,
     );
-  // Resume continues from the persisted partial result: unexamined paths,
-  // or obligations left open after full declared coverage.
   const resumed =
     task.result?.status === "incomplete" &&
     (uncovered(input, task.result.examinedPaths ?? []).length > 0 ||
@@ -43,13 +41,8 @@ export async function reviewAspect(
   let accumulated = resumed ? (task.result ?? null) : null;
   const bounds = portionBounds(input.config.limits.maxTurns);
   let limit = bounds.paths;
-  // Paths that made no progress even alone; later portions skip them.
   const stuck = new Set<string>();
   let obligationsTried = false;
-  // Each pass adds coverage, halves the path allowance after an empty
-  // portion, doubles it after a portion that filled that allowance and
-  // was fully examined, or sets one path aside. Coverage only grows and
-  // a stuck path is skipped, so the loop is bounded by the path count.
   for (;;) {
     const examined = accumulated?.examinedPaths ?? [];
     const remaining = uncovered(input, examined);

@@ -1,5 +1,3 @@
-// Synthetic public-runtime shutdown rejection AFTER real process cleanup.
-// No review, queue, result or storage behavior is replaced. Never shipped.
 import { registerHooks } from "node:module";
 
 const runtime = import.meta.resolve("acpx/runtime");

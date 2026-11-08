@@ -94,7 +94,6 @@ export function imports(
       )
         return;
       if (value && !isStringLiteralLikeNode(value) && !requireLiteral) {
-        // Runtime fixture URLs are external; retain relative literals inside computed URLs.
         visit(value, (part) => {
           if (
             isStringLiteralLikeNode(part) &&

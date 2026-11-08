@@ -4,7 +4,6 @@ export const meta = {
   id: "unnecessary-complexity",
   title: "Unnecessary Complexity",
   summary: "Is this the simplest implementation possible?",
-  applicability: "paths",
   boundaries: [
     {
       other: "unnecessary-layers",

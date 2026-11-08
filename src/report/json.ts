@@ -3,7 +3,6 @@ import { coverage, taskLimitations } from "./details.ts";
 import { findings } from "./group.ts";
 import type { ReportContext } from "./types.ts";
 
-/** Stable JSON for other tools; findings are flattened and never clipped. */
 export function exportRun(run: Run, context: ReportContext) {
   const input = context.input;
   const status = context.status;

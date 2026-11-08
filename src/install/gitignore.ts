@@ -67,7 +67,7 @@ export function ensureStateIgnored(
           ".degreaser/",
         ],
         {
-          allowFailure: true,
+          allowFailure: (status) => status === 1,
         },
       ) !== null;
   } finally {

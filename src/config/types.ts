@@ -13,12 +13,10 @@ export interface Assignment extends Identity {
 }
 export interface Limits {
   workerTimeoutSeconds: number;
-  /** Absent in inputs saved before idle detection; then only the hard limit applies. */
   workerIdleSeconds?: number;
   maxTurns: number;
   runTimeoutSeconds: number;
 }
-/** true: on with the default identity; false: off; object: on with this identity. */
 export type AspectSetting = boolean | { agent?: Agent; model: string };
 export interface ProjectConfig extends Identity {
   schemaVersion?: 1;

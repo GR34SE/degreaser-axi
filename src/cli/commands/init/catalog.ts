@@ -32,7 +32,6 @@ export async function catalog(
     reason: string;
     notice?: string;
   }[] = [];
-  // Native probes share subscription resources; each joins before the next.
   for (const agent of selected) {
     try {
       const models = await discoverModels(f, { agent }, cwd, 120_000, signal);

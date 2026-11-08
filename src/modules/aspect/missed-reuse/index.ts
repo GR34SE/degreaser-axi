@@ -4,7 +4,6 @@ export const meta = {
   id: "missed-reuse",
   title: "Missed Reuse",
   summary: "Does the repo or an existing dependency already solve this?",
-  applicability: "paths",
   boundaries: [
     {
       other: "reinvented-infrastructure",

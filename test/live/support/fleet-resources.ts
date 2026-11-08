@@ -64,7 +64,6 @@ export function sampleMemory() {
   };
 }
 
-/** Resource measurement keeps its larger budget than the owner's identity reads. */
 const MEASUREMENT = { timeout: 5000, maxBuffer: 2 * 1024 * 1024 };
 export type FleetProcess = ReturnType<typeof processes>[number];
 export function processes() {
@@ -90,7 +89,6 @@ export function collectOwned(
   }
 }
 export function otherLiveWork() {
-  // Inspect commands in memory, emit only PIDs, never unrelated argv.
   return liveProcessIds(processCommands(MEASUREMENT), process.pid);
 }
 export function liveProcessIds(

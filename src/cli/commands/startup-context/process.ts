@@ -26,9 +26,7 @@ async function inputCwd(f: Factory): Promise<string> {
           resolve(cwd);
           return;
         }
-      } catch {
-        // Missing or malformed input falls back to the process directory.
-      }
+      } catch {}
       resolve(f.cwd);
     };
     const timer = setTimeout(finish, 100);
@@ -68,8 +66,6 @@ export async function startupContextMain(f: Factory, args: string[]) {
               });
         if (output.length <= 1499) f.io.output.write(`${output}\n`);
       }
-    } catch {
-      // Session startup must not fail when local integration state is broken.
-    }
+    } catch {}
   }
 }

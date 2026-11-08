@@ -31,7 +31,6 @@ async function catalogSchema(
       .reduce((node, key) => node[key] as Record<string, unknown>, data);
     Object.assign(parent, fields);
   }
-  // Keep existing resource bytes when the registered vocabulary is unchanged.
   if (JSON.stringify(data) !== before)
     await writeFile(url, `${JSON.stringify(data, null, 2)}\n`);
 }

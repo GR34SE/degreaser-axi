@@ -4,8 +4,6 @@ import { waitFor } from "../../src/cli/commands/shared/run.ts";
 import { createFactory } from "../../src/cli/factory.ts";
 import { alive, queueFixture, until } from "../utils/queue-fixture.ts";
 
-// The owner can persist its result and exit between a caller's read and its
-// liveness check; the caller must report the persisted result, not an interruption.
 test("wait reports the persisted result when the owner finishes after the running snapshot", async (t) => {
   const f = queueFixture(t);
   f.setPlan({ worker: { resultGate: f.gate("release-result") } });

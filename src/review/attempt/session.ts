@@ -19,7 +19,6 @@ import { workerInstruction } from "./prompt/assemble.ts";
 
 import type { WorkerOutcome, WorkerRequest } from "./types.ts";
 
-/** Harness-wide, not aspect-specific: reports show it once at run level. */
 export function turnBudgetLimitations(agent: Agent, maxTurns: number) {
   return HARNESSES[agent].session.nativeMaxTurns
     ? []
@@ -28,7 +27,6 @@ export function turnBudgetLimitations(agent: Agent, maxTurns: number) {
       ];
 }
 
-/** One fresh runtime/session per attempt. acpx, not this module, owns the process tree. */
 export async function executeWorker(
   request: WorkerRequest,
   profile: NativeProfile,
@@ -128,9 +126,7 @@ export async function executeWorker(
   let cause: unknown;
   try {
     if (request.signal?.aborted) stop("cancelled");
-    // Only Claude honors a system prompt (acpx replaces Claude Code's own), so
-    // it carries the shared instruction there and not again in the turn text.
-    // Other harnesses read it as the first section of the turn text.
+    // acpx's string systemPrompt replaces Claude Code's native system prompt.
     const instruction = workerInstruction(request.maxTurns);
     const system =
       HARNESSES[profile.agent].session.systemPrompt &&
@@ -217,7 +213,6 @@ export async function executeWorker(
           status: event.status ?? "unknown",
         });
     }
-    // The stream ended; result and status calls are not worker inactivity.
     clearTimeout(idle);
     if (!outcome.failure) stage = "turn-result";
     const result = await turn.result;

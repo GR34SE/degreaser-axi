@@ -114,7 +114,7 @@ export async function configureTerminal(
     const catalog = async (agent: Agent) => {
       let result = cache.get(agent);
       if (!result) {
-        // ponytail: no clack spinner; its block() exits 0 on Ctrl+C and skips adapter cleanup.
+        // Clack's spinner exits 0 on Ctrl+C, bypassing adapter cleanup.
         log.step(`Loading ${HARNESSES[agent].displayName} models…`, terminal);
         result = await load(agent, controller.signal);
         cache.set(agent, result);
@@ -135,8 +135,6 @@ export async function configureTerminal(
       !options.model || options.previous?.model === options.model
         ? options.previous
         : undefined;
-    // Claude (Haiku) is the preferred worker, then Codex (Luna), then the rest.
-    // An exact --model may belong to any agent, so it keeps detection order.
     const preferred = options.model
       ? undefined
       : [...AGENTS]

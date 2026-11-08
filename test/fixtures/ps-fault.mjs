@@ -1,4 +1,3 @@
-// Synthetic process-inspection fault for the run owner only. Never shipped.
 import childProcess from "node:child_process";
 import fs from "node:fs";
 import { syncBuiltinESMExports } from "node:module";

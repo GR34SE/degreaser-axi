@@ -13,7 +13,6 @@ import type { OwnerContext } from "../owner/context.ts";
 import type { ReviewInput } from "../types.ts";
 import { executeWorker } from "./session.ts";
 
-/** One assignment pass with bounded retries; returns the merged result or null. */
 export async function executeAttempt(
   context: OwnerContext,
   task: RunTask,
@@ -181,7 +180,6 @@ export async function executeAttempt(
     } catch (error) {
       task.status = "failed";
       const runStopped = stopped();
-      // Same prompt and model; the validator's short message tells the retry what to correct.
       if (error instanceof ResultError && !error.failure)
         text = `${basePrompt}\n\nYour previous final result block was rejected: ${error.message.slice(0, 500)}\nReturn a corrected block that follows the response contract exactly. Do not invent evidence to satisfy the format.`;
       const failure =

@@ -26,7 +26,6 @@ test("a running record read before its owner persisted a terminal record and exi
       f.root,
     ),
   );
-  // A reaped child's PID stands in for an owner that has already exited.
   const exited = spawnSync(process.execPath, ["-e", ""]).pid;
   assert.ok(exited);
   run.owner = { pid: exited, heartbeat: Date.now(), processes: [] };

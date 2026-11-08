@@ -4,11 +4,17 @@ import { gitEnvironment } from "../exec/env.ts";
 import type { Runtime } from "../exec/types.ts";
 import { isUtf8 } from "../text.ts";
 
+type GitOptions = {
+  index?: string;
+  input?: string;
+  allowFailure?: (status: number, stderr: string) => boolean;
+};
+
 function gitBytes(
   runtime: Runtime,
   repository: string,
   args: string[],
-  options: { index?: string; input?: string; allowFailure?: boolean } = {},
+  options: GitOptions = {},
 ): Buffer | null {
   const env = gitEnvironment(runtime.env);
   const result = runtime.spawnSync(
@@ -41,26 +47,29 @@ function gitBytes(
   if (!result.error && result.status === 0) {
     return result.stdout;
   }
-  const failure =
-    result.error ?? new Error(result.stderr?.toString("utf8") ?? "");
+  const stderr = result.stderr?.toString("utf8") ?? "";
+  const failure = result.error ?? new Error(stderr);
   const diagnostic = diagnoseFailure(
     failure,
     `Git ${args[0]} review input operation`,
   );
   if (diagnostic.diagnosis === "permission") throw diagnostic;
-  if (options.allowFailure && !result.error && result.status !== null)
+  if (
+    !result.error &&
+    result.status !== null &&
+    options.allowFailure?.(result.status, stderr)
+  )
     return null;
   throw new InputError(
     `Git ${args[0]} failed while resolving review input. Check repository state, available history, filters and filesystem access; no run was started.`,
   );
 }
 
-/** Strict UTF-8: path names and metadata must never persist replacement characters. */
 export function git(
   runtime: Runtime,
   repository: string,
   args: string[],
-  options: { index?: string; input?: string; allowFailure?: boolean } = {},
+  options: GitOptions = {},
 ): string | null {
   const bytes = gitBytes(runtime, repository, args, options);
   if (bytes === null) return null;
@@ -71,7 +80,6 @@ export function git(
   return bytes.toString("utf8");
 }
 
-/** Raw bytes, for patch text whose non-UTF-8 sections are omitted per file. */
 export function requireGitBytes(
   runtime: Runtime,
   repository: string,

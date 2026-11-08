@@ -1,5 +1,3 @@
-// Synthetic ACP server uses the installed public protocol SDK; it does not
-// implement review, validation, state, ownership or queue transitions.
 import { spawn, spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { appendFileSync, existsSync, readFileSync } from "node:fs";
@@ -16,7 +14,6 @@ const { AgentSideConnection, ndJsonStream, RequestError } = await import(
 const plan = JSON.parse(readFileSync(process.argv[2], "utf8"));
 const model = process.env.SYNTHETIC_MODEL;
 const agent = process.env.SYNTHETIC_AGENT;
-// Independent finite catalog, never derived from the requested model.
 const catalog = {
   codex: ["exact-codex", "gpt-6-luna"],
   claude: ["claude-haiku-4-5-20251001"],
@@ -140,7 +137,6 @@ const connection = new AgentSideConnection(
       const attempt = previous.filter(
         (event) => event.aspect === aspect,
       ).length;
-      // Attempt overrides cover prompt faults; startup and close faults are session-wide.
       const step = settings.attempts?.[attempt] ?? settings;
       if (plan.nestedCli) {
         const { latestRunId } = JSON.parse(

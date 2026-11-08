@@ -19,7 +19,6 @@ export async function cursorCaller(context: NativeCallerContext) {
 
   let observedModel: unknown;
   // Print mode runs project sessionStart. ACP review sessions do not.
-  // Trust, force and sandbox apply only to this process.
   const host = callerProcess(
     executable,
     [

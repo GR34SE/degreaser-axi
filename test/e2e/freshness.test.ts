@@ -96,7 +96,6 @@ test("earlier development fingerprints remain readable history rather than block
   const input = JSON.parse(
     readFileSync(join(directory, "input/review.json"), "utf8"),
   );
-  // The earlier development format hashed the whole serialized input.
   run.identity = createHash("sha256")
     .update(
       JSON.stringify({
@@ -307,7 +306,6 @@ test("moving an explicit branch base and copying a run to another repository can
     readFileSync(join(other.root, ".degreaser/runs", run.id, "run.json")),
     before,
   );
-  // Foreign history (a moved or copied repository) does not block new reviews.
   other.start(["--aspects", "low-value-comments"]);
   assert.equal(other.finish().status, 0);
   rmSync(join(other.root, ".degreaser"), { recursive: true });

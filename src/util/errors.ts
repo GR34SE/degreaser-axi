@@ -1,7 +1,6 @@
 export class InputError extends Error {
   override name = "InputError";
   readonly code = "invalid-input";
-  /** Commands that resolve this error; defaults to the command's --help. */
   readonly help: string[] | undefined;
   constructor(message: string, help?: string[]) {
     super(message);
@@ -11,7 +10,6 @@ export class InputError extends Error {
 
 export class StateError extends Error {
   code: string;
-  /** Commands that resolve this error; defaults to the command's --help. */
   help: string[] | undefined;
   constructor(code: string, message: string, help?: string[]) {
     super(message);
@@ -40,7 +38,6 @@ export class DiagnosticError extends Error {
 }
 
 export class ResultError extends Error {
-  /** Set when assistant text is an account block rather than a malformed review. */
   failure?: "account-disabled";
   constructor(message: string, failure?: "account-disabled") {
     super(message);

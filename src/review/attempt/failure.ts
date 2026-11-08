@@ -6,12 +6,10 @@ import {
 
 export type WorkerFailure = ExecutionFailure | "cleanup" | "output-limit";
 
-/** Cursor returns this sentence, and no result block, when the account must add billing. */
 export function billingRefusal(text: string): boolean {
   return /^\s*add a payment method to continue\s*$/i.test(text);
 }
 
-/** Lifecycle point at which an attempt stopped. Unknown stages are never invented. */
 export const WORKER_STAGES = [
   "profile",
   "session-setup",
@@ -39,7 +37,6 @@ export const RECOVERIES = [
 ] as const;
 export type Recovery = (typeof RECOVERIES)[number];
 
-/** Safe, bounded facts about one failed attempt. Never provider prose or raw output. */
 export interface WorkerDiagnostic {
   stage: WorkerStage;
   recovery: Recovery;
@@ -63,11 +60,9 @@ const recoveries: Partial<Record<string, Recovery>> = {
   "invalid-output": "resume",
   cleanup: "inspect-cleanup",
 };
-/** Unclassified failures stay "inspect": never presented as retryable by guess. */
 export const recoveryFor = (failure: string | null | undefined): Recovery =>
   (failure ? recoveries[failure] : undefined) ?? "inspect";
 
-// Codes declared by the pinned acpx runtime plus the machine codes classified above.
 const knownCodes = new Set([
   "ACP_BACKEND_MISSING",
   "ACP_BACKEND_UNAVAILABLE",
@@ -79,7 +74,6 @@ const knownCodes = new Set([
   "RUNTIME",
   ...Object.keys(executionCodes),
 ]);
-// ACP stop reasons; anything else is dropped rather than stored.
 const stopReasons = new Set([
   "end_turn",
   "max_tokens",
@@ -90,7 +84,6 @@ const stopReasons = new Set([
 export const safeStopReason = (value: unknown) =>
   typeof value === "string" && stopReasons.has(value) ? value : undefined;
 
-/** Keep only recognized machine fields from an error chain; unknown stays absent. */
 export function failureDiagnostic(
   stage: WorkerStage,
   failure: string | null | undefined,

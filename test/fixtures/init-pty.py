@@ -1,4 +1,3 @@
-"""Drive compiled init through a real terminal, not a product test flag."""
 import errno
 import fcntl
 import re

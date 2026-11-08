@@ -56,7 +56,6 @@ export function causeChain(error: unknown) {
   return chain;
 }
 
-/** Prefer machine causes, including wrapped errors, to unstructured provider prose. */
 export function executionFailure(error: unknown): ExecutionFailure {
   const chain = causeChain(error);
   for (const key of ["detailCode", "code"]) {

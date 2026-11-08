@@ -4,7 +4,6 @@ export const meta = {
   id: "speculative-flexibility",
   title: "Speculative Flexibility",
   summary: "Do these options and extension points serve a current requirement?",
-  applicability: "paths",
   boundaries: [
     {
       other: "wrong-abstraction",

@@ -51,7 +51,6 @@ export function hookSpec(runtime: Runtime, args: readonly string[] = []) {
 
 const template =
   /^(if \[ -z "\$\{DEGREASER_WORKER:-\}" \]; then ).+( startup-context(?: --cursor)? 2>\/dev\/null \|\| :; fi # degreaser-startup-v1)$/;
-/** Compare marked commands across installations without adopting foreign edits. */
 export function withCurrentExecutable(runtime: Runtime, text: string) {
   return text.replace(
     template,

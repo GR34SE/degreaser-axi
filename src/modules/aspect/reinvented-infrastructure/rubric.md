@@ -6,7 +6,7 @@
 
 **Applies when:** The change adds a custom general-purpose mechanism, such as an evicting cache, standard-format parser, scheduler/cron, time-zone arithmetic, retry with backoff or cryptographic primitive. Otherwise return not-applicable.
 
-**Evidence:** Use source evidence only. Inspect the manifest and repository to establish that no equivalent exists, then demonstrate a concrete semantic case the code misses, such as CSV quoting or a daylight-saving transition. Also inspect dependency restrictions.
+**Evidence:** Use source evidence only. Inspect the manifest and repository to establish that no equivalent exists, then demonstrate a concrete semantic case the code misses, such as CSV quoting or a daylight-saving transition. Tie that semantic to an actual requirement, not an imagined fully featured cache, parser or scheduler. Also inspect dependency restrictions.
 
 **Boundaries:** The reviewer cannot browse or verify libraries. Recommendations name missing semantics and suggest considering a mature solution. Library names may appear only as unverified suggestions in uncertainty; selection and verification belong to the caller. Small code satisfying its actual bounded contract is not slop. Popularity alone is never evidence.
 
@@ -18,17 +18,23 @@ Teaching excerpts; context states omitted setup. These have not been executed as
 
 ## reinvented-infrastructure-B1 · REPORT
 
-**Context:** A new module implements a general cache with TTL, LRU eviction and a memory limit. The manifest and repository contain no cache, and runtime dependencies are permitted. Expired entries are removed only when that same key is read.
+**Context:** A new general-purpose TTL cache must retain at most 1,024 bytes of values. The manifest and repository contain no equivalent cache, and runtime dependencies are permitted. These are its only insertion and removal paths; callers may store distinct 600-byte values.
 
 ```typescript
-class LocalCache<V> {
-  private entries = new Map<string, { value: V; expiresAt: number }>();
-  private touchOrder: string[] = [];
-  get(key: string): V | undefined { return this.lookupAndEvict(key); }
+class LocalCache {
+  private entries = new Map<string, { value: Uint8Array; expiresAt: number }>();
+  set(key: string, value: Uint8Array, ttlMs: number) {
+    this.entries.set(key, { value, expiresAt: Date.now() + ttlMs });
+  }
+  get(key: string): Uint8Array | undefined {
+    const entry = this.entries.get(key);
+    if (entry && entry.expiresAt > Date.now()) return entry.value;
+    this.entries.delete(key);
+  }
 }
 ```
 
-**Why:** The team takes on general infrastructure maintenance with an already visible semantic gap: expired, unread keys never release memory, so the memory limit is not enforced. Show this case and the lack of an existing equivalent. Leave library selection to the caller.
+**Why:** Two distinct 600-byte insertions retain 1,200 bytes, exceeding the stated limit before expiration matters. No insertion path accounts for capacity or evicts entries. Lazy expiration alone would not prove this failure; the visible capacity violation does. Leave library selection to the caller.
 
 ## reinvented-infrastructure-B2 · REPORT
 

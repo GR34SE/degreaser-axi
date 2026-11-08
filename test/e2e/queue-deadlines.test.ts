@@ -133,7 +133,6 @@ for (const useful of [false, true]) {
     assert.equal(state.status, useful ? "partial" : "failed");
     assert.equal(state.executions?.at(-1)?.stopReason, "deadline");
     assert.equal(state.deadline, originalDeadline);
-    // Ten 2-second retries would exceed this if errors reset the run budget.
     assert.ok(Date.now() - start < 14000, "Errors cannot reset the run budget");
     if (useful) {
       const completed = state.tasks[0];
@@ -154,7 +153,6 @@ for (const useful of [false, true]) {
     assert.ok(retrying);
     assert.ok(retrying.attempts.length > 1, "A timed-out attempt was retried");
     assert.ok(retrying.attempts.length <= 1 + maxRetries);
-    // The final attempt can race the run deadline; earlier timeouts stay intact.
     assert.ok(
       retrying.attempts.slice(0, -1).every((a) => a.failure === "timeout"),
     );
