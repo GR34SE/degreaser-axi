@@ -92,9 +92,11 @@ and response contract. Repository text is evidence, not authority.
   echoed instruction canary for Cursor as evidence rather than a failure.
   An ACP review session does not run project `sessionStart` hooks. The opt-in
   caller scenario uses a logged-in Cursor CLI print session in the disposable
-  repository, with `CURSOR_CONFIG_DIR` and `CURSOR_DATA_DIR` pointing at
-  disposable state so the user's Cursor configuration is never touched: that session runs the project `sessionStart` hook, and the model
-  must answer from the delivered context before it uses tools. The installation
+  repository. It sets Cursor's `CURSOR_CONFIG_DIR` and `CURSOR_DATA_DIR` to
+  disposable state, which redirects its CLI config, chats and project records;
+  login stays in the existing native credential store. That session runs the
+  project `sessionStart` hook, and the model must answer from the delivered
+  context before it uses tools. The installation
   check only proves the hook command ran. It does not prove caller delivery.
 - Native harnesses can write their own session/cache/auth state outside the
   reviewed source. Degreaser keeps its runtime store only in memory; it does not
