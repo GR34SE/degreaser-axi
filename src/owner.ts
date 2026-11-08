@@ -212,8 +212,10 @@ export async function ownRun(
       // Paths that made no progress even alone; later portions skip them.
       const stuck = new Set<string>();
       let obligationsTried = false;
-      // Each pass adds coverage, halves its portion or sets one path aside,
-      // so the loop is bounded by the path count.
+      // Each pass adds coverage, halves the path allowance after an empty
+      // portion, doubles it after a portion that filled that allowance and
+      // was fully examined, or sets one path aside. Coverage only grows and
+      // a stuck path is skipped, so the loop is bounded by the path count.
       for (;;) {
         const examined = accumulated?.examinedPaths ?? [];
         const remaining = uncovered(input, examined);
@@ -278,7 +280,11 @@ export async function ownRun(
           const next = nextLimit(portion.length);
           if (next) limit = next;
           else if (portion[0] !== undefined) stuck.add(portion[0]);
-        }
+        } else if (
+          portion.length === limit &&
+          portion.every((path) => pass.examinedPaths?.includes(path))
+        )
+          limit = Math.min(bounds.paths, limit * 2);
       }
       recordUnresolved(task, stuck);
       if (task.status === "cancelled") {

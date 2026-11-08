@@ -25,7 +25,9 @@ export function uncovered(input: ReviewInput, examined: readonly string[]) {
  * lines; assuming 32 KiB per path on average caps the text a portion can ask
  * for. Observed audits that sent all 184 paths at once spent their turns on
  * repository-wide searches and covered 20-80 paths. These are starting bounds:
- * a pass without progress shrinks its portion (see nextLimit).
+ * a pass without progress shrinks its portion (see nextLimit). A later pass
+ * that fills the path allowance and examines every path in it doubles that
+ * allowance back toward this bound. The byte bound does not increase.
  */
 export function portionBounds(maxTurns: number) {
   const paths = Math.max(1, Math.floor(maxTurns / 2));

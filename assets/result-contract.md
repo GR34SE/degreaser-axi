@@ -45,7 +45,11 @@ large assignment, covers a bounded portion of the remaining paths. The bound is
 derived from the turn budget (half the turns, one path per read turn) and from
 an average text size per path, and a portion always holds at least one path;
 the rest of the repository stays readable context. A pass without new coverage
-halves its portion. A single path that still makes no progress is recorded as
+halves its portion. A pass that examines every path in a portion that filled
+the path allowance doubles that allowance for later passes, up to the starting
+bound; the text-size bound does not increase. A pass that examines only part
+of its portion leaves the allowance unchanged, so the unfinished paths are not
+combined with later ones. A single path that still makes no progress is recorded as
 stuck, and the other portions continue; the aspect then ends incomplete naming
 that path. The loop is therefore bounded by the path count and the run
 deadline, not by a fixed pass limit. Report coverage shows `examined`
