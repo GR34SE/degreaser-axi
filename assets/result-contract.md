@@ -234,7 +234,8 @@ Disabled or suspended accounts are `account-disabled`, not transient quota:
 restore access to the selected account with its provider before resuming.
 Assistant text that is only `Add a payment method to continue`, with no result
 block, is the same account failure. It is not invalid output and it is not
-retried.
+retried. The same words inside a result block, or any other assistant text, are
+not an account failure.
 Waiting or lowering concurrency does not restore account access. Classification
 prefers explicit machine codes and HTTP status metadata, with constrained
 message fallback; a bare number 429 in unrelated prose is not a rate limit.
