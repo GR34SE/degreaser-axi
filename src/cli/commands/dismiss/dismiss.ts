@@ -1,7 +1,7 @@
 import { assertNotWorker } from "../../../modules/harness/common/isolation.ts";
 import { findings } from "../../../report/index.ts";
 import { recordDismissal } from "../../../state/dismissals.ts";
-import { observedStatus } from "../../../state/status.ts";
+import { observeRun } from "../../../state/status.ts";
 import { loadRun } from "../../../state/store.ts";
 import { InputError, StateError } from "../../../util/errors.ts";
 import { repositoryRoot } from "../../../util/git/repository.ts";
@@ -18,11 +18,13 @@ export function run(f: Factory, { positionals, values }: CommandOptions) {
       "--reason is required: say why the finding should not be applied.",
     );
   const repository = repositoryRoot(f, f.cwd);
-  const run = loadRun(
-    repository,
-    typeof values.run === "string" ? values.run : undefined,
+  const { run, status } = observeRun(
+    loadRun(
+      repository,
+      typeof values.run === "string" ? values.run : undefined,
+    ),
   );
-  if (observedStatus(run) === "running")
+  if (status === "running")
     throw new StateError(
       "run-active",
       `${run.id} is still running and its finding IDs can change. Wait for it, then dismiss from the final report.`,

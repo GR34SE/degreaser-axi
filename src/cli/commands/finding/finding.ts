@@ -8,9 +8,12 @@ export { spec } from "./spec.ts";
 import { renderFinding } from "../../../report/index.ts";
 import { reportContext } from "../shared/run.ts";
 export function run(f: Factory, { positionals, values }: CommandOptions) {
-  const run = loadRun(
-    repositoryRoot(f, f.cwd),
-    typeof values.run === "string" ? values.run : undefined,
+  const { run, context } = reportContext(
+    f,
+    loadRun(
+      repositoryRoot(f, f.cwd),
+      typeof values.run === "string" ? values.run : undefined,
+    ),
   );
-  return { output: renderFinding(run, reportContext(f, run), positionals[0]) };
+  return { output: renderFinding(run, context, positionals[0]) };
 }

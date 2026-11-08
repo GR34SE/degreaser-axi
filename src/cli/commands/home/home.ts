@@ -6,7 +6,7 @@ import {
   DESCRIPTION,
 } from "../../../install/skill/guidance.ts";
 import { ASPECT_IDS } from "../../../modules/aspect/api.ts";
-import { observedStatus } from "../../../state/status.ts";
+import { observeRun } from "../../../state/status.ts";
 import { loadInput, loadRun } from "../../../state/store.ts";
 import { InputError, StateError } from "../../../util/errors.ts";
 import { repositoryRoot } from "../../../util/git/repository.ts";
@@ -57,7 +57,7 @@ export function run(f: Factory) {
   try {
     const run = loadRun(repository);
     loadInput(run);
-    const status = observedStatus(run);
+    const { status } = observeRun(run);
     Object.assign(local, {
       history: "available",
       run: run.id,

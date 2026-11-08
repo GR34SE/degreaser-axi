@@ -6,7 +6,7 @@ import {
   verifyOwner,
 } from "../../state/ownership.ts";
 import type { Run } from "../../state/run.ts";
-import { observedStatus } from "../../state/status.ts";
+import { observeRun } from "../../state/status.ts";
 import { loadInput, loadRun } from "../../state/store.ts";
 import { StateError } from "../../util/errors.ts";
 
@@ -16,7 +16,7 @@ export async function cancelReview(run: Run) {
   // Admission publishes the run before the detached owner publishes its PID.
   const startupEnd = Date.now() + 10_000;
   while (
-    observedStatus(run) === "running" &&
+    observeRun(run).status === "running" &&
     !run.owner &&
     Date.now() < startupEnd
   ) {
@@ -36,8 +36,8 @@ export async function cancelReview(run: Run) {
     throw error;
   }
   try {
-    run = loadRun(run.repository, id);
-    const observed = observedStatus(run);
+    let observed: string;
+    ({ run, status: observed } = observeRun(loadRun(run.repository, id)));
     if (observed === "interrupted") {
       // No owner remains to join its workers: stop only verified old workers, start nothing.
       await cleanInterruptedOwner(run);
@@ -52,8 +52,8 @@ export async function cancelReview(run: Run) {
       );
     // A live PID alone is not ownership: it may have been reused for another run.
     const verified = verifyOwner(run);
-    run = loadRun(run.repository, id);
-    if (observedStatus(run) !== "running") return run;
+    ({ run, status: observed } = observeRun(loadRun(run.repository, id)));
+    if (observed !== "running") return run;
     if (
       !verified ||
       run.owner?.pid !== owner.pid ||

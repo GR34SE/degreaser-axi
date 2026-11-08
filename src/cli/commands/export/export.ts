@@ -8,6 +8,9 @@ export { spec } from "./spec.ts";
 import { exportRun } from "../../../report/index.ts";
 import { reportContext } from "../shared/run.ts";
 export function run(f: Factory, { positionals }: CommandOptions) {
-  const run = loadRun(repositoryRoot(f, f.cwd), positionals[0]);
-  return { output: exportRun(run, reportContext(f, run)) };
+  const { run, context } = reportContext(
+    f,
+    loadRun(repositoryRoot(f, f.cwd), positionals[0]),
+  );
+  return { output: exportRun(run, context) };
 }

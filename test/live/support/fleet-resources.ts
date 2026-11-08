@@ -3,6 +3,10 @@ import { closeSync, openSync, unlinkSync, writeFileSync } from "node:fs";
 import { loadavg, totalmem } from "node:os";
 import { setTimeout } from "node:timers/promises";
 import type { ProcessIdentity } from "../../../src/state/run.ts";
+import {
+  processCommands,
+  processCpu,
+} from "../../../src/util/exec/process-table.ts";
 
 export function localRead(command: string, args: string[]) {
   const result = spawnSync(command, args, {
@@ -60,29 +64,11 @@ export function sampleMemory() {
   };
 }
 
-export interface FleetProcess extends ProcessIdentity {
-  parent: number;
-  cpu: number;
-}
-export function processes(): FleetProcess[] {
-  return localRead("/bin/ps", ["-axo", "pid=,ppid=,pgid=,lstart=,stat=,%cpu="])
-    .trim()
-    .split("\n")
-    .flatMap((line) => {
-      const f = line.trim().split(/\s+/);
-      if (f.length !== 10) throw new Error("Unrecognized process measurement");
-      return f[8]?.startsWith("Z")
-        ? []
-        : [
-            {
-              pid: Number(f[0]),
-              parent: Number(f[1]),
-              group: Number(f[2]),
-              started: f.slice(3, 8).join(" "),
-              cpu: Number(f[9]),
-            },
-          ];
-    });
+/** Resource measurement keeps its larger budget than the owner's identity reads. */
+const MEASUREMENT = { timeout: 5000, maxBuffer: 2 * 1024 * 1024 };
+export type FleetProcess = ReturnType<typeof processes>[number];
+export function processes() {
+  return processCpu(MEASUREMENT);
 }
 export function sameProcess(a: ProcessIdentity, b: ProcessIdentity) {
   return a.pid === b.pid && a.group === b.group && a.started === b.started;
@@ -105,20 +91,19 @@ export function collectOwned(
 }
 export function otherLiveWork() {
   // Inspect commands in memory, emit only PIDs, never unrelated argv.
-  return liveProcessIds(
-    localRead("/bin/ps", ["-axo", "pid=,command="]),
-    process.pid,
-  );
+  return liveProcessIds(processCommands(MEASUREMENT), process.pid);
 }
-export function liveProcessIds(table: string, self: number) {
-  return table
-    .split("\n")
-    .filter((line) =>
+export function liveProcessIds(
+  rows: { pid: number; command: string }[],
+  self: number,
+) {
+  return rows
+    .filter(({ command }) =>
       /(?:review\/owner\/process\.js|test\/live\/(?:run|support\/live-(?:caller|native|review|fleet))\.(?:ts|js)|\/(?:codex-acp|claude-agent-acp|pi-acp)(?:\/| ))/.test(
-        line,
+        command,
       ),
     )
-    .map((line) => Number(line.trim().split(/\s+/)[0]))
+    .map((row) => row.pid)
     .filter((pid) => pid !== self);
 }
 export function fleetLock(path: string) {

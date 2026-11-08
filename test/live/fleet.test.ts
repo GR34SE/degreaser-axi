@@ -219,7 +219,13 @@ test("fleet admission excludes another pilot and preserves an existing lock", (t
   fleetLock(path)();
   assert.deepEqual(
     liveProcessIds(
-      "10 node test/live/run.ts --run --case fleet\n11 node /repo/test/live/support/live-review.ts\n12 node /repo/dist/review/owner/process.js\n13 node unrelated.js\n14 node test/live/run.ts",
+      [
+        { pid: 10, command: "node test/live/run.ts --run --case fleet" },
+        { pid: 11, command: "node /repo/test/live/support/live-review.ts" },
+        { pid: 12, command: "node /repo/dist/review/owner/process.js" },
+        { pid: 13, command: "node unrelated.js" },
+        { pid: 14, command: "node test/live/run.ts" },
+      ],
       14,
     ),
     [10, 11, 12],

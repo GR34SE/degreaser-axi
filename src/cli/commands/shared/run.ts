@@ -9,14 +9,15 @@ import {
   processAlive,
 } from "../../../state/ownership.ts";
 import type { Run } from "../../../state/run.ts";
-import { observedStatus } from "../../../state/status.ts";
+import { observeRun } from "../../../state/status.ts";
 import { loadInput, loadRun } from "../../../state/store.ts";
 import type { Factory } from "../../factory.ts";
 
-export function reportContext(f: Factory, run: Run): ReportContext {
+/** Returns the run record its observed status was derived from, for rendering. */
+export function reportContext(f: Factory, snapshot: Run) {
+  const { run, status } = observeRun(snapshot);
   const input = loadInput(run);
-  const status = observedStatus(run);
-  return {
+  const context: ReportContext = {
     input,
     status,
     now: f.now(),
@@ -35,13 +36,15 @@ export function reportContext(f: Factory, run: Run): ReportContext {
       ]),
     ),
   };
+  return { run, context };
 }
 
 export async function waitFor(f: Factory, run: Run, seconds: number) {
   const end = f.now() + seconds * 1000;
-  while (observedStatus(run) === "running" && f.now() < end) {
+  while (observeRun(run).status === "running" && f.now() < end) {
     await setTimeout(Math.min(100, end - f.now()));
     run = loadRun(run.repository, run.id);
   }
-  return renderReport(run, reportContext(f, run));
+  const observed = reportContext(f, run);
+  return renderReport(observed.run, observed.context);
 }
