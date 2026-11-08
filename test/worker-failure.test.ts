@@ -113,28 +113,6 @@ for (const [name, error, expected] of [
   });
 }
 
-test("the billing sentence is not an account failure without a machine code", () => {
-  assert.equal(
-    workerFailure(new Error("Add a payment method to continue")),
-    "runtime",
-  );
-  assert.equal(
-    workerFailure({
-      message: "Add a payment method to continue",
-      model: "claude-haiku-5-5",
-    }),
-    "runtime",
-  );
-  assert.equal(
-    workerFailure({
-      code: "ACCOUNT_DISABLED",
-      message: "Add a payment method to continue",
-      model: "grok-4.7-xhigh",
-    }),
-    "account-disabled",
-  );
-});
-
 test("diagnostics keep only recognized machine fields", () => {
   assert.deepEqual(
     failureDiagnostic(

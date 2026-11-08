@@ -1,13 +1,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import {
-  existsSync,
-  readdirSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
@@ -66,18 +60,25 @@ function latest(cwd: string): Run | undefined {
 }
 
 export async function liveCaller(agent: Agent, model: string) {
-  // A short /tmp path keeps Cursor's project slug exact so only this repo is removed.
   const cwd = await realpath(
-    await mkdtemp(
-      join(
-        agent === "cursor" ? "/tmp" : tmpdir(),
-        agent === "cursor" ? "degreaser-caller-" : "degreaser-caller-flow-",
-      ),
-    ),
+    await mkdtemp(join(tmpdir(), "degreaser-caller-flow-")),
   );
-  const cursorConfig = agent === "cursor" ? cursorConfigSnapshot() : undefined;
-  const cursorProjectsBefore =
-    agent === "cursor" ? new Set(cursorProjectNames()) : undefined;
+  // Cursor's supported config/data overrides keep every Cursor write under
+  // disposable state; login stays in the user's existing credential store.
+  const cursorState =
+    agent === "cursor"
+      ? await realpath(await mkdtemp(join(tmpdir(), "degreaser-cursor-")))
+      : undefined;
+  const cursorEnvironment: Record<string, string> = cursorState
+    ? {
+        CURSOR_CONFIG_DIR: join(cursorState, "config"),
+        CURSOR_DATA_DIR: join(cursorState, "data"),
+      }
+    : {};
+  const previousEnvironment = Object.fromEntries(
+    Object.keys(cursorEnvironment).map((key) => [key, process.env[key]]),
+  );
+  Object.assign(process.env, cursorEnvironment);
   const before = policy();
   const trace = new CallerEvidence(agent, model);
   const evidence: Record<string, unknown> = {
@@ -154,6 +155,7 @@ export async function liveCaller(agent: Agent, model: string) {
       emptyContext,
       check,
       "context",
+      cursorEnvironment,
     );
     assert.deepEqual(
       policy(),
@@ -187,6 +189,7 @@ Do not edit source or Git index. Only AFTER a terminal result is visible to you,
       trace,
       check,
       "review",
+      cursorEnvironment,
     );
     assert.deepEqual(
       policy(),
@@ -288,6 +291,7 @@ Do not edit source or Git index. Only AFTER a terminal result is visible to you,
       context,
       check,
       "context",
+      cursorEnvironment,
     );
     check();
     assert.equal(violation, undefined);
@@ -305,7 +309,6 @@ Do not edit source or Git index. Only AFTER a terminal result is visible to you,
     );
     evidence.passed = true;
   } finally {
-    if (cursorConfig) restoreCursorConfig(cursorConfig);
     if (watcher) clearInterval(watcher);
     let run = latest(cwd);
     const until = Date.now() + 15_000;
@@ -317,26 +320,17 @@ Do not edit source or Git index. Only AFTER a terminal result is visible to you,
     }
     const joined = !run?.owner || !ownerAlive(run.owner);
     if (agent === "cursor") stopCursorAt(cwd);
-    if (cursorConfig) restoreCursorConfig(cursorConfig);
-    const cursorProjects = cursorProjectsBefore
-      ? removeCursorProjects(cwd, cursorProjectsBefore)
-      : undefined;
     evidence.ownerJoined = joined;
-    evidence.cursorUserConfigRestored = cursorConfig
-      ? cursorConfig.every(cursorConfigMatches)
-      : undefined;
-    evidence.cursorProjectsRemoved = cursorProjects?.removed;
-    evidence.unexpectedCursorProjects = cursorProjects?.unexpected ?? [];
+    for (const [key, value] of Object.entries(previousEnvironment))
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    if (cursorState) await rm(cursorState, { recursive: true, force: true });
     evidence.globalPolicyUnchanged =
       JSON.stringify(policy()) === JSON.stringify(before);
-    const cursorClean =
-      evidence.cursorUserConfigRestored !== false &&
-      (evidence.unexpectedCursorProjects as string[]).length === 0;
     evidence.passed =
       evidence.passed === true &&
       joined &&
-      evidence.globalPolicyUnchanged === true &&
-      cursorClean;
+      evidence.globalPolicyUnchanged === true;
     console.log(JSON.stringify(evidence, null, 2));
     if (joined) await rm(cwd, { recursive: true, force: true });
     else
@@ -349,64 +343,9 @@ Do not edit source or Git index. Only AFTER a terminal result is visible to you,
       true,
       "Global policy changed; stop and report",
     );
-    if (cursorConfig)
-      assert.equal(
-        evidence.cursorUserConfigRestored,
-        true,
-        "Cursor user configuration was not restored",
-      );
-    assert.deepEqual(
-      evidence.unexpectedCursorProjects,
-      [],
-      `Cursor project records left for ${cursorSlug(cwd)}`,
-    );
   }
 }
 
-function cursorProjectNames() {
-  const dir = join(homedir(), ".cursor", "projects");
-  return existsSync(dir) ? readdirSync(dir) : [];
-}
-function cursorSlug(directory: string) {
-  return directory.replace(/^\//, "").replaceAll(".", "").replaceAll("/", "-");
-}
-function cursorConfigSnapshot() {
-  return ["hooks.json", "cli-config.json"].map((name) => {
-    const path = join(homedir(), ".cursor", name);
-    return { path, bytes: existsSync(path) ? readFileSync(path) : null };
-  });
-}
-function cursorConfigMatches(file: { path: string; bytes: Buffer | null }) {
-  const original = file.bytes
-    ? createHash("sha256").update(file.bytes).digest("hex")
-    : null;
-  return digest(file.path) === original;
-}
-function restoreCursorConfig(
-  snapshot: { path: string; bytes: Buffer | null }[],
-) {
-  for (const file of snapshot) {
-    if (file.bytes) writeFileSync(file.path, file.bytes);
-    else if (existsSync(file.path)) rmSync(file.path);
-  }
-}
-function removeCursorProjects(directory: string, before: Set<string>) {
-  const slug = cursorSlug(directory);
-  const base = directory.split("/").pop() ?? "";
-  const created = cursorProjectNames().filter((name) => !before.has(name));
-  const owned = created.filter(
-    (name) => name === slug || (base.length > 0 && name.includes(base)),
-  );
-  for (const name of owned)
-    rmSync(join(homedir(), ".cursor", "projects", name), {
-      recursive: true,
-      force: true,
-    });
-  return {
-    removed: owned.length,
-    unexpected: created.filter((name) => !owned.includes(name)),
-  };
-}
 function stopCursorAt(directory: string) {
   const listed = spawnSync("ps", ["-ax", "-o", "pid=,command="], {
     encoding: "utf8",

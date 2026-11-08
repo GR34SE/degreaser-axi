@@ -13,6 +13,8 @@ export const INHERITED_WORKER_ENV = [
   "CODEX_HOME",
   "CLAUDE_CONFIG_DIR",
   "PI_CODING_AGENT_DIR",
+  "CURSOR_CONFIG_DIR",
+  "CURSOR_DATA_DIR",
 ] as const;
 
 export function workerEnvironment(
