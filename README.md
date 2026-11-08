@@ -55,7 +55,7 @@ All 17 built-in aspects are enabled by default. Each reviewer checks one questio
 | --- | --- |
 | `unnecessary-complexity` | Is this the simplest implementation possible? |
 | `masked-errors` | Does a fallback turn failure into apparent success? |
-| `verification-theater` | Does a runtime or tooling check prove the property it claims to verify? |
+| `verification-theater` | Does the check distinguish the valid and invalid states it claims to verify? |
 | `contract-bypass` | Does a cast, suppression or default hide a real mismatch? |
 | `incomplete-integration` | Is the new code connected to the real user path? |
 | `low-value-tests` | Would this test detect broken behavior, or just confirm its own mock? |
@@ -63,13 +63,13 @@ All 17 built-in aspects are enabled by default. Each reviewer checks one questio
 | `reinvented-infrastructure` | Does a handwritten cache, parser or similar mechanism miss required semantics? |
 | `missed-reuse` | Does the repo or an existing dependency already solve this? |
 | `wrong-abstraction` | Does a shared mechanism combine cases with conflicting rules? |
-| `structural-erosion` | Does this change add responsibilities and branching to an overloaded unit? |
+| `structural-erosion` | Does this change create or worsen coupling between responsibilities? |
 | `speculative-flexibility` | Do these options and extension points serve a current requirement? |
 | `unnecessary-layers` | Does this wrapper, service or factory add useful behavior or a boundary? |
 | `unjustified-defense` | Does this check protect a real boundary or possible state? |
 | `convention-drift` | Does this introduce another way to do the same thing without a reason? |
 | `unidiomatic-code` | Can a native construct remove unnecessary logic without changing behavior? |
-| `low-value-comments` | Does the comment explain something the code cannot? |
+| `low-value-comments` | Does the comment prevent a trap that code cannot reveal? |
 
 A wrapper, comment or validation check is not automatically a problem. Reviewers must establish a concrete consequence and check reasons to keep the code. See the [catalog and aspect boundaries](https://github.com/GR34SE/degreaser-axi/blob/main/docs/aspects.md) for details.
 
