@@ -26,6 +26,16 @@ def command(argv, cwd=None, timeout=600):
     return result.stdout
 
 
+def batch_records(returncode, output):
+    summary = output / "summary.json"
+    if returncode not in (0, 1) or not summary.is_file():
+        raise RuntimeError(f"Evaluation run failed ({returncode}).")
+    report = json.loads(summary.read_text())
+    if report.get("providerErrors") != 0 or (returncode == 1) != bool(report.get("incompleteRecords")):
+        raise RuntimeError("Evaluation run reported provider errors or an unexplained failure.")
+    return [json.loads(line) for line in (output / "records.jsonl").read_text().splitlines()]
+
+
 def surface_path(product, surface):
     allowed = (
         surface == "src/review/attempt/prompt/worker.md"
@@ -77,9 +87,21 @@ class DegreaserAdapter:
             raise RuntimeError("Evaluation did not return the requested batch.")
         scores, objectives, traces = [], [], []
         for sample, row in zip(batch, rows):
-            if row.get("error") or not row.get("metrics", {}).get("complete"):
-                raise RuntimeError("Incomplete/provider-failed evaluation stops the campaign.")
-            metrics = row["metrics"]
+            metrics = row.get("metrics") or {}
+            if row.get("error"):
+                raise RuntimeError("Provider-failed evaluation stops the campaign.")
+            if not metrics.get("complete"):
+                if metrics.get("reason") != "incomplete-review":
+                    raise RuntimeError("Invalid evaluation export stops the campaign.")
+                scores.append(0.0)
+                objectives.append({"recall": 0.0, "precisionProxy": 0.0, "preserve": 0.0})
+                traces.append({
+                    "sampleId": sample["id"], "task": sample["review"]["task"],
+                    "complete": False, "reason": metrics["reason"],
+                    "context": {"anchors": [], "limitation": "Partial review; anchor metrics are unknown."},
+                    "findings": row.get("envelope", {}).get("export", {}).get("findings", []),
+                })
+                continue
             recall = metrics.get("recall")
             if recall is None:
                 raise ValueError("Optimization requires REPORT anchors.")
@@ -92,6 +114,7 @@ class DegreaserAdapter:
             })
             traces.append({
                 "sampleId": sample["id"], "task": sample["review"]["task"],
+                "complete": True,
                 "misses": metrics["misses"],
                 "unmatchedFindingIds": metrics["unmatchedFindingIds"],
                 "preserveRate": metrics["preserveRate"],
@@ -136,14 +159,15 @@ class DegreaserAdapter:
                 manifest = directory / "samples.jsonl"
                 manifest.write_text("".join(json.dumps(s) + "\n" for s in batch), encoding="utf-8")
                 output = directory / "result"
-                command([
+                result = subprocess.run([
                     "node", str(self.root / "eval/cli.mjs"), "run",
                     "--samples", str(manifest), "--product", str(checkout),
                     "--model", self.config["model"], "--repeat", "1",
                     "--budget", str(self.session_limit),
                     "--output", str(output), "--allow-models",
-                ], self.root, timeout=960 * len(batch) + 60)
-                rows = [json.loads(line) for line in (output / "records.jsonl").read_text().splitlines()]
+                ], cwd=self.root, capture_output=True, text=True,
+                    timeout=960 * len(batch) + 60, check=False)
+                rows = batch_records(result.returncode, output)
                 by_id = {row["sample"]["id"]: row for row in rows}
                 return [by_id[sample["id"]] for sample in batch]
             finally:

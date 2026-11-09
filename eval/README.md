@@ -94,6 +94,11 @@ GEPA evaluates candidate text in temporary detached worktrees, builds that
 product and calls the same promptfoo provider. Its native reflection call has
 no tools, hooks, skills or MCP access. No API fallback is configured. A campaign
 produces a candidate, not a product edit or an effectiveness claim.
+A well-formed `partial` review of a candidate scores 0 for that sample, keeps
+`complete: false` and its reason in the feedback, and the campaign continues to
+save its best candidate. Provider, authentication or quota errors, malformed or
+mismatched exports, a missing REPORT denominator, and any run failure not
+explained by partial records still stop the campaign.
 
 Run the candidate and baseline on the identical frozen regression manifest,
 then compare their records:

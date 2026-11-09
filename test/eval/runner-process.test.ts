@@ -1,9 +1,35 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import { runEvaluation } from "../../eval/runner.mjs";
+
+const gepa = fileURLToPath(new URL("../../eval/gepa/", import.meta.url));
+
+function adapterRecords(exitCode: number, output: string) {
+  const script = [
+    "import json, sys",
+    "from pathlib import Path",
+    "sys.path.insert(0, sys.argv[1])",
+    "from adapter import batch_records",
+    "try:",
+    "    rows = batch_records(int(sys.argv[2]), Path(sys.argv[3]))",
+    "except RuntimeError:",
+    "    print(json.dumps('stopped'))",
+    "else:",
+    "    print(json.dumps([row['metrics'].get('reason') for row in rows]))",
+  ].join("\n");
+  const result = spawnSync(
+    "python3",
+    ["-I", "-c", script, gepa, String(exitCode), output],
+    { encoding: "utf8", env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" } },
+  );
+  assert.equal(result.status, 0, result.stderr);
+  return JSON.parse(result.stdout);
+}
 
 function sample() {
   return {
@@ -158,6 +184,33 @@ test("real promptfoo runs file assertions, repeats without cache and journals sc
       assert.equal(report.incompleteRecords, incomplete, name);
       assert.equal(report.breakdown[0]?.completeness, 1 - incomplete, name);
     }
+    // Product exit codes: completed 0, partial 1 (docs/result-contract.md).
+    assert.deepEqual(adapterRecords(0, join(directory, "recovered")), [
+      "source-anchor proxy; unlabelled code is unknown",
+    ]);
+    assert.deepEqual(adapterRecords(1, join(directory, "partial")), [
+      "incomplete-review",
+    ]);
+    assert.equal(adapterRecords(0, join(directory, "partial")), "stopped");
+    assert.equal(adapterRecords(2, join(directory, "partial")), "stopped");
+    const failed = await runEvaluation({
+      samples: [input],
+      outputDir: join(directory, "provider-error"),
+      model: "claude-haiku-4-5-20251001",
+      repeat: 1,
+      budget: 2,
+      allowModels: true,
+      provider: {
+        id: () => "offline-auth",
+        callApi: async () => ({ error: "Authentication required." }),
+      },
+    });
+    assert.equal(failed.providerErrors, 1);
+    assert.equal(
+      adapterRecords(1, join(directory, "provider-error")),
+      "stopped",
+    );
+    assert.equal(adapterRecords(1, join(directory, "missing")), "stopped");
   } finally {
     rmSync(directory, { recursive: true });
   }
