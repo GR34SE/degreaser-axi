@@ -8,7 +8,6 @@ import type { OwnerContext } from "./context.ts";
 import { schedule } from "./scheduler.ts";
 import { ownerControl } from "./signals.ts";
 
-/** Sole writer after admission; every owned child is joined before release. */
 export async function ownRun(
   runtime: Runtime,
   repository: string,
@@ -60,7 +59,6 @@ export async function ownRun(
       "Run stopped because of an unexpected owner error.",
     );
     await Promise.allSettled(active);
-    // A failed store cannot reliably record its own failure. Keep its last commit.
     if (!control.persistenceError) {
       execution.failure = {
         code: failure.code,

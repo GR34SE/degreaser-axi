@@ -47,9 +47,6 @@ test("synthetic scheduling: empty portions shrink and a later full portion grows
   f.run(["wait", f.state().id, "--wait", "60"]);
   const task = f.state().tasks[0];
   assert.ok(task?.result);
-  // 16 paths, turn budget 16, so the starting allowance is 8. Three empty
-  // passes halve 8 → 4 → 2 → 1. Each later pass that fills that allowance
-  // doubles it. The pass after the single path is 2, not 8.
   assert.deepEqual(portionSizes(f.events()), [
     "8",
     "4",
@@ -88,8 +85,6 @@ test("synthetic scheduling: partial coverage keeps the reduced allowance", (t) =
   });
   const task = run(f);
   assert.match(f.events()[1]?.prompt ?? "", /paths\[2\]: f00\.ts,f01\.ts/);
-  // The second pass examined one of two paths. The next portion stays 2.
-  // Only the following full portion returns the allowance to 4.
   assert.deepEqual(portionSizes(f.events()), ["4", "2", "2", "4", "1"]);
   assert.equal(task.status, "no-findings");
   assert.equal(task.attempts.length, 5);

@@ -57,7 +57,7 @@ export function binaryPaths(numstat: string): Set<string> {
     const second = record.indexOf("\t", first + 1);
     let path = record.slice(second + 1);
     if (path === "") {
-      i++; // Rename source; coverage and evidence use both sides from --raw.
+      i++;
       path = tokens[i++] ?? "";
     }
     if (record.slice(0, first) === "-") paths.add(path);
@@ -68,11 +68,8 @@ export function binaryPaths(numstat: string): Set<string> {
 const fileType = (mode: string | null) =>
   mode === null ? null : Number.parseInt(mode, 8) & 0o170000;
 
-/**
- * Owner of each patch section, in order. Git emits patch sections in `--raw`
- * order, except that a change between file, symlink and gitlink types is
- * written as a deletion section followed by a creation section.
- */
+// Git follows --raw order, but splits file/symlink/gitlink type changes
+// into deletion and creation sections.
 export function patchSectionOwners(paths: ScopePath[]): ScopePath[] {
   return paths.flatMap((path) =>
     path.oldMode !== null &&
@@ -83,11 +80,6 @@ export function patchSectionOwners(paths: ScopePath[]): ScopePath[] {
   );
 }
 
-/**
- * A section whose bytes are not valid UTF-8 (a Latin-1 file, on either side)
- * is replaced by Git's own binary stub and its path is marked binary, so
- * coverage, evidence checks and reports treat it like any binary file.
- */
 export function omitNonUtf8Sections(
   patch: Buffer,
   paths: ScopePath[],
@@ -125,11 +117,6 @@ export function omitNonUtf8Sections(
     .join("");
 }
 
-/**
- * A symlink's Git content is its target text. Workers cannot follow a directory
- * link or run readlink, so the coordinator records the text from the blob. A
- * target that is not UTF-8 is treated like other non-UTF-8 content.
- */
 export function readLinkTargets(
   runtime: Runtime,
   repository: string,

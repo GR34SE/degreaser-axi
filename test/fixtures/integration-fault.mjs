@@ -1,4 +1,3 @@
-// Synthetic filesystem boundary faults, not native consumer behavior.
 import fs from "node:fs";
 import { syncBuiltinESMExports } from "node:module";
 

@@ -3,13 +3,12 @@ import type { AspectMeta } from "../types.ts";
 export const meta = {
   id: "low-value-comments",
   title: "Low Value Comments",
-  summary: "Does the comment explain something the code cannot?",
-  applicability: "paths",
+  summary: "Does the comment prevent a trap that code cannot reveal?",
   boundaries: [
     {
       other: "contract-bypass",
-      rule: "Type/lint suppression comments belong to contract bypass.",
-      reciprocal: false,
+      rule: "Suppression effects belong to contract bypass; explanatory prose must still prevent a hidden trap.",
+      reciprocal: true,
     },
   ],
 } as const satisfies AspectMeta;

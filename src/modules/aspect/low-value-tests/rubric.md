@@ -6,9 +6,9 @@
 
 **Applies when:** The change adds or edits tests, test helpers, fixtures or mocks. Otherwise return not-applicable.
 
-**Evidence:** Name a plausible regression, the actual code executed and the source of expectations. For redundancy, identify a stronger retained test under the same conditions.
+**Evidence:** Name a plausible regression, the actual code executed and the source of expectations. For negative tests, show that input reaches the intended guard instead of failing earlier for an unrelated reason. Before proposing removal, read the complete test, implementation, relevant callers and overlapping coverage. Identify a stronger retained test under the same conditions, including its distinct boundary and CI routing; similar names or setup do not establish redundancy.
 
-**Boundaries:** Neither unit nor smoke tests are prohibited categories. A mock or fake does not invalidate a test unless it implements the rule instead of the code under test. Without execution, describe source analysis, not a demonstrated mutation-test result.
+**Boundaries:** Neither unit nor smoke tests are prohibited categories. A mock or fake does not invalidate a test unless it implements the rule instead of the code under test. Source inspection, snapshots and byte comparisons can enforce an intentional artifact or syntax contract, but do not prove runtime behavior or model interpretation. Without execution, describe source analysis, not a demonstrated mutation-test result.
 
 **Not here (another reviewer):**
 - Verification outside a test runner, including runtime code, CI, scripts and check/verify commands: verification-theater.

@@ -12,12 +12,10 @@ import { dirname, join, parse } from "node:path";
 import { IntegrationConflict, StateError } from "../util/errors.ts";
 import { atomicWrite } from "../util/fs/atomic.ts";
 
-/** A conflict on a whole Degreaser file the user may choose to replace. */
 export function conflict(path: string, replaceable = false): never {
   throw new IntegrationConflict(path, replaceable);
 }
 
-/** Target of a symlink at path, null when absent, "" for a directory. */
 export function readIntegrationLink(path: string): string | null {
   try {
     const stat = lstatSync(path);
@@ -62,7 +60,6 @@ export class IntegrationEdits {
     const change = this.changes.get(path);
     return change ? change.after : readIntegrationFile(path);
   }
-  /** `known` supplies the before state of a file below a link being removed. */
   set(path: string, after: string | null, known?: { before: null }) {
     const previous = this.changes.get(path);
     const before = previous
@@ -72,7 +69,6 @@ export class IntegrationEdits {
         : readIntegrationFile(path);
     this.changes.set(path, { before, after });
   }
-  /** Symlink at path to target; null removes an existing link. */
   link(path: string, after: string | null) {
     this.links.set(path, { before: readIntegrationLink(path), after });
   }
@@ -81,7 +77,6 @@ export class IntegrationEdits {
       ([link, { after }]) => after === null && path.startsWith(`${link}/`),
     );
   }
-  /** Removes directories this removal emptied, never a stop directory or anything above it. */
   private prune(stops: readonly string[]) {
     const emptied = [
       ...[...this.changes].filter(
@@ -144,7 +139,6 @@ export class IntegrationEdits {
         }
       this.prune(stops);
     } catch (error) {
-      // Restore only this invocation's writes, never a concurrent edit.
       for (const path of linked.filter((p) => this.links.get(p)?.after))
         setLink(path, this.links.get(path)?.before ?? null);
       for (const path of applied.reverse()) {
@@ -173,8 +167,6 @@ export function parseObject(
     const value: unknown = JSON.parse(text);
     if (typeof value === "object" && value !== null && !Array.isArray(value))
       return value as Record<string, unknown>;
-  } catch {
-    /* Report the path, never echo potentially sensitive configuration. */
-  }
+  } catch {}
   return conflict(path);
 }

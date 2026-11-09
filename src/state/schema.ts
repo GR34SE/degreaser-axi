@@ -13,7 +13,6 @@ export function stateSchema<T>(name: keyof typeof locations) {
 }
 export function validDismissals(value: unknown): boolean {
   stateSchema("input");
-  // Validate the ledger with the same field schema used by review input.
   return schema<unknown>(
     new URL(
       "../review/input.schema.json#/properties/dismissed",

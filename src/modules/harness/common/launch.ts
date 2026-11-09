@@ -32,7 +32,6 @@ export function replaceCurrentProcess(
   argv: readonly string[],
   env: NodeJS.ProcessEnv,
 ): never {
-  // Node's process.execve is the POSIX binding on Linux and macOS.
   if (!process.execve)
     throw new Error(
       "Native process replacement requires Node 24 on Linux or macOS.",
@@ -46,7 +45,6 @@ export function launchNative(args: string[], env: NodeJS.ProcessEnv): never {
   const executable = env.DEGREASER_NATIVE_EXECUTABLE;
   if (!executable || !isAbsolute(executable))
     throw new Error("Missing verified native executable.");
-  // Replacing this launcher keeps the adapter's process ownership and signals intact.
   replaceCurrentProcess(executable, [executable, ...args], env);
 }
 

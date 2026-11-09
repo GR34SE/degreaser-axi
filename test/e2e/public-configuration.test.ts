@@ -152,7 +152,6 @@ test("public default/narrowed/restored selections retain exact overrides and exc
     f.input().paths.map((p: { path: string }) => p.path),
     ["source.ts"],
   );
-  // Standing input limitations stay out of short reports but remain in --full.
   assert.doesNotMatch(narrowed.stdout, /context without becoming reviewed/);
   assert.match(
     f.run(["report", "--full"]).stdout,
@@ -265,7 +264,6 @@ test("public --path narrows a repository audit from the Git root and composes wi
       ),
     ).identity;
   };
-  // Same assessed files, different selection: a different review input.
   assert.equal(audit("landing").status, 0);
   const plain = identity();
   assert.equal(audit("land*").status, 0);

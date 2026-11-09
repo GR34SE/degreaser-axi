@@ -4,7 +4,6 @@ export const meta = {
   id: "contract-bypass",
   title: "Contract Bypass",
   summary: "Does a cast, suppression or default hide a real mismatch?",
-  applicability: "paths",
   boundaries: [],
 } as const satisfies AspectMeta;
 

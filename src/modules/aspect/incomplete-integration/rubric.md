@@ -6,7 +6,7 @@
 
 **Applies when:** The task requires behavior reachable through a command, endpoint, export, registration or hook. Otherwise return not-applicable.
 
-**Evidence:** Trace the entrypoint, registration, dispatch and consumer. Check the repository's actual registration mechanisms, such as decorators, autodiscovery and exports fields.
+**Evidence:** Trace the entrypoint, registration, dispatch and consumer, including behaviorally distinct alternate paths. A registered, reachable feature can still omit an existing safety policy on one path. Check actual registration mechanisms, such as decorators, autodiscovery and exports fields. In a repository audit, derive required behavior from accepted public contracts, not from an invented feature request.
 
 **Boundaries:** No rg match does not establish unreachability. If resolving the question requires execution, record the missing evidence rather than asserting a finding.
 

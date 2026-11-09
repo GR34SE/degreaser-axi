@@ -11,7 +11,6 @@ interface Budget {
   maxBuffer?: number;
 }
 
-/** Ownership checks run often and need only identities: keep them small and fast. */
 const OWNERSHIP: Budget = { timeout: 1000 };
 
 function readTable(args: string[], budget: Budget) {
@@ -53,17 +52,15 @@ function identities(extra: string[], budget: Budget) {
       started: fields.slice(3, 8).join(" "),
       extra: fields.slice(9),
     };
-    // The probe itself is a child of the caller, never an owned process.
+    // ps includes its own probe as our child; do not mistake it for an owned worker.
     return fields[8]?.startsWith("Z") || row.pid === probe ? [] : [row];
   });
 }
 
-/** Identities only: ownership never needs argv or CPU, which enlarge and slow `ps`. */
 export function processTable(): ProcessRow[] {
   return identities([], OWNERSHIP).map(({ extra: _, ...row }) => row);
 }
 
-/** Identities with CPU use, for resource measurement under the caller's budget. */
 export function processCpu(budget: Budget) {
   return identities(["%cpu="], budget).map(({ extra, ...row }) => ({
     ...row,
@@ -71,7 +68,6 @@ export function processCpu(budget: Budget) {
   }));
 }
 
-/** Full command lines of live processes; callers keep them in memory only. */
 export function processCommands(budget: Budget) {
   const { lines, probe, unrecognized } = readTable(
     ["-ww", "-axo", "pid=,stat=,command="],

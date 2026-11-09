@@ -13,7 +13,6 @@ import { observeRun } from "../../../state/status.ts";
 import { loadInput, loadRun } from "../../../state/store.ts";
 import type { Factory } from "../../factory.ts";
 
-/** Returns the run record its observed status was derived from, for rendering. */
 export function reportContext(f: Factory, snapshot: Run) {
   const { run, status } = observeRun(snapshot);
   const input = loadInput(run);

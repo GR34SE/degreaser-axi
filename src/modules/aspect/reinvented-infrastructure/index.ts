@@ -5,7 +5,6 @@ export const meta = {
   title: "Reinvented Infrastructure",
   summary:
     "Does a handwritten cache, parser or similar mechanism miss required semantics?",
-  applicability: "paths",
   boundaries: [],
 } as const satisfies AspectMeta;
 

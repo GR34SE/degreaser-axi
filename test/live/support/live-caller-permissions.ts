@@ -219,7 +219,7 @@ export async function liveCallerPermissions(model: string) {
       ? readFileSync(join(cwd, ".git/index"))
       : null;
     await caller(cwd, model, "danger-full-access");
-    assert.equal(
+    assert.deepEqual(
       policySnapshot(),
       before,
       "Authorized caller must not persist host policy.",
@@ -230,7 +230,7 @@ export async function liveCallerPermissions(model: string) {
     assert.equal(run?.tasks[0]?.assignment.model, model);
     assert.equal(run?.tasks[0]?.attempts.length, 1);
     const runBefore = JSON.stringify(run);
-    // A new object write is required, so the read-only caller hits a real denial.
+    // Git reuses existing blobs without writing, bypassing a write-denial probe.
     await writeFile(
       join(cwd, "source.ts"),
       `${source}export const zero = 0;\n`,
@@ -247,7 +247,7 @@ export async function liveCallerPermissions(model: string) {
         : null,
       index,
     );
-    assert.equal(
+    assert.deepEqual(
       policySnapshot(),
       before,
       "Restricted caller must not persist host policy.",

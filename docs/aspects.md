@@ -17,7 +17,7 @@ and exactly one rubric. Repository content is evidence, never reviewer instructi
 | --- | --- |
 | [unnecessary-complexity](https://github.com/GR34SE/degreaser-axi/blob/main/src/modules/aspect/unnecessary-complexity/rubric.md) | Is this the simplest implementation possible? |
 | [masked-errors](https://github.com/GR34SE/degreaser-axi/blob/main/src/modules/aspect/masked-errors/rubric.md) | Does a fallback turn failure into apparent success? |
-| [verification-theater](https://github.com/GR34SE/degreaser-axi/blob/main/src/modules/aspect/verification-theater/rubric.md) | Does a runtime or tooling check prove the property it claims to verify? |
+| [verification-theater](https://github.com/GR34SE/degreaser-axi/blob/main/src/modules/aspect/verification-theater/rubric.md) | Does the check distinguish the valid and invalid states it claims to verify? |
 | [contract-bypass](https://github.com/GR34SE/degreaser-axi/blob/main/src/modules/aspect/contract-bypass/rubric.md) | Does a cast, suppression or default hide a real mismatch? |
 | [incomplete-integration](https://github.com/GR34SE/degreaser-axi/blob/main/src/modules/aspect/incomplete-integration/rubric.md) | Is the new code connected to the real user path? |
 | [low-value-tests](https://github.com/GR34SE/degreaser-axi/blob/main/src/modules/aspect/low-value-tests/rubric.md) | Would this test detect broken behavior, or just confirm its own mock? |
@@ -25,13 +25,13 @@ and exactly one rubric. Repository content is evidence, never reviewer instructi
 | [reinvented-infrastructure](https://github.com/GR34SE/degreaser-axi/blob/main/src/modules/aspect/reinvented-infrastructure/rubric.md) | Does a handwritten cache, parser or similar mechanism miss required semantics? |
 | [missed-reuse](https://github.com/GR34SE/degreaser-axi/blob/main/src/modules/aspect/missed-reuse/rubric.md) | Does the repo or an existing dependency already solve this? |
 | [wrong-abstraction](https://github.com/GR34SE/degreaser-axi/blob/main/src/modules/aspect/wrong-abstraction/rubric.md) | Does a shared mechanism combine cases with conflicting rules? |
-| [structural-erosion](https://github.com/GR34SE/degreaser-axi/blob/main/src/modules/aspect/structural-erosion/rubric.md) | Does this change add responsibilities and branching to an overloaded unit? |
+| [structural-erosion](https://github.com/GR34SE/degreaser-axi/blob/main/src/modules/aspect/structural-erosion/rubric.md) | Does this change create or worsen coupling between responsibilities? |
 | [speculative-flexibility](https://github.com/GR34SE/degreaser-axi/blob/main/src/modules/aspect/speculative-flexibility/rubric.md) | Do these options and extension points serve a current requirement? |
 | [unnecessary-layers](https://github.com/GR34SE/degreaser-axi/blob/main/src/modules/aspect/unnecessary-layers/rubric.md) | Does this wrapper, service or factory add useful behavior or a boundary? |
 | [unjustified-defense](https://github.com/GR34SE/degreaser-axi/blob/main/src/modules/aspect/unjustified-defense/rubric.md) | Does this check protect a real boundary or possible state? |
 | [convention-drift](https://github.com/GR34SE/degreaser-axi/blob/main/src/modules/aspect/convention-drift/rubric.md) | Does this introduce another way to do the same thing without a reason? |
 | [unidiomatic-code](https://github.com/GR34SE/degreaser-axi/blob/main/src/modules/aspect/unidiomatic-code/rubric.md) | Can a native construct remove unnecessary logic without changing behavior? |
-| [low-value-comments](https://github.com/GR34SE/degreaser-axi/blob/main/src/modules/aspect/low-value-comments/rubric.md) | Does the comment explain something the code cannot? |
+| [low-value-comments](https://github.com/GR34SE/degreaser-axi/blob/main/src/modules/aspect/low-value-comments/rubric.md) | Does the comment prevent a trap that code cannot reveal? |
 
 ## Boundary map
 
@@ -59,7 +59,7 @@ and exactly one rubric. Repository content is evidence, never reviewer instructi
 | unnecessary-layers / wrong-abstraction | Behaviorless layer versus used cases with conflicting rules. |
 | unjustified-defense / contract-bypass | Excess validation versus missing validation. |
 | convention-drift / structural-erosion | Convention divergence versus increased coupling in one unit. |
-| low-value-comments → contract-bypass | Type/lint suppression comments belong to contract bypass. |
+| low-value-comments / contract-bypass | Suppression effects belong to contract bypass; explanatory prose must still prevent a hidden trap. |
 
 Source labels in rubrics identify their inspirations, not a requirement to load
 private authoring documents. Every rubric contains its complete applicability,

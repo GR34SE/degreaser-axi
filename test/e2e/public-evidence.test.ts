@@ -200,7 +200,6 @@ test("file-backed assignment points at a raw patch with per-path line ranges", (
     prompt,
   );
   assert.ok(block?.[2]);
-  // Hostile text cannot carry the digest-derived closing tag of its own block.
   assert.ok(!f.input().patch?.includes(`</${block[1]}>`));
   const evidence = decode(block[2]) as {
     patch: { file: string; lines: number; sha256: string };

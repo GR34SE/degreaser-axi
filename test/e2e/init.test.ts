@@ -40,7 +40,6 @@ for (const existing of [false, true]) {
       assert.match(result.stdout, /candidates/);
       assert.match(result.stdout, /recommendation/);
       assert.match(result.stdout, /codex,gpt-6-luna/);
-      // A chosen --agent narrows discovery to that agent's catalog.
       const others = [
         /claude,claude-haiku-4-5-20251001/,
         /pi,openai\/gpt-6-luna/,

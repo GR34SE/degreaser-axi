@@ -86,7 +86,7 @@ export async function installedView(
           .filter((file) => file.startsWith(`${repository}/`))
           .map((file) => relative(repository, file)),
       ],
-      { allowFailure: true },
+      { allowFailure: () => true },
     ) ?? ""
   )
     .split("\n")

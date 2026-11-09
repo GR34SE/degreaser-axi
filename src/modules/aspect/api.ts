@@ -17,7 +17,6 @@ import * as unnecessaryLayers from "./unnecessary-layers/index.ts";
 import * as verificationTheater from "./verification-theater/index.ts";
 import * as wrongAbstraction from "./wrong-abstraction/index.ts";
 
-/** Insertion order is review priority. */
 export const ASPECTS = {
   "unnecessary-complexity": unnecessaryComplexity,
   "masked-errors": maskedErrors,

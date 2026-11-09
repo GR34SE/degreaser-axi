@@ -5,7 +5,6 @@ export const meta = {
   title: "Unidiomatic Code",
   summary:
     "Can a native construct remove unnecessary logic without changing behavior?",
-  applicability: "paths",
   boundaries: [],
 } as const satisfies AspectMeta;
 

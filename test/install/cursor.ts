@@ -211,14 +211,10 @@ while True:
     if (child.pid) {
       try {
         process.kill(-child.pid, "SIGKILL");
-      } catch {
-        // The PTY helper may already have left its process group.
-      }
+      } catch {}
       try {
         process.kill(child.pid, "SIGKILL");
-      } catch {
-        // The helper already exited.
-      }
+      } catch {}
     }
     stopCursorAt(cwd);
     await sleep(200);

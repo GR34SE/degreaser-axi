@@ -4,10 +4,6 @@ import { ResultError } from "../../util/errors.ts";
 import { schema, schemaErrors } from "../../util/schema.ts";
 import type { WorkerResult } from "./types.ts";
 
-/**
- * Input is exclusively assistant text collected by the public runtime boundary.
- * With `repository`, finding paths are normalized before schema validation.
- */
 export function parseResult(
   text: string,
   aspect: AspectId,
@@ -43,7 +39,6 @@ export function parseResult(
   return value;
 }
 
-/** `not-applicable` keeps an empty reason so validation still rejects it; no reason is invented. */
 function omitEmptyOptionalReason(value: unknown) {
   if (typeof value !== "object" || value === null) return;
   const result = value as { status?: unknown; reason?: unknown };
@@ -66,7 +61,6 @@ function normalizeFindingPaths(value: unknown, repository: string) {
   }
 }
 
-/** Workers may cite absolute or ./-prefixed paths; only the repository-relative form matters. */
 const repositoryRelative = (repository: string, path: string) => {
   const root = `${repository}/`;
   return (path.startsWith(root) ? path.slice(root.length) : path).replace(

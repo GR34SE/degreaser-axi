@@ -42,7 +42,6 @@ export function resolveConfig(
   ) {
     throw new InputError("concurrency must be a positive safe integer.");
   }
-  // Validate even unused overrides: a narrow invocation must not hide a broken RC.
   for (const id of aspectIds) {
     if (
       !schema<ProjectConfig>(new URL("./config.schema.json", import.meta.url))({

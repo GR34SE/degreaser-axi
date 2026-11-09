@@ -1,5 +1,3 @@
-// Synthetic fault server, not a recording or a production ACP client.
-
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { appendFileSync } from "node:fs";

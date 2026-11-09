@@ -43,7 +43,6 @@ test("a focused pass may repeat an accepted finding without rejection", (t) => {
 test("a clean claim without full coverage is not certified until the rest is examined", (t) => {
   const clean = (paths: string[]) =>
     pass("not-applicable", paths, { reason: "No comments." });
-  // The unproductive first pass halves the portion, so the rest follows in pieces.
   const f = setup(t, [
     clean([]),
     clean(["a.ts"]),
@@ -58,7 +57,6 @@ test("a clean claim without full coverage is not certified until the rest is exa
 test("a pass without progress shrinks its portion and the rest is still examined", (t) => {
   const f = setup(t, [
     pass("incomplete", ["a.ts"]),
-    // Repeating the earlier path is not progress, and a repeated finding adds none.
     pass("incomplete", ["a.ts"], {
       findings: [
         {

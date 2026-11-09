@@ -1,7 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { appendFileSync } from "node:fs";
 
-// Only these standalone documents can bypass the runtime regression suite.
 const documentation = new Set(["README.md", "AGENTS.md"]);
 let scope = "full";
 const base = process.env.CI_BASE_SHA ?? "";

@@ -5,7 +5,6 @@ import type { ReviewInput } from "../types.ts";
 import { parseResult } from "./parse.ts";
 import type { Finding, Rejection } from "./types.ts";
 
-/** Workers may cite absolute or ./-prefixed paths; only the repository-relative form matters. */
 const repositoryRelative = (repository: string, path: string) => {
   const root = `${repository}/`;
   return (path.startsWith(root) ? path.slice(root.length) : path).replace(
@@ -21,12 +20,6 @@ const trimLines = (text: string) =>
     .map((line) => line.trimEnd())
     .join("\n");
 
-/**
- * A quote matches the cited lines literally after CRLF and trailing-space
- * normalization. A quote copied from the patch with one diff marker per line
- * (`+`/space for new, `-`/space for old) also matches once every non-empty line
- * carries a marker consistent with its side. Anything else must be in the file.
- */
 function quoteMatches(
   source: string,
   quote: string,
@@ -83,7 +76,7 @@ export function ingestResult(
           blobs.set(
             oid,
             git(runtime, input.repository, ["cat-file", "blob", oid], {
-              allowFailure: true,
+              allowFailure: () => true,
             }),
           );
         } catch {

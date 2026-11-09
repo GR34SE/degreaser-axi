@@ -59,7 +59,6 @@ export const TOP_LEVEL_HELP = [
   "degreaser-axi: focused source-only code review",
   "Commands:",
   ...Object.entries(COMMANDS)
-    // Namespaces such as `config` only route to their subcommands.
     .filter(
       ([name]) =>
         !Object.keys(COMMANDS).some((key) => key.startsWith(`${name} `)),
@@ -70,6 +69,6 @@ export const TOP_LEVEL_HELP = [
   "",
 ].join("\n");
 
-/** SDK built-ins that runAxiCli lists itself only for a bare --help. */
+// runAxiCli adds built-ins only to bare --help.
 export const BUILT_IN_HELP =
   "  update: Upgrade to the latest published version (update --check only reports)\n";

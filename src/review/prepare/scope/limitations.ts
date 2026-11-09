@@ -11,7 +11,6 @@ export function scopeLimitations(
   pathPatterns: string[],
   nonUtf8Set: Set<string>,
 ): Limitation[] {
-  // Paths stay in Git's emission order, which is also the patch section order.
   const limitations: Limitation[] = [
     {
       code: "git-object-writes",

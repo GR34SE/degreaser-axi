@@ -7,8 +7,6 @@ import type { NativeCallerContext } from "./types.ts";
 export async function codexCaller(context: NativeCallerContext) {
   const { model, cwd, prompt, observe, launcher, nativeVersion } = context;
   let session: string | undefined;
-  // Reuse packaged native resolution/MCP suppression, not the ACP worker API.
-  // Override caller permissions and hooks only for this disposable native session.
   const host = callerProcess(
     process.execPath,
     [

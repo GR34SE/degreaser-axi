@@ -11,7 +11,6 @@ import {
 
 export type SkillInstall = "copy" | "link";
 
-/** Claude's skill directory as a link to the shared .agents copy, or back to a copy. */
 export function planLinkedSkill(
   agent: Agent,
   edits: IntegrationEdits,
@@ -33,14 +32,19 @@ export function planLinkedSkill(
     isLink &&
     ((receipt.files[dir]?.hash === hash(`symlink:${current}`) &&
       receipt.files[dir]?.owners.includes(agent)) ||
-      // Without a receipt, the exact link this version creates is ours to remove.
       (options.remove && !receipt.files[dir] && current === target));
   if (options.remove || !options.link) {
-    // Claude no longer reads the shared copy through a link.
     const sharedOwner = receipt.files[shared];
     if (sharedOwner?.owners.includes(agent)) {
       sharedOwner.owners = sharedOwner.owners.filter((o) => o !== agent);
       if (!sharedOwner.owners.length) {
+        const before = edits.read(shared);
+        if (
+          before !== null &&
+          hash(before) !== sharedOwner.hash &&
+          (options.remove || !options.replace.has(shared))
+        )
+          conflict(shared, !options.remove);
         delete receipt.files[shared];
         edits.set(shared, null);
       }

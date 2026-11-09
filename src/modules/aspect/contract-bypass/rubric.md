@@ -6,13 +6,14 @@
 
 **Applies when:** The change adds a cast, non-null assertion, type/lint suppression, default for missing data or unchecked parsing at a boundary. Otherwise return not-applicable.
 
-**Evidence:** Identify the contract, data source and mismatch hidden from the consumer by the suppression or default.
+**Evidence:** Identify the contract, data source, reachable mismatching value and consumer assumption hidden by the suppression or default. Inspect preceding validation and dependency declarations; establish whether validation covers the fields the consumer actually uses.
 
 **Boundaries:** any, unknown, a cast or a suppression comment alone is insufficient. A narrow cast after validation or a documented gap in dependency types can be justified.
 
 **Not here (another reviewer):**
 - Handling an actual error by returning apparent success: masked-errors.
 - Redundant checks on already guaranteed data: unjustified-defense.
+- Explanatory prose beside a directive that prevents no hidden maintenance or usage trap: low-value-comments. Judge the suppression's effect here, not the usefulness of its prose.
 
 Teaching excerpts; context states omitted setup. These have not been executed as programs or model evaluations.
 
@@ -74,10 +75,10 @@ validateLimit(limit);
 
 ## contract-bypass-G3 · PRESERVE
 
-**Context:** Installed database-client types in version 4.2 omit signal, which the runtime supports according to its changelog (upstream issue #123). An integration test checks query cancellation.
+**Context:** In this fictional teaching dependency, the installed database-client declarations omit signal, but its runtime implementation forwards the option to an abort-aware transport. An integration test checks cancellation. These are given facts, not claims about a real package or version.
 
 ```typescript
-// @ts-expect-error -- types for db-client 4.2 omit `signal` (upstream #123)
+// @ts-expect-error -- installed declarations omit the runtime-supported signal option
 await client.query(sql, { signal });
 ```
 

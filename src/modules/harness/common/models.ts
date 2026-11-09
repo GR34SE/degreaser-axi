@@ -3,7 +3,6 @@ import type { Runtime } from "../../../util/exec/types.ts";
 import { type Agent, HARNESSES } from "../api.ts";
 import type { Identity } from "../types.ts";
 
-/** Metadata only: no prompt, model setter, runtime store or review attempt. */
 export async function discoverModels(
   runtime: Runtime,
   identity: Pick<Identity<Agent>, "agent"> & Partial<Pick<Identity, "model">>,

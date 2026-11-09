@@ -5,7 +5,6 @@ export const meta = {
   title: "Convention Drift",
   summary:
     "Does this introduce another way to do the same thing without a reason?",
-  applicability: "paths",
   boundaries: [
     {
       other: "structural-erosion",

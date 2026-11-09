@@ -1,7 +1,3 @@
-// Manual, model-backed measurement of the low-value-comments rubric on the
-// held-out fixture. Not part of `pnpm test`; it consumes subscription quota.
-// Usage: node test/live/support/comment-measure.ts <claude|codex> <exact-model> <empty-dir>
-// Check fresh quota first and build (`pnpm build`) before running.
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { buildFixture, expectations, task } from "./comment-fixtures.ts";

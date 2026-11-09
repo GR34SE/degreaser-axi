@@ -22,7 +22,6 @@ export interface WorkerResult {
   limitations: string[];
   reason?: string;
   examinedPaths?: string[];
-  /** What an incomplete result leaves open besides unexamined paths. */
   unresolved?: Unresolved[];
 }
 export interface Unresolved {

@@ -89,14 +89,12 @@ export function ownerRecoveryGuidance(run: Run) {
   return `Inspect .degreaser/runs/${run.id}/run.json and owner.lock against local PID/start/group identities with process-inspection permission. Use the same Node executable as the original owner. Do not signal reused PIDs or remove ambiguous locks. If ownership cannot be verified, preserve this run and start a new review only after confirming old work has stopped.`;
 }
 
-/** A terminal run whose owner lock was removed has no owner or workers left. */
 export function ownerReleased(run: Run) {
   return (
     run.status !== "running" &&
     !existsSync(statePath(run.repository, "runs", run.id, "owner.lock"))
   );
 }
-/** Released owners record only workers still alive at release; any listed are verified. */
 export const needsCleanup = (run: Run) =>
   !ownerReleased(run) || Boolean(run.owner?.processes?.length);
 
@@ -124,7 +122,6 @@ export function assertAvailable(run: Run, initial = false) {
     );
 }
 
-/** No saved PID is signalling authority. Recheck birth identity and group. */
 export async function cleanInterruptedOwner(run: Run) {
   const owner = run.owner;
   if (!owner) return;

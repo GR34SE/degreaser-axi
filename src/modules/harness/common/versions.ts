@@ -1,7 +1,6 @@
 import { DiagnosticError } from "../../../util/errors.ts";
 import type { HarnessDefinition } from "../types.ts";
 
-/** Human-readable acceptance rule, shared by doctor output and diagnostics. */
 export function acceptedVersions(definition: HarnessDefinition): string {
   const verified = definition.supportedVersions.verified;
   if (definition.supportedVersions.rule === "exact")
@@ -29,7 +28,6 @@ export function assertSupportedVersion(
 ): { version: string; notice?: string } {
   const agent = definition.id;
   const supported = definition.supportedVersions.verified;
-  // Only a version token is safe diagnostic data, never arbitrary process output.
   const version = (definition.supportedVersions.rule === "date"
     ? /^20\d{2}\.\d{1,2}\.\d{1,2}-[0-9a-f]{7,40}$/i
     : /^\d{1,6}\.\d{1,6}\.\d{1,6}$/

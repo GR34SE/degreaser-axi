@@ -32,7 +32,6 @@ export function startupContext(
   if (git.status !== 0) return "";
   const root = git.stdout.trimEnd();
   const intro = "Degreaser reviews code changes with focused reviewers.";
-  // User-wide hooks run in every repository; unconfigured ones stay silent.
   if (!existsSync(join(root, ".degreaserrc.json"))) return "";
   let config: ProjectConfig;
   try {

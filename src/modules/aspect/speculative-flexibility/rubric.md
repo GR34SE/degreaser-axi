@@ -8,7 +8,7 @@
 
 **Evidence:** Inspect the task, configurations, public contract and actual consumers of every new variant. Identify a variant without a consumer and the cost it introduces. List every option, parameter, flag or variant the change introduces and judge each one; when a required one is broader than the task needs, such as accepting several spellings where one is used, name the narrower form.
 
-**Boundaries:** No local caller does not mean no public API consumer. Record uncertainty when requirements are missing rather than asserting a defect.
+**Boundaries:** Populating or forwarding a field is not consuming its behavior: trace it to a current effect. No production caller does not invalidate a seam used by current deterministic tests, and no local caller does not mean no public API consumer. Record uncertainty when requirements are missing rather than asserting a defect.
 
 **Not here (another reviewer):**
 - State, phases or passes that serve current requirements in a more complicated way than needed, without an unused variant: unnecessary-complexity.

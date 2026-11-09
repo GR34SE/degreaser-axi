@@ -57,7 +57,6 @@ test("cancel during effective resumed admission refuses explicitly instead of re
     () => f.events().length === 3,
     "Only unresolved work was admitted",
   );
-  // Always join the new work, even on the unfixed old-terminal response.
   assert.equal(f.run(["cancel", before.id]).status, 1);
   const after = f.state();
   assert.deepEqual(after.tasks[0], before.tasks[0]);

@@ -4,7 +4,6 @@ export const meta = {
   id: "scope-creep",
   title: "Scope Creep",
   summary: "Did the change add features or refactoring outside the task?",
-  applicability: "task",
   boundaries: [
     {
       other: "incomplete-integration",

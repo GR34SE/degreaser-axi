@@ -6,11 +6,9 @@ import type {
 
 export interface WorkerRequest {
   cwd: string;
-  /** Assembled assignment, task/scope and response contract. Never ambient caller history. */
   prompt: string;
   maxTurns: number;
   timeoutMs: number;
-  /** Stop the attempt after this long without any adapter event. */
   idleMs?: number;
   onActivity?: () => void;
   signal?: AbortSignal;
@@ -25,9 +23,7 @@ export interface WorkerOutcome {
   sessionId?: string;
   output: string;
   failure?: WorkerFailure;
-  /** Stage and safe machine codes of a failed attempt; absent when nothing failed. */
   diagnostic?: WorkerDiagnostic;
-  /** Native stop reason of a finished turn, when one was reported. */
   stopReason?: string;
   cleanupFailed: boolean;
   usage: AcpRuntimeUsageBreakdown | null;

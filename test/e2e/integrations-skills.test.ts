@@ -15,7 +15,13 @@ import { join } from "node:path";
 
 import test from "node:test";
 
-import { cli, installed, loader, setup } from "../utils/integration-fixture.ts";
+import {
+  cli,
+  installed,
+  loader,
+  setup,
+  snapshot,
+} from "../utils/integration-fixture.ts";
 
 test("Claude's skill can link to the shared .agents copy and switch back to a copy", (t) => {
   const f = setup(t);
@@ -56,6 +62,51 @@ test("Claude's skill can link to the shared .agents copy and switch back to a co
   ]);
   assert.equal(alone.status, 2, alone.stdout);
 });
+
+for (const remove of [true, false]) {
+  test(`last-owner linked skill refuses ${remove ? "removal" : "copy conversion"} after shared content is edited`, (t) => {
+    const f = setup(t);
+    assert.equal(f.maintenance("cursor", "user").status, 0);
+    const linked = f.run([
+      "setup",
+      "hooks",
+      "--harnesses",
+      "codex,claude",
+      "--skill-install",
+      "link",
+    ]);
+    assert.equal(linked.status, 0, linked.stdout);
+    const unshared = f.maintenance("codex", "project", true);
+    assert.equal(unshared.status, 0, unshared.stdout);
+    const dir = join(f.root, ".claude/skills/degreaser");
+    const skill = join(dir, "SKILL.md");
+    const shared = join(f.root, ".agents/skills/degreaser/SKILL.md");
+    const original = readFileSync(shared, "utf8");
+    const target = readlinkSync(dir);
+    writeFileSync(skill, `${original}\nUser edit\n`);
+    const before = snapshot(f.root);
+    const homeBefore = snapshot(f.home);
+
+    const refused = f.maintenance("claude", "project", remove);
+    assert.equal(refused.status, 2, refused.stdout);
+    assert.match(refused.stdout, /integration-conflict/);
+    assert.deepEqual(snapshot(f.root), before);
+    assert.deepEqual(snapshot(f.home), homeBefore);
+    assert.equal(readlinkSync(dir), target);
+
+    writeFileSync(skill, original);
+    const completed = f.maintenance("claude", "project", remove);
+    assert.equal(completed.status, 0, completed.stdout);
+    assert.equal(existsSync(shared), false);
+    assert.equal(existsSync(join(f.root, ".claude/settings.json")), !remove);
+    if (remove) assert.equal(existsSync(dir), false);
+    else {
+      assert.ok(lstatSync(dir).isDirectory());
+      assert.equal(readFileSync(skill, "utf8"), original);
+    }
+    assert.deepEqual(snapshot(f.home), homeBefore);
+  });
+}
 
 test("receipt-less remove keeps edited skills and a shared skill another harness still uses", (t) => {
   const f = setup(t);

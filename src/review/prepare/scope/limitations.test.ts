@@ -89,7 +89,6 @@ test("conflicted, unborn and unavailable branch history fail without repairing G
   }
   assert.deepEqual(readFileSync(join(f.root, ".git/index")), index);
   f.git("merge", "--abort");
-  // This is real Git's shallow-history boundary, not a mocked merge-base.
   f.write(".git/shallow", `${f.git("rev-parse", "HEAD").trim()}\n${side}\n`);
   assert.throws(
     () =>

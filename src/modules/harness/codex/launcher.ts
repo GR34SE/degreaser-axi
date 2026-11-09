@@ -20,8 +20,7 @@ try {
       value,
     ]),
   ].flatMap(([key, value]) => ["-c", `${key}=${JSON.stringify(value)}`]);
-  // Empty TOML tables merge with configured MCP servers. Ask the native config
-  // consumer for their names, then disable each without rewriting any file.
+  // Empty TOML tables merge inherited MCP servers, not disable them.
   const servers: unknown = JSON.parse(
     execFileSync(process.execPath, [native, ...args, "mcp", "list", "--json"], {
       encoding: "utf8",
@@ -48,8 +47,7 @@ try {
           ? 'url = "https://invalid.invalid"'
           : undefined;
     if (!transport) throw new Error("Unrecognized native MCP transport.");
-    // Synthesized native servers need a valid transport even when disabled.
-    // Use inert values, never copy configured credentials into process argv.
+    // Disabled MCP entries still require a valid transport.
     disabled.push(
       `${JSON.stringify(server.name)} = { enabled = false, ${transport} }`,
     );

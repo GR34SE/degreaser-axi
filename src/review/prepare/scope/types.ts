@@ -8,7 +8,6 @@ export interface ScopePath {
   oldOid: string | null;
   newOid: string | null;
   binary: boolean;
-  /** Symlink target text from the resolved blob; present only for a mode 120000 side. */
   oldLink?: string;
   newLink?: string;
 }

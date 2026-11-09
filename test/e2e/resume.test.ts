@@ -42,7 +42,6 @@ test("resume retains successes, supersedes incomplete evidence and records only 
   const successful = old.tasks[0];
   assert.ok(successful);
   successful.usage = { inputTokens: 29 };
-  // Synthetic persisted metadata, independent of the transport fixture's unknown usage.
   writeFileSync(
     join(f.root, ".degreaser/runs", old.id, "run.json"),
     JSON.stringify(old),
@@ -88,7 +87,6 @@ test("resume retains successes, supersedes incomplete evidence and records only 
 
 test("resumed pre-result failure reports unknown latest usage while retaining distinct attempt metadata and peer evidence", async (t) => {
   const f = queueFixture(t);
-  // Synthetic adapter metadata, not measured usage from a live provider.
   const priorUsage = { inputTokens: 17, outputTokens: 3, totalTokens: 20 };
   const peerUsage = { inputTokens: 29, outputTokens: 5, totalTokens: 34 };
   const nextUsage = { inputTokens: 41, outputTokens: 7, totalTokens: 48 };
@@ -292,7 +290,6 @@ test("a killed owner exposes interrupted and racing resumes admit only one nonov
   const previousOwner = old.owner;
   const oldWorker = f.events().find((e) => e.aspect === "convention-drift");
   assert.equal(old.tasks[1]?.attempts[0]?.sessionId, oldWorker?.sessionId);
-  // Cleanup on a red run owns exactly this detached fixture process group.
   t.after(() => {
     try {
       process.kill(-previousOwner.pid, "SIGKILL");

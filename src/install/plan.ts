@@ -107,8 +107,6 @@ export function prepareIntegrations(
       const owned = receipt.files[file];
       const before = fileBelowRemovedLink ? null : edits.read(file);
       if (remove && !owned && before === content) {
-        // No receipt (fresh clone): exactly this version's generated file is
-        // ours, unless another unselected harness still reads the shared copy.
         if (file !== shared || !sharedByOthers(agent)) edits.set(file, null);
         continue;
       }

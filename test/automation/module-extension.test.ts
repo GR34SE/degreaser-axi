@@ -144,7 +144,6 @@ export const rubric = new URL("./rubric.md", import.meta.url);
   node(["tools/generate-docs.ts"]);
   node(["tools/build.ts"]);
   const launcher = join(root, "dist/modules/harness/trial-harness/launcher.js");
-  // The file is executable because build discovers it from the registry.
   assert.equal(statSync(launcher).mode & 0o111, 0o111);
   f.write(
     ".degreaserrc.json",

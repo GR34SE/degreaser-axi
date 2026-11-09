@@ -238,9 +238,7 @@ test("compiled readers reject corruption at every authoritative JSON layer witho
           ["finding", "F1"],
           ["home"],
         ]) {
-          // Other readers cover both JSON parsing and schema validation at each layer.
           if (caseIndex > 1 && args[0] !== "report") continue;
-          // Explicit run IDs do not use the latest-run pointer.
           if (index === 0 && args[0] === "wait") continue;
           const result = f.run(args);
           assert.equal(

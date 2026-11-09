@@ -1,5 +1,3 @@
-// Synthetic native Pi RPC consumer. The official adapter and product launcher
-// remain real; this finite catalog is independent of the requested identity.
 import { appendFileSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { createInterface } from "node:readline";
@@ -23,7 +21,6 @@ if (
   modelIndex !== -1 &&
   !catalog.some((m) => `${m.provider}/${m.id}` === args[modelIndex + 1])
 ) {
-  // Reproduce native startup refusal before metadata can be served.
   process.exit(1);
 }
 const current =

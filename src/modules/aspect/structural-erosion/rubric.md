@@ -2,13 +2,13 @@
 
 `structural-erosion` · default ON
 
-**Question:** Does the change add responsibilities, dependencies or state to an already overloaded unit and increase coupling?
+**Question:** Does the change create or worsen an overloaded unit by coupling responsibilities, dependencies or state?
 
 **Applies when:** The change adds responsibilities, branches or state to an existing function, class or module. Otherwise return not-applicable.
 
-**Evidence:** Base the review on changed hunks and the affected unit. Name the new dependency or coupling and its cost, such as tests needing another mocked layer. Length and complexity metrics are only clues.
+**Evidence:** Base the review on changed hunks and the affected unit, or the assessed unit in a repository audit. Name the responsibilities coupled and the resulting cost, such as tests needing another mocked layer. Show the boundary a correction restores without merely distributing the same complexity across files. Length and complexity metrics are only clues.
 
-**Boundaries:** A finding must arise from the change, not the file's general condition. Do not propose broad refactoring unrelated to the diff.
+**Boundaries:** In a change review, a finding must arise from the change, not the file's general condition. In a repository audit, assess existing coupling against current product boundaries. Lifecycle orchestration can legitimately coordinate several phases of one responsibility. Do not propose broad refactoring unrelated to the assessed scope.
 
 **Not here (another reviewer):**
 - More mechanism than one existing responsibility needs, without added responsibilities, dependencies or coupling: unnecessary-complexity.
@@ -47,7 +47,7 @@ async saveAndNotify(order: Order) {
 
 ## structural-erosion-B3 · REPORT
 
-**Context:** The save function had one condition. The diff adds a mutable flag and two nested branches marked // new that overwrite its meaning.
+**Context:** A persistence function now absorbs transport retry policy and legacy billing overrides, marked // new. Partial retries must never be persisted, including forced legacy operations, but both policies mutate the same save decision.
 
 ```typescript
 let shouldSave = true;                                // new
@@ -56,7 +56,7 @@ if (legacy) { if (forced) shouldSave = true; }        // new
 if (shouldSave) await save(result);
 ```
 
-**Why:** For retry && partial && legacy && forced, the later branch silently wins, without the code establishing whether that precedence is intended. Cite this combination and the responsibility boundary, not merely the number of if statements.
+**Why:** For retry && partial && legacy && forced, billing's override defeats the transport policy. These responsibilities are coupled through mutable persistence state. Resolve their policy before the persistence boundary rather than scattering overrides through it; branch count alone would not establish this defect.
 
 ## structural-erosion-G1 · PRESERVE
 

@@ -6,7 +6,7 @@
 
 **Applies when:** The change adds a custom implementation of contracted behavior, such as a client, retry, cache, logging, randomness or error mapping, or copies existing code. Otherwise return not-applicable.
 
-**Evidence:** Identify the existing component and quote its use in the repository or its declaration in an installed dependency. Show that its contract meets the requirement and name the cost of bypassing it. Search may skip ignored directories such as node_modules; read dependencies by path. An API claim without such evidence belongs in uncertainty, not a finding.
+**Evidence:** Identify the existing component and quote its use in the repository or its declaration in an installed dependency. Verify public accessibility in the installed version, including package exports, and compatibility with the caller's side effects and permissions. Show that its contract meets the requirement and name the cost of bypassing it. Search may skip ignored directories such as node_modules; read dependencies by path. An API claim without such evidence belongs in uncertainty, not a finding.
 
 **Boundaries:** Do not impose Effect on projects without Effect. Matching names are insufficient: the existing helper may have a different contract.
 
@@ -20,13 +20,13 @@ Teaching excerpts; context states omitted setup. These have not been executed as
 
 ## missed-reuse-B1 · REPORT
 
-**Context:** The simulation module uses Effect v4. Reproducible randomness through Random.withSeed is required, but the new helper bypasses the Random service.
+**Context:** The simulation module requires reproducible randomness. Its existing injected `rng.next()` uses the configured seed; the other simulation paths use that interface. A new helper instead reads global randomness.
 
 ```typescript
-const sample = Effect.sync(() => Math.random());
+const sample = () => Math.random();
 ```
 
-**Why:** The call bypasses the framework's replaceable service, so the program seed does not control it. Cite the requirement and the available Random.next API; Math.random alone is not evidence.
+**Why:** The call bypasses the existing seeded source, so the configured seed no longer controls this simulation path. Cite that requirement and `rng.next()`; Math.random alone is not evidence.
 
 ## missed-reuse-B2 · REPORT
 
@@ -81,11 +81,11 @@ export const loadUser = (id: string) => apiClient.get(`/users/${id}`);
 
 ## missed-reuse-G3 · PRESERVE
 
-**Context:** A recovery-token generator requires cryptographically secure randomness. The project uses Effect v4. Effect Random is not cryptographically secure. In the installed version, effect/crypto/SecureRandom is unstable, and repository instructions prohibit unstable production APIs.
+**Context:** A recovery-token generator requires cryptographically secure randomness. The repository's shared `rng.next()` is a deterministic simulation generator, not a secure random source. The supported Node runtime provides `randomBytes` from `node:crypto`.
 
 ```typescript
 import { randomBytes } from "node:crypto";
 const token = randomBytes(32).toString("hex");
 ```
 
-**Why:** Security requirements and repository policy justify the platform mechanism. If unstable APIs were permitted, SecureRandom.randomBytes would be the reuse candidate, never Random.next.
+**Why:** The existing helper's contract is incompatible with recovery-token security. A shared source of randomness is not automatically an equivalent source of secure randomness.

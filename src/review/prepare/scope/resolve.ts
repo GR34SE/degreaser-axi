@@ -17,7 +17,6 @@ const generated = ["node_modules", "dist", "build", "coverage"];
 const excluded = (path: string, extra: string[]) =>
   path === ".degreaser" ||
   path.startsWith(".degreaser/") ||
-  // Directory components only: `scripts/build` or `dist.go` files stay assessable.
   path
     .split("/")
     .slice(0, -1)
@@ -36,7 +35,7 @@ function resolveBase(
     runtime,
     repository,
     ["rev-parse", "--verify", "-q", "HEAD^{commit}"],
-    { allowFailure: true },
+    { allowFailure: (status) => status === 1 },
   )?.trim();
   if (scope === "repository") return null;
   if (scope === "worktree")
@@ -56,8 +55,8 @@ function resolveBase(
   const target = git(
     runtime,
     repository,
-    ["rev-parse", "--verify", "--end-of-options", `${baseRef}^{commit}`],
-    { allowFailure: true },
+    ["rev-parse", "--verify", "-q", "--end-of-options", `${baseRef}^{commit}`],
+    { allowFailure: (status) => status === 1 },
   )?.trim();
   if (!target)
     throw new InputError(
@@ -68,7 +67,7 @@ function resolveBase(
     repository,
     ["merge-base", "--all", head, target],
     {
-      allowFailure: true,
+      allowFailure: (status) => status === 1,
     },
   )
     ?.trim()
@@ -91,7 +90,7 @@ export function resolveScope(
   const base = resolveBase(runtime, repository, scope, baseRef);
   if (
     git(runtime, repository, ["config", "--bool", "core.sparseCheckout"], {
-      allowFailure: true,
+      allowFailure: (status) => status === 1,
     })?.trim() === "true"
   ) {
     throw new InputError(
@@ -99,9 +98,8 @@ export function resolveScope(
     );
   }
   const tree = resolveTree(runtime, repository);
-  // Git glob magic prefix-matches only wildcard-free directories (`landing`),
-  // so `/**` extends wildcard matches (`packages/*/src`) beneath them; literal
-  // magic keeps bracketed names such as `app/[slug]` selectable as written.
+  // Git glob magic needs /** below wildcarded directories; literal magic
+  // also selects bracketed names such as app/[slug].
   const selection = pathPatterns.length
     ? pathPatterns.flatMap((p) => [
         `:(top,glob)${p}`,
@@ -115,7 +113,6 @@ export function resolveScope(
     ...generated.map((name) => `:(top,glob,exclude)**/${name}/**`),
     ...extraExclusions.map((path) => `:(top,literal,exclude)${path}`),
   ];
-  // An empty tree enumerates audit metadata; no audit change patch is emitted.
   const comparisonBase =
     base ??
     requireGit(

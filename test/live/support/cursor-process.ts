@@ -19,7 +19,6 @@ function processCwd(pid: number): string | undefined {
     ?.slice(1);
 }
 
-/** Stop only Cursor processes whose working directory is inside the disposable repo. */
 export function stopCursorAt(directory: string) {
   const root = realpathSync(directory);
   const listed = spawnSync("ps", ["-ax", "-o", "pid=,command="], {
@@ -33,8 +32,8 @@ export function stopCursorAt(directory: string) {
     if (cwd !== root && !cwd?.startsWith(root + sep)) continue;
     try {
       process.kill(pid, "SIGKILL");
-    } catch {
-      // The process exited between listing and the signal.
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
     }
   }
 }

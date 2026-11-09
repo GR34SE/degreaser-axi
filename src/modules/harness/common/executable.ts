@@ -64,7 +64,6 @@ async function nativeVersion(
     child.on("error", (error) => {
       failure ??= error;
     });
-    // The group belongs only to this probe, including any native helper processes.
     child.on("exit", stop);
     child.on("close", (code) => {
       clearTimeout(timer);

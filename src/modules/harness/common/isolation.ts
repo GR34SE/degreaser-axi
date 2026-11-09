@@ -31,8 +31,7 @@ export function isolatedCommand(profile: {
   command: string[];
   environment: Record<string, string>;
 }): string[] {
-  // acpx promotes inherited ACPX_AUTH_* before filtering. Clear the child
-  // environment before adapter startup, for both discovery and review.
+  // acpx exempts ACPX_AUTH_* from inheritance filters; clear them before launch.
   return [
     "/usr/bin/env",
     "-i",
@@ -61,7 +60,6 @@ export function assertSubscriptionEnvironment(env: NodeJS.ProcessEnv): void {
     );
 }
 
-/** Workers run with DEGREASER_WORKER set and must never drive Degreaser. */
 export function assertNotWorker(env: NodeJS.ProcessEnv, action: string) {
   if (env.DEGREASER_WORKER)
     throw new StateError("nested-review", `Workers cannot ${action}.`);

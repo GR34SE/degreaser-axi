@@ -5,11 +5,9 @@ import type { Unresolved, WorkerResult } from "./types.ts";
 
 type PathRecord = ReviewInput["paths"][number];
 
-/** Paths a worker can read as text; binary files and gitlinks carry no source evidence. */
 export const readable = (p: PathRecord) =>
   !p.binary && p.oldMode !== "160000" && p.newMode !== "160000";
 
-/** Readable assessed paths not yet named in `examined` (by new or old name). */
 export function uncovered(input: ReviewInput, examined: readonly string[]) {
   const seen = new Set(examined);
   return input.paths
@@ -18,24 +16,12 @@ export function uncovered(input: ReviewInput, examined: readonly string[]) {
     .map((p) => p.path);
 }
 
-/**
- * Largest portion one worker session is asked to judge, derived from its turn
- * budget instead of a fixed batch size. Roughly one turn reads a path and the
- * other half of the turns go to looking up connected code and to the answer, so
- * a portion holds at most maxTurns / 2 paths. One read returns about 2,000
- * lines; assuming 32 KiB per path on average caps the text a portion can ask
- * for. Observed audits that sent all 184 paths at once spent their turns on
- * repository-wide searches and covered 20-80 paths. These are starting bounds:
- * a pass without progress shrinks its portion (see nextLimit). A later pass
- * that fills the path allowance and examines every path in it doubles that
- * allowance back toward this bound. The byte bound does not increase.
- */
+// Whole-repository assignments previously exhausted worker turns before covering all paths.
 export function portionBounds(maxTurns: number) {
   const paths = Math.max(1, Math.floor(maxTurns / 2));
   return { paths, bytes: paths * 32 * 1024 };
 }
 
-/** Blob size of each assessed path, from the resolved Git objects. */
 export function pathSizes(runtime: Runtime, input: ReviewInput) {
   const sized = input.paths.flatMap((p) => {
     const oid = p.newOid ?? p.oldOid;
@@ -47,7 +33,10 @@ export function pathSizes(runtime: Runtime, input: ReviewInput) {
     runtime,
     input.repository,
     ["cat-file", "--batch-check=%(objectsize)"],
-    { input: `${sized.map((s) => s.oid).join("\n")}\n`, allowFailure: true },
+    {
+      input: `${sized.map((s) => s.oid).join("\n")}\n`,
+      allowFailure: () => true,
+    },
   );
   const lines = out?.split("\n") ?? [];
   for (const [i, entry] of sized.entries()) {
@@ -57,10 +46,6 @@ export function pathSizes(runtime: Runtime, input: ReviewInput) {
   return sizes;
 }
 
-/**
- * First paths that fit both bounds; a portion always holds at least one path.
- * A path of unknown size is treated as filling the byte bound, so it goes alone.
- */
 export function takePortion(
   paths: readonly string[],
   sizes: ReadonlyMap<string, number>,
@@ -79,18 +64,9 @@ export function takePortion(
   return portion;
 }
 
-/**
- * Next portion size after a pass without progress: half of what just failed.
- * A single path that still makes no progress is unresolvable (returns 0).
- */
 export const nextLimit = (portionSize: number) =>
   portionSize <= 1 ? 0 : Math.floor(portionSize / 2);
 
-/**
- * Folds one focused pass into the aspect's accumulated result. Coverage only grows;
- * established findings are kept. Completion requires accumulated worker-declared
- * coverage; the coordinator does not independently observe file reads.
- */
 export function mergePass(
   input: ReviewInput,
   prior: WorkerResult | null,
@@ -113,20 +89,15 @@ export function mergePass(
       ),
     ),
   ];
-  // A worker may repeat a finding within one pass; keep one copy.
   const seen = new Set<string>();
   const findings = [...(prior?.findings ?? []), ...pass.findings].filter(
     (f) => !seen.has(JSON.stringify(f)) && Boolean(seen.add(JSON.stringify(f))),
   );
-  // scope-creep's rubric decides applicability from the task's feature scope, not from files.
   const taskScoped =
     pass.aspect === "scope-creep" &&
     pass.status === "not-applicable" &&
     !earlierApplicable;
   const missing = taskScoped ? [] : uncovered(input, examined);
-  // Open obligations stay until a pass that resolves them says otherwise. A
-  // resolving pass replaces them only with a real answer; a pass that failed
-  // before answering cannot erase them.
   const assessed = new Set(input.paths.map((p) => p.path));
   let outside = 0;
   const named = (items: Unresolved[]) =>
@@ -171,8 +142,6 @@ export function mergePass(
     limitations: [],
     examinedPaths: examined,
   };
-  // A not-applicable reason from one focused pass must not describe a whole
-  // aspect that earlier passes found applicable.
   const reason = pass.reason ?? prior?.reason;
   if (reason && ["not-applicable", "incomplete"].includes(merged.status))
     merged.reason = reason;
@@ -198,10 +167,6 @@ export function mergePass(
   return merged;
 }
 
-/**
- * True when the pass grew coverage. Findings alone are not progress: a pass can
- * restate earlier findings forever.
- */
 export function progressed(prior: WorkerResult | null, next: WorkerResult) {
   return (
     (next.examinedPaths?.length ?? 0) > (prior?.examinedPaths?.length ?? 0)

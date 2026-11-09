@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { renderSkill } from "../../src/install/skill/guidance.ts";
+import { ASPECT_IDS } from "../../src/modules/aspect/api.ts";
 
 const root = new URL("../../", import.meta.url);
 const checksums = JSON.parse(
@@ -12,7 +13,7 @@ const checksums = JSON.parse(
   ),
 ) as Record<string, string>;
 
-test("migrated prompts, rubrics and persisted schemas retain their original bytes", () => {
+test("unchanged worker contracts and persisted schemas retain their migration bytes", () => {
   for (const [path, expected] of Object.entries(checksums)) {
     const bytes = readFileSync(new URL(path, root));
     assert.equal(
@@ -24,6 +25,17 @@ test("migrated prompts, rubrics and persisted schemas retain their original byte
       readFileSync(new URL(path.replace(/^src\//, "dist/"), root)),
       bytes,
       path,
+    );
+  }
+});
+
+test("distribution carries the current rubric bytes without transformation", () => {
+  for (const id of ASPECT_IDS) {
+    const path = `modules/aspect/${id}/rubric.md`;
+    assert.deepEqual(
+      readFileSync(new URL(`dist/${path}`, root)),
+      readFileSync(new URL(`src/${path}`, root)),
+      id,
     );
   }
 });

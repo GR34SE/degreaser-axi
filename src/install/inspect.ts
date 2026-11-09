@@ -44,9 +44,7 @@ function receiptAt(path: string): { state: ReceiptState; receipt?: Receipt } {
   try {
     const value: unknown = JSON.parse(text);
     if (validateReceipt(value)) return { state: "valid", receipt: value };
-  } catch {
-    // Invalid receipt contents cannot establish ownership.
-  }
+  } catch {}
   return { state: "invalid" };
 }
 
@@ -62,7 +60,6 @@ function inspectFile(
   const reportedPath = linked ? linkPath : path;
   let contentPath = path;
   if (linked) {
-    // A Claude skill installed as a symlink to the shared .agents copy.
     let target: string | null;
     try {
       target = readIntegrationLink(linkPath);
@@ -87,7 +84,6 @@ function inspectFile(
   else if (text === null) status = "missing";
   else if (!owned?.owners.includes(agent)) status = "unmanaged";
   else if (hash(text) !== owned.hash) status = "modified";
-  // Our own earlier content that a package upgrade superseded; setup hooks repairs it.
   else if (hash(expected) !== owned.hash) status = "outdated";
   else status = "installed";
   return { path: reportedPath, status };

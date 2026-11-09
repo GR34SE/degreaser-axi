@@ -4,19 +4,22 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 export function checkOnboarding({ repo, home, run }) {
-  const before = spawnSync(
-    "git",
-    ["status", "--porcelain", "--untracked-files=all"],
-    { cwd: repo, encoding: "utf8" },
-  ).stdout;
+  const status = () => {
+    const result = spawnSync(
+      "git",
+      ["status", "--porcelain", "--untracked-files=all"],
+      { cwd: repo, encoding: "utf8" },
+    );
+    assert.equal(
+      result.status,
+      0,
+      `Git status failed: ${result.error?.message ?? result.stderr}`,
+    );
+    return result.stdout;
+  };
+  const before = status();
   assert.match(run(["init"], 2), /code: decision-required/);
-  assert.equal(
-    spawnSync("git", ["status", "--porcelain", "--untracked-files=all"], {
-      cwd: repo,
-      encoding: "utf8",
-    }).stdout,
-    before,
-  );
+  assert.equal(status(), before);
   assert.deepEqual(readdirSync(home), []);
   assert.match(
     run(

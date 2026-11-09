@@ -113,7 +113,6 @@ for (const split of [false, true]) {
     const config = readFileSync(join(f.root, ".git/config"));
     const expectedBlob = f.git("hash-object", "--no-filters", "source").trim();
     assert.notEqual(expectedBlob, f.git("rev-parse", "HEAD:source").trim());
-    // The real index still detects the edit without refreshing its stat cache.
     const oracle = f.git(
       "--no-optional-locks",
       "diff",
@@ -171,7 +170,6 @@ for (const fails of [false, true]) {
     f.git("config", "splitIndex.sharedIndexExpire", "now");
     f.git("update-index", "--split-index");
     f.write("source", "final contents\n");
-    // An invalid diff setting fails resolution after Git has written the tree.
     if (fails) f.git("config", "diff.renames", "invalid");
     f.write("new", "untracked contents\n");
     const sharedFiles = () =>

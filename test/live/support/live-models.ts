@@ -8,7 +8,6 @@ import type { Agent } from "../../../src/config/types.ts";
 import { runtime } from "../../utils/runtime.ts";
 import { readPiSettings } from "./live-profile.ts";
 
-/** Opt-in native metadata only. Never starts a model turn. */
 export async function liveModels(agent: Agent, model: string) {
   const {
     discoverModels,

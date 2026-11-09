@@ -34,7 +34,6 @@ async function describeProfile(f: Factory, agent: Agent, model: string) {
     limitations: PROFILE_LIMITATIONS[agent],
   };
   try {
-    // Without an RC there is no model; a version check needs none.
     const profile = await nativeProfile(
       f,
       { agent, model },
@@ -68,7 +67,6 @@ async function describeProfile(f: Factory, agent: Agent, model: string) {
 
 export async function run(f: Factory) {
   const repository = repositoryRoot(f, f.cwd);
-  // Diagnostics matter most before init, so a missing RC is a finding, not an error.
   const configured =
     readConfigText(join(repository, ".degreaserrc.json")) !== null;
   const config = configured ? f.config(repository) : undefined;
@@ -88,7 +86,6 @@ export async function run(f: Factory) {
   const integrations = inspectIntegrations(f, repository);
   const repairs = (["project", "user"] as const).flatMap((scope) => {
     const entries = integrations.filter((entry) => entry.scope === scope);
-    // A linked Claude skill is repaired together with the harnesses whose copy it links to.
     const linked = entries.some(
       (entry) =>
         HARNESSES[entry.harness].integration.skill === "native" &&

@@ -145,7 +145,6 @@ for (const scope of ["project", "user"]) {
       const homeBefore = snapshot(f.home);
       assert.equal(f.init(selected.join(","), scope).status, 0);
       assert.deepEqual(snapshot(f.root), before);
-      // Synthetic discovery appends its own log, outside product configuration.
       delete homeBefore["/events.jsonl"];
       const after = snapshot(f.home);
       delete after["/events.jsonl"];
@@ -284,7 +283,6 @@ test("foreign files, malformed native config and symlink ancestors are never ove
 test("reinstall without the local receipt adopts identical files and the marked hook", (t) => {
   const f = setup(t);
   assert.equal(f.maintenance("codex,claude,pi,cursor").status, 0);
-  // The rebuilt receipt may differ (an adopted hook file was not created by us).
   const files = () => {
     const { "/.degreaser/integrations.json": _receipt, ...rest } = snapshot(
       f.root,

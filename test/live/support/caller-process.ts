@@ -8,7 +8,6 @@ export const callerEnvironment = Object.fromEntries(
   ),
 );
 
-// Native stdio test driver, not an ACP client. All review workers still use acpx.
 export function callerProcess(
   command: string,
   args: string[],
@@ -132,7 +131,6 @@ export function callerProcess(
       };
       pending.add(p);
     });
-    // A turn waiter can be pending while a separate request fails first.
     void result.catch(() => {});
     return result;
   }

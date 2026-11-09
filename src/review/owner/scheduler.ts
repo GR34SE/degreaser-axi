@@ -37,7 +37,6 @@ export async function schedule(
       if (active.size >= limit) await Promise.race(active);
       if (stopped()) break;
       const work = launch(task, release);
-      // A cold failure advances one task, not the entire still-cold fleet.
       if (!warmed) await Promise.race([warm, work]);
     }
     await Promise.all(active);

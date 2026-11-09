@@ -154,7 +154,7 @@ test("monitor failure before admission still cancels a subsequently admitted own
       },
       async cancel() {
         ticks++;
-        if (ticks === 1) return; // Metadata admission has not created state yet.
+        if (ticks === 1) return;
         if (ticks === 2) throw new Error("temporary cancellation failure");
         joined = true;
         stop.abort();

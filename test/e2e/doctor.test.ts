@@ -312,9 +312,8 @@ test("actual native Codex read-only sandbox refuses review but permits local hom
   assert.match(denied.stdout, /authorized session/);
   assert.ok(!existsSync(join(f.root, ".degreaser")));
   assert.deepEqual(readFileSync(join(f.root, ".git/index")), index);
-  // Codex's Linux seccomp filter fails Node's socket-backed child pipes with
-  // EPERM, so local Git reads (and with them home/doctor context) are blocked
-  // there too; the refusal above is the cross-platform guarantee.
+  // Codex's Linux seccomp filter rejects Node's socket-backed child pipes with
+  // EPERM, blocking local Git reads.
   if (process.platform !== "darwin") return;
   for (const args of [["home"], ["doctor"]]) {
     const result = run(args);

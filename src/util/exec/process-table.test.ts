@@ -37,7 +37,6 @@ test("process projections describe the same live child by identity, CPU and comm
     commands.find((row) => row.pid === pid)?.command.endsWith(marker),
     true,
   );
-  // Each read excludes its own ps probe, which is never a caller's process.
   assert.equal(
     commands.some((row) => /^\S*\/?ps -ww -axo /.test(row.command)),
     false,

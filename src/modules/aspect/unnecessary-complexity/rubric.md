@@ -87,7 +87,7 @@ return false
 
 ## unnecessary-complexity-G1 · PRESERVE
 
-**Context:** An import job can be interrupted by a deploy. A restarted worker reads the persisted phase and must continue without repeating a completed download or a publish.
+**Context:** An import job can be interrupted by a deploy. A restarted worker must skip completed and checkpointed phases. Each operation is idempotent under the job ID: replay after an operation but before its checkpoint is explicitly permitted.
 
 ```typescript
 switch (job.phase) {
@@ -97,7 +97,7 @@ switch (job.phase) {
 }
 ```
 
-**Why:** The persisted phase is the resumption contract. A straight sequence would repeat side effects after a restart. Similar shape to a needless state machine does not make this one needless.
+**Why:** The persisted phase preserves completed checkpoints; a straight sequence would repeat even checkpointed work. The switch alone does not guarantee exactly-once side effects: the stated idempotency contract covers interrupted, uncheckpointed operations. Similar shape to a needless state machine does not make this one needless.
 
 ## unnecessary-complexity-G2 · PRESERVE
 

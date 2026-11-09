@@ -77,6 +77,7 @@ test("each neighboring rubric exposes its reciprocal routing boundary", () => {
     ["scope-creep", "incomplete-integration"],
     ["low-value-tests", "verification-theater"],
     ["wrong-abstraction", "structural-erosion"],
+    ["low-value-comments", "contract-bypass"],
   ];
   for (const [left, right] of pairs)
     for (const [from, to] of [
@@ -84,6 +85,5 @@ test("each neighboring rubric exposes its reciprocal routing boundary", () => {
       [right, left],
     ] as const)
       assert.ok(boundary(from).includes(to), `${from} -> ${to}`);
-  assert.match(boundary("low-value-comments"), /contract-bypass/);
   assert.match(boundary("structural-erosion"), /missed-reuse/);
 });

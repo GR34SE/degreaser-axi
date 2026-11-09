@@ -165,8 +165,6 @@ export function loadInput(run: Run): ReviewInput {
     )
       throw new Error("Assignment identity mismatch");
     const prompts = run.tasks.map((t) => t.promptHash);
-    // Keep earlier development results readable, but never migrate their evidence.
-    // Resume requires the current fingerprint and recorded task source.
     if (
       reviewIdentity(input, prompts) !== run.identity &&
       hash(JSON.stringify({ input, prompts })) !== run.identity
@@ -209,7 +207,6 @@ export function checkHistory(repository: string) {
   try {
     loadInput(loadRun(repository));
   } catch (error) {
-    // History from a moved or copied repository must not block new reviews.
     if (!(error instanceof StateError && error.code === "foreign-run"))
       throw error;
   }

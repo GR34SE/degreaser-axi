@@ -105,8 +105,6 @@ export function fleetEvidence(
     run.tasks.reduce((n, t) => n + t.attempts.length, 0),
     "Sessions must be fresh",
   );
-  // The first worker can finish during startup; the rest must be admitted
-  // together, not trickled through slots as earlier workers finish.
   const rest = run.tasks.slice(1).map((t) => t.attempts[0]);
   assert.ok(
     Math.max(...rest.map((a) => a?.startedAt ?? Infinity)) <=

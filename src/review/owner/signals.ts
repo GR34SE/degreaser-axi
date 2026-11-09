@@ -38,22 +38,15 @@ export function ownerControl(
   );
   let persistenceError: StateError | undefined;
   let fatalError: StateError | undefined;
-  /** Inspection failures are transient; only worker launch requires fresh identities. */
   const persist = (verify = false) => {
     if (persistenceError) throw persistenceError;
-    if (verify || !run.owner) {
-      try {
-        run.owner = captureOwner(run.owner);
-      } catch (error) {
+    try {
+      run.owner = captureOwner(run.owner);
+    } catch (error) {
+      if (verify || !run.owner)
         throw fail(error, "Owner process identities could not be captured.");
-      }
-    } else {
-      try {
-        run.owner = captureOwner(run.owner);
-      } catch (error) {
-        if (!(error instanceof StateError)) throw error;
-        run.owner = { ...run.owner, heartbeat: runtime.now() };
-      }
+      if (!(error instanceof StateError)) throw error;
+      run.owner = { ...run.owner, heartbeat: runtime.now() };
     }
     try {
       saveRun(run);

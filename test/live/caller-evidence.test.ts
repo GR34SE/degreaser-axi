@@ -4,7 +4,6 @@ import { test } from "node:test";
 
 import { CallerEvidence } from "./support/caller-evidence.ts";
 
-// Synthetic native event envelopes, not provider recordings.
 test("assistant claims cannot substitute for native running and terminal results", () => {
   const trace = new CallerEvidence("pi", "model", "r-20261105-1200-abcd");
   trace.record({

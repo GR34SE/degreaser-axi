@@ -2,13 +2,13 @@
 
 `verification-theater` · default ON
 
-**Question:** Can the verification mechanism detect an error independently of the producer it checks?
+**Question:** Does this check distinguish the promised valid and invalid states using observations relevant to that promise?
 
 **Applies when:** The change adds or edits verification in runtime code, CI, scripts or tools: checks, validators, check/verify/doctor commands, checksums or health checks. Otherwise return not-applicable.
 
-**Evidence:** Identify a shared source of error between producer and verifier, or an object the check never observes. Name the promise the check cannot establish. Inspect the source of expectations.
+**Evidence:** Identify the claimed property, observed object, source of expectations and acceptance predicate. Show a concrete bad state accepted or valid state wrongly rejected. Trace whether a reported fact was directly observed, inferred from configuration or merely declared. Identify any shared error that the claimed check cannot detect.
 
-**Boundaries:** Two uses of the same helper do not prove self-confirmation; independence of the expected value's source matters.
+**Boundaries:** Independence is relative to the promised property. Shared schemas or helpers can protect transfer, packaging or generation drift without proving the shared contract's semantic correctness. Two uses of a helper do not alone prove self-confirmation. Do not turn declarations into observed results or call a false rejection a false success.
 
 **Not here (another reviewer):**
 - Code executed exclusively by a test runner, including tests, test helpers and fixtures: low-value-tests.

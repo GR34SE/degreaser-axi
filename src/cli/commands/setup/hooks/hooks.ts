@@ -15,7 +15,6 @@ export function run(f: Factory, { values }: CommandOptions) {
   const { cwd, env } = f;
   assertNotWorker(env, "install Degreaser integrations");
   const { harnesses, scope } = installationChoices(values);
-  // User-scope paths never depend on a repository.
   const repository = scope === "project" ? repositoryRoot(f, cwd) : f.home;
   const plan = prepareIntegrations(f, repository, harnesses, scope, {
     remove: values.remove === true,

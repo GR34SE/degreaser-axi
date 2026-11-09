@@ -1,4 +1,3 @@
-// Fixture output only; production ingestion and coverage remain real.
 export async function sendResult(
   connection,
   sessionId,
@@ -14,8 +13,6 @@ export async function sendResult(
       findings: [],
       limitations: [],
     };
-  // A planned object without coverage declares the whole persisted scope;
-  // coverage tests set examinedPaths explicitly.
   const result =
     typeof planned === "string"
       ? planned

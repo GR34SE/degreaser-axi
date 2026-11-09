@@ -4,7 +4,6 @@ export const meta = {
   id: "masked-errors",
   title: "Masked Errors",
   summary: "Does a fallback turn failure into apparent success?",
-  applicability: "paths",
   boundaries: [
     {
       other: "unjustified-defense",

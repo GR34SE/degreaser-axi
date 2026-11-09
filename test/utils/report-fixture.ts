@@ -8,8 +8,7 @@ import type { AspectId } from "../../src/modules/aspect/api.ts";
 
 import type { Finding, WorkerResult } from "../../src/review/ingest/types.ts";
 
-export // Decode the actual stdout with the encoder's installed public TOON consumer.
-const { decode } = createRequire(import.meta.resolve("axi-sdk-js"))(
+export const { decode } = createRequire(import.meta.resolve("axi-sdk-js"))(
   "@toon-format/toon",
 );
 

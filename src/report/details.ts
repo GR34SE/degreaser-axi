@@ -47,8 +47,6 @@ export function coverage(
     rejected: task.rejections.length,
     ...(task.unresolved && !resolved(task)
       ? {
-          // The stop cause stays separate from the reason text: a deadline,
-          // no progress, invalid output and a runtime failure need different recovery.
           stopCause: task.unresolved.cause,
           pending: task.unresolved.paths.length,
           ...(task.unresolved.stuck?.length
@@ -79,7 +77,6 @@ export function latestUsage(task: RunTask) {
   return usage && Object.keys(usage).length > 0 ? usage : null;
 }
 
-/** Input limitations that are the same for every review; shown only in full detail. */
 const STANDING = new Set(["git-object-writes", "live-context", "coverage"]);
 export const shownLimitations = (input: RunInput, full: boolean) =>
   input.limitations

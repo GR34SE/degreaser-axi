@@ -88,7 +88,7 @@ export function queueFixture(
   t: TestContext,
   config: Partial<ProjectConfig> = {},
 ) {
-  // Process cleanup must precede the Git fixture's directory removal.
+  // Node runs after hooks in registration order; failure skips later hooks.
   let cleanup = async () => {};
   t.after(() => cleanup());
   const f = fixture(t);
@@ -181,7 +181,6 @@ export function queueFixture(
         await exited;
       }),
     );
-    // A throw here skips the Git fixture's removal, retaining the evidence.
     assert.deepEqual(
       await stopRuns(f.root, [cli]),
       [],

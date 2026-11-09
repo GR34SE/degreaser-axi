@@ -6,7 +6,7 @@
 
 **Applies when:** The change creates or extends a shared function, component or class used by multiple cases. Otherwise return not-applicable.
 
-**Evidence:** Show divergent consumer requirements and the resulting coupling. Justify a simpler separation.
+**Evidence:** Show divergent consumer requirements and the mechanism coupling them: shared mutation, cross-case assumptions or exception flags. Identify a change to one policy that changes the other and justify a simpler separation. Independent policies selected by one dispatcher do not establish coupling merely because they share a file.
 
 **Boundaries:** Textual similarity alone does not justify merging, and flag count alone does not justify splitting.
 
@@ -34,17 +34,17 @@ function run(input, options) {
 
 ## wrong-abstraction-B2 · REPORT
 
-**Context:** A shared validator combines two contracts that interpret the same fields differently.
+**Context:** Guest account creation forbids storing a tax ID. Invoice validation requires one, including for guest buyers. The combined guest-invoice path enables both flags and passes the same record to both policies.
 
 ```python
-def validate(data, mode):
-    if mode == "invoice":
+def validate(data, guest=False, invoice=False):
+    if guest:
+        data.pop("tax_id", None)
+    if invoice:
         require(data, "tax_id")
-    elif mode == "guest":
-        forbid(data, "tax_id")
 ```
 
-**Why:** In this project there is no shared domain rule; the mechanism merges opposing policies only because the data shapes look similar. Changing the invoice tax-ID rule now touches a function also used by guest checkout.
+**Why:** Account sanitization mutates the invoice's input before validation, so a valid guest invoice loses its required tax ID. Separate account and invoice records and policies; merely dispatching two independent validators would not have this defect.
 
 ## wrong-abstraction-B3 · REPORT
 

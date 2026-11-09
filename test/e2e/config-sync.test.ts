@@ -151,7 +151,6 @@ test("home, doctor and empty review disclose missing fields without modifying RC
     ["review", "--scope", "worktree", "--task", "No changes"],
   ]) {
     const result = run(f.root, args);
-    // Doctor can report unavailable native binaries; it still discloses config defaults.
     if (args[0] !== "doctor") assert.equal(result.status, 0, result.stdout);
     assert.match(result.stdout, /configurationNotice:/);
     assert.match(result.stdout, /limits.maxTurns/);

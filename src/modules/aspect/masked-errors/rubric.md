@@ -6,9 +6,9 @@
 
 **Applies when:** The change catches, ignores or translates errors and unsuccessful results: try/catch, .catch, err/status checks or fallbacks after failure. Otherwise return not-applicable.
 
-**Evidence:** Show the original error, fallback path and observable result that contradicts the caller's contract.
+**Evidence:** Trace the original error through the fallback, public status or return value and the consumer's branch. Show the observable result that contradicts the caller's contract. Check whether cancellation, timeout, unavailable evidence or corrupt state has been reclassified as expected absence or success.
 
-**Boundaries:** Handling an expected error or explicitly degraded behavior is not automatically slop. Retry that eventually propagates the error does not conceal it.
+**Boundaries:** Expected absence, optional degradation and best-effort cleanup are distinct from failed required work. Sanitized diagnostics do not mask an error when failure remains explicit; do not require sensitive raw messages. Retry that eventually propagates the error does not conceal it.
 
 **Not here (another reviewer):**
 - Whether a check or handler is needed at all, such as redundant validation or try around a non-throwing operation: unjustified-defense.

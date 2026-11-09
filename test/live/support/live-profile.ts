@@ -30,7 +30,6 @@ export function assertClaudeModel(requested: string, observed: unknown) {
   );
 }
 
-/** Native diagnostics under the same packaged launcher/environment, not adapter replacements. */
 export function inspectNativeProfile(
   profile: NativeProfile,
   cwd: string,
@@ -94,12 +93,14 @@ export function inspectNativeProfile(
       timeout: 15_000,
     });
     assert.equal(version.status, 0, "Cursor native version probe failed.");
-    assert.match(version.stdout, /20\d{2}\.\d{1,2}\.\d{1,2}-[0-9a-f]+/i);
+    const observed = version.stdout.match(
+      /20\d{2}\.\d{1,2}\.\d{1,2}-[0-9a-f]+/i,
+    )?.[0];
+    assert.ok(observed, "Cursor native version was not recognized.");
     return {
-      askModeArgv: true,
-      nativeAcp: true,
+      nativeVersion: observed,
       residual:
-        "Ask mode and ACP deny-writes are not an OS sandbox; project MCP/hooks may remain visible.",
+        "Only the native version was checked; ask mode and ACP restrictions were not verified. Project MCP/hooks may remain visible.",
     };
   }
   const prompt =
@@ -145,7 +146,6 @@ export function inspectNativeProfile(
       readNonceVerified: true,
     };
   }
-  // Native system messages carry actual tool definitions. Keep names only.
   const system = events
     .flatMap((e) =>
       e.type === "message_start" || e.type === "message_end"
