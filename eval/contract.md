@@ -89,7 +89,8 @@ PRESERVE anchors were hit, 0 means all were hit.
 `eval/gate.mjs` consumes paired JSON run records with
 `{sample, envelope, repeat}`. Pair exact sample/input, repetition, agent/model;
 require same evaluated sample manifest and report per-family metrics, excluded
-or missing rows and paired recall deltas. Partial reviews count as
-completeness 0 and leave anchor metrics inconclusive. It must not pass
+or missing rows and paired recall deltas. Worker-quality partial reviews count
+as completeness 0 and leave anchor metrics inconclusive; unattributed partials
+are invalid evidence. It must not pass
 absent/incomplete data, compare an absolute confidence bound to a point
 baseline, or treat repeats as independent source samples.
