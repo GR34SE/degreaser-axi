@@ -188,10 +188,15 @@ test("each registry is complete, resources exist, and the source root contains o
 test("source and test size limits and tool dependency boundaries remain bounded", () => {
   const problems: string[] = [];
   const tests = sourceFiles(join(root, "test"));
+  const evaluations = sourceFiles(join(root, "eval")).filter(
+    (path) =>
+      !/^eval\/(?:\.generated\/|gepa\/\.venv\/)/.test(relative(root, path)),
+  );
   for (const path of [
     ...paths,
     ...tests,
     ...sourceFiles(join(root, "tools")),
+    ...evaluations,
   ]) {
     const lines = readFileSync(path, "utf8").trimEnd().split("\n").length;
     const limit = path.endsWith(".test.ts") ? 400 : 300;

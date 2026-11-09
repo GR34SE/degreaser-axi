@@ -1,0 +1,11 @@
+{
+  "agent": "claude",
+  "model": "claude-haiku-4-5-20251001",
+  "productDir": ".",
+  "baseSha": "HEAD",
+  "surface": "src/modules/aspect/low-value-comments/rubric.md",
+  "samples": "eval/.generated/baseline/samples.jsonl",
+  "outputDir": "eval/.generated/campaign",
+  "maxMetricCalls": 300,
+  "maxSessions": 300
+}

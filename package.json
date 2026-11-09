@@ -35,6 +35,11 @@
   "scripts": {
     "test": "pnpm build && node test/run.ts --test-concurrency=2",
     "test:tooling": "node --test --test-concurrency=2 'test/live/**/*.test.ts'",
+    "test:eval": "pnpm build && node --test --test-concurrency=2 'test/eval/**/*.test.ts'",
+    "eval": "node eval/cli.mjs run",
+    "eval:derive": "node eval/cli.mjs derive",
+    "eval:gate": "node eval/cli.mjs gate",
+    "eval:campaign": "node eval/cli.mjs campaign",
     "typecheck": "tsc --noEmit",
     "lint": "biome ci",
     "format": "biome check --write",
@@ -65,6 +70,7 @@
     "@actions/expressions": "0.3.61",
     "@biomejs/biome": "2.6.3",
     "@types/node": "24.19.2",
+    "promptfoo": "0.125.1",
     "release-please": "17.3.0",
     "typescript": "7.0.2",
     "yaml": "2.9.1"
