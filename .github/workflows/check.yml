@@ -53,6 +53,7 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           persist-credentials: false
+          fetch-depth: 0
       - name: Set up minimum Node for full acceptance
         if: github.event_name != 'pull_request'
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
@@ -117,6 +118,7 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           persist-credentials: false
+          fetch-depth: 0
       - name: Set up minimum Node for full acceptance
         if: github.event_name != 'pull_request'
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
