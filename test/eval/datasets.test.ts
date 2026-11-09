@@ -265,20 +265,97 @@ test("source populations have pinned split roles and invalid source selections a
   );
 });
 
-test("dataset CLI rejects unknown and missing flags before reading source data", () => {
-  const cli = fileURLToPath(
-    new URL("../../eval/datasets/derive.mjs", import.meta.url),
-  );
+const CLI = fileURLToPath(new URL("../../eval/cli.mjs", import.meta.url));
+
+test("derive CLI rejects unknown and missing flags before reading source data", () => {
   for (const args of [["derive", "--unknown"], ["derive"]]) {
-    const result = spawnSync(process.execPath, [cli, ...args], {
+    const result = spawnSync(process.execPath, [CLI, ...args], {
       encoding: "utf8",
     });
-    assert.equal(result.status, 2, result.stdout + result.stderr);
-    assert.match(result.stdout, /VALIDATION_ERROR/);
+    assert.notEqual(result.status, 0, result.stdout + result.stderr);
+    assert.match(result.stdout, /invalid-argument/);
+    assert.match(result.stdout, /--source-root/);
   }
-  const help = spawnSync(process.execPath, [cli, "derive", "--help"], {
-    encoding: "utf8",
-  });
-  assert.equal(help.status, 0, help.stderr);
-  assert.match(help.stdout, /--source-root/);
+});
+
+test("self derivation fails with an actionable message when a pinned revision is absent", async (t) => {
+  const { root, sourceRoot } = fixture(t);
+  const empty = join(root, "empty");
+  mkdirSync(empty);
+  execFileSync("git", ["init", "--quiet", empty]);
+  await assert.rejects(
+    deriveDatasets({
+      sourceRoot,
+      outputDir: join(root, "out"),
+      sources: ["self"],
+      selfRepo: empty,
+    }),
+    /b4a1edec03d31b01145b923dc5b4dc0d944de0c9 is missing.*--self-repo/,
+  );
+});
+
+test("derive CLI keeps self contrasts opt-in and inside the one self cluster", (t) => {
+  const { root, sourceRoot } = fixture(t);
+  const derive = (name: string, ...extra: string[]) => {
+    const output = join(root, name);
+    const result = spawnSync(
+      process.execPath,
+      [
+        CLI,
+        "derive",
+        "--source-root",
+        sourceRoot,
+        "--output",
+        output,
+        "--source",
+        "self",
+        ...extra,
+      ],
+      { encoding: "utf8" },
+    );
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    const samples = readFileSync(join(output, "samples.jsonl"), "utf8")
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    const receipt = JSON.parse(
+      readFileSync(join(output, "receipt.json"), "utf8"),
+    );
+    return { samples, receipt };
+  };
+  const plain = derive("plain");
+  // Accepted owner cleanup on main (squash merge of the self-cleanup PR).
+  assert.equal(
+    plain.receipt.gitSources[0].ownerRevision,
+    "d232af804ae532c4bd4bf79f56d4d854d7ef2715",
+  );
+  assert.equal(plain.receipt.contrasts, false);
+  assert.ok(plain.samples.length > 0);
+  for (const sample of plain.samples) {
+    assert.equal(sample.cluster, "repository:degreaser-axi");
+    assert.equal(sample.review.scope, "repository");
+    assert.equal(sample.contrast, undefined);
+    assert.ok(sample.target.report.length > 0);
+    assert.deepEqual(sample.target.preserve, []);
+  }
+  const contrasted = derive("contrasted", "--contrasts");
+  assert.equal(contrasted.samples.length, plain.samples.length * 4);
+  assert.deepEqual(
+    new Set(contrasted.samples.map((sample) => sample.cluster)),
+    new Set(["repository:degreaser-axi"]),
+  );
+  const overlays = new Map<string, string>();
+  for (const sample of contrasted.samples) {
+    assert.ok(sample.contrast);
+    overlays.set(sample.contrast.overlay, sample.repo.directory);
+    if (sample.review.scope === "branch") assert.ok(sample.review.base);
+  }
+  assert.equal(
+    git(overlays.get("source-instructions") ?? "", "ls-files", "AGENTS.md"),
+    "AGENTS.md",
+  );
+  assert.equal(
+    git(overlays.get("no-instructions") ?? "", "ls-files", "AGENTS.md"),
+    "",
+  );
 });

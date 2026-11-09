@@ -22,17 +22,7 @@ function inputHash(sample) {
 }
 
 function sourceCluster(sample) {
-  const provenance = sample.provenance;
-  // A dataset may explicitly group related commits/templates. Without that,
-  // all slices of one source revision stay together, never one cluster/repeat.
-  return hash([
-    provenance.source,
-    sample.cluster ??
-      provenance.cluster ??
-      provenance.group ??
-      sample.group ??
-      provenance.revision,
-  ]);
+  return hash([sample.provenance.source, sample.cluster]);
 }
 
 export function pairRuns(baselineInput, candidateInput) {
@@ -69,8 +59,8 @@ export function pairRuns(baselineInput, candidateInput) {
       }
       const { sample, envelope } = row;
       const score = scoreSample(sample, envelope);
-      if (!score.complete) {
-        reject("incomplete-or-invalid-export");
+      if (!score.complete && score.reason !== "incomplete-review") {
+        reject("invalid-export");
         continue;
       }
       const meta = envelope?.meta;
@@ -78,6 +68,7 @@ export function pairRuns(baselineInput, candidateInput) {
         !object(sample.provenance) ||
         !text(sample.provenance.source) ||
         !text(sample.provenance.revision) ||
+        !text(sample.cluster) ||
         !/^[a-z0-9][a-z0-9._-]{0,63}$/i.test(sample.family)
       ) {
         reject("invalid-identity-or-metrics");

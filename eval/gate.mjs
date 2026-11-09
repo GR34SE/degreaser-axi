@@ -114,6 +114,7 @@ export function compareRuns(baseline, candidate, options = {}) {
         "Intervals bound paired differences, never absolute candidate scores.",
         "Precision proxy and lexical sentinels do not establish semantic correctness or harm.",
         "Unsupported denominators and insufficient independent source clusters fail inconclusive.",
+        "A partial review counts as completeness 0 and leaves its anchor metrics inconclusive.",
         "Preserve-rate margin -0.03 is equivalent to preserve-violation margin +0.03.",
       ],
     },

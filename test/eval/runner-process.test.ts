@@ -65,7 +65,7 @@ function envelope(input: ReturnType<typeof sample>) {
     },
     meta: {
       agent: "claude",
-      model: "claude-haiku-test",
+      model: "claude-haiku-4-5-20251001",
       productSha: "offline",
       sampleHash: "input",
       sessionCount: 1,
@@ -83,7 +83,7 @@ test("real promptfoo runs file assertions, repeats without cache and journals sc
     const report = await runEvaluation({
       samples: [input],
       outputDir: join(directory, "results"),
-      model: "claude-haiku-test",
+      model: "claude-haiku-4-5-20251001",
       repeat: 2,
       budget: 4,
       allowModels: true,
@@ -119,7 +119,7 @@ test("real promptfoo runs file assertions, repeats without cache and journals sc
     const failedAssertions = await runEvaluation({
       samples: [input],
       outputDir: join(directory, "misses"),
-      model: "claude-haiku-test",
+      model: "claude-haiku-4-5-20251001",
       repeat: 1,
       budget: 2,
       allowModels: true,
@@ -132,6 +132,32 @@ test("real promptfoo runs file assertions, repeats without cache and journals sc
     assert.equal(failedAssertions.providerErrors, 0);
     assert.equal(failedAssertions.incompleteRecords, 0);
     assert.equal(failedAssertions.breakdown[0]?.recall, 0);
+    const recovered = envelope(input);
+    const partial = envelope(input);
+    for (const row of recovered.export.coverage) row.rejected = 1;
+    partial.export.status = "partial";
+    for (const row of partial.export.coverage)
+      Object.assign(row, { status: "incomplete", examined: "0/1" });
+    for (const [name, output, incomplete] of [
+      ["recovered", recovered, 0],
+      ["partial", partial, 1],
+    ] as const) {
+      const report = await runEvaluation({
+        samples: [input],
+        outputDir: join(directory, name),
+        model: "claude-haiku-4-5-20251001",
+        repeat: 1,
+        budget: 2,
+        allowModels: true,
+        provider: {
+          id: () => `offline-${name}`,
+          callApi: async () => ({ output: JSON.stringify(output) }),
+        },
+      });
+      assert.equal(report.providerErrors, 0, name);
+      assert.equal(report.incompleteRecords, incomplete, name);
+      assert.equal(report.breakdown[0]?.completeness, 1 - incomplete, name);
+    }
   } finally {
     rmSync(directory, { recursive: true });
   }
@@ -148,11 +174,20 @@ test("model execution and empty budgets fail before provider admission", async (
   };
   const options = {
     samples: [sample()],
-    model: "claude-haiku-test",
+    model: "claude-haiku-4-5-20251001",
     provider,
     outputDir: "/not-created-by-rejected-plan",
   };
   await assert.rejects(runEvaluation(options), /allow-models/);
+  for (const model of [
+    "claude-haiku-4-5",
+    "claude-haiku-latest",
+    "claude-haiku-4-5-20251001-preview",
+  ])
+    await assert.rejects(
+      runEvaluation({ ...options, model, allowModels: true }),
+      /claude-haiku-4-5-20251001/,
+    );
   await assert.rejects(
     runEvaluation({ ...options, allowModels: true, budget: 0 }),
     /positive integer/,

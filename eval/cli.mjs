@@ -16,10 +16,13 @@ const help = `Evaluation development tools (no inference in CI)
       [--family <name>] [--split dev] [--limit <sample-count>]
       [--allow-models] (without this flag, print a plan only)
   derive --source-root <collection> --output <new-directory>
+      [--source self|swe-refactor|simplibench|cleanup-pr]... [--self-repo <checkout>]
+      [--contrasts] (opt-in self instruction/scope variants in the same cluster)
   gate --baseline <records.jsonl> --candidate <records.jsonl> [--output <json>]
   campaign --config <campaign.json> --allow-models
 Examples:
   pnpm eval -- --samples <samples.jsonl> --model <haiku-id> --output <new-directory>
+  pnpm eval:derive -- --source-root <collection> --output eval/.generated/datasets
   pnpm eval:gate -- --baseline <base.jsonl> --candidate <candidate.jsonl>`;
 
 function flags(args, options) {
@@ -89,12 +92,18 @@ async function derive(args) {
   const values = flags(args, {
     "source-root": { type: "string" },
     output: { type: "string" },
+    source: { type: "string", multiple: true },
+    "self-repo": { type: "string" },
+    contrasts: { type: "boolean", default: false },
   });
   required(values, ["source-root", "output"]);
   const { deriveDatasets } = await import("./datasets/derive.mjs");
   const result = await deriveDatasets({
     sourceRoot: values["source-root"],
     outputDir: values.output,
+    selfRepo: values["self-repo"],
+    sources: values.source,
+    contrasts: values.contrasts,
   });
   return { samples: result.samples.length, output: values.output };
 }

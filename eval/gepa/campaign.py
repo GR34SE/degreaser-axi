@@ -5,12 +5,13 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import subprocess
 import tempfile
 from pathlib import Path
 
 from adapter import DegreaserAdapter, command, session_cost
+
+HAIKU_MODEL = "claude-haiku-4-5-20251001"
 
 
 def reflection_lm(model, max_calls=300, admit=None):
@@ -20,6 +21,12 @@ def reflection_lm(model, max_calls=300, admit=None):
         nonlocal calls
         if calls >= max_calls:
             raise RuntimeError("Campaign reflection-call budget exhausted.")
+        if isinstance(messages, str):
+            prompt = messages
+        elif isinstance(messages, list):
+            prompt = json.dumps(messages)
+        else:
+            raise TypeError("Reflection input must be a prompt string or message list.")
         if admit:
             admit(1)
         calls += 1
@@ -32,7 +39,7 @@ def reflection_lm(model, max_calls=300, admit=None):
                 "claude", "-p", "--model", model, "--output-format", "json",
                 "--tools", "", "--disable-slash-commands", "--no-session-persistence",
                 "--safe-mode", "--strict-mcp-config",
-            ], input=json.dumps(messages), text=True, capture_output=True,
+            ], input=prompt, text=True, capture_output=True,
                 cwd=directory, env=env, timeout=300, check=False)
         if result.returncode:
             raise RuntimeError("Native reflection failed; no provider/model fallback is allowed.")
@@ -77,8 +84,8 @@ def main():
     if not args.allow_models:
         parser.error("Inference requires --allow-models after a quota check.")
     config = json.loads(Path(args.config).read_text())
-    if config["agent"] != "claude" or not re.fullmatch(r"claude-haiku-[\w-]+", config["model"]):
-        raise ValueError("This campaign uses the owner's fixed Claude Haiku model.")
+    if config["agent"] != "claude" or config["model"] != HAIKU_MODEL:
+        raise ValueError(f"This campaign uses the owner's fixed Claude Haiku model {HAIKU_MODEL}.")
     if type(config["maxMetricCalls"]) is not int or config["maxMetricCalls"] < 1:
         raise ValueError("maxMetricCalls must be a positive integer.")
     product = Path(config["productDir"]).resolve()

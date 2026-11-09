@@ -5,9 +5,9 @@ downloaded code, execute source tests or make manual quality assessments.
 Downloaded inputs and generated repositories are never package resources.
 
 ```sh
-node eval/datasets/derive.mjs derive \
+pnpm eval:derive -- \
   --source-root "$SOURCE_COLLECTION" \
-  --output-dir "$NEW_IGNORED_OUTPUT_DIRECTORY"
+  --output "$NEW_IGNORED_OUTPUT_DIRECTORY"
 ```
 
 The collection layout is the downloaded collection's `INDEX.md` layout.
@@ -15,9 +15,12 @@ Output must be new, outside the source collection, with an existing parent.
 `eval/.generated/` is ignored and excluded from development checks; use a new
 child such as `eval/.generated/datasets` for each run.
 `--source` is repeatable: `self`, `swe-refactor`, `simplibench`, `cleanup-pr`.
-`--self-repo` selects the local checkout holding the pinned self revisions.
-`--no-contrasts` retains only the instruction-bearing repository-scope self
-samples. No source checkout, user index, refs or configuration is modified.
+`--self-repo` selects the local checkout holding the pinned self revisions
+(default: this checkout); a missing revision fails with a fetch instruction.
+`--contrasts` (default off) adds the self instruction and scope variants. They
+are related observations in the one self cluster, not independent samples, and
+quadruple the self samples and their planned worker sessions. No source
+checkout, user index, refs or configuration is modified.
 Generated snapshot commits use the already-configured Git identity.
 
 ```js
@@ -39,11 +42,12 @@ identities, so a different configured author changes that checksum.
 
 ## Label semantics
 
-- **Self:** the pinned before revision is compared with the pinned owner
-  cleanup. Only fully deleted lexical comment blocks become REPORT anchors;
+- **Self:** the pinned before revision `b4a1ede` is compared with the owner
+  cleanup accepted on main, `d232af8`. Only fully deleted lexical comment
+  blocks become REPORT anchors;
   deleted code is not a comment label. Consecutive line comments and block
   comments are issues, not independent lines. Surviving comments remain unknown,
-  not PRESERVE anchors. The optional
+  not PRESERVE anchors. The opt-in
   H1 contrast retains/removes the original root `AGENTS.md`; the other
   contrast uses repository scope versus the original parent's source-projected
   branch scope. All variants remain in the self development cluster.

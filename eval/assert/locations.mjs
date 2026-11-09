@@ -15,7 +15,7 @@ function citations(finding, path) {
   }));
 }
 
-function matchesLocation(finding, anchor, aspects) {
+export function matchesAnchor(finding, anchor, aspects) {
   const accepted = anchor.aspects ?? aspects;
   if (!accepted.includes(finding.aspect)) return false;
   const side = anchor.side ?? "new";
@@ -31,20 +31,6 @@ function matchesLocation(finding, anchor, aspects) {
       location.startLine <= location.endLine &&
       location.startLine >= anchor.lines[0] &&
       location.endLine <= anchor.lines[1],
-  );
-}
-
-export function matchesAnchor(finding, anchor, aspects) {
-  const alternatives = anchor.alsoAccept ?? [];
-  const accepted = [
-    ...(anchor.aspects ?? aspects),
-    ...alternatives.filter((item) => typeof item === "string"),
-  ];
-  return (
-    matchesLocation(finding, { ...anchor, aspects: accepted }, aspects) ||
-    alternatives
-      .filter((item) => typeof item === "object")
-      .some((alternate) => matchesLocation(finding, alternate, accepted))
   );
 }
 

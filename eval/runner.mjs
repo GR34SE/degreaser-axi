@@ -8,6 +8,7 @@ import { scoreSample } from "./assert/anchor-match.mjs";
 import { validSample } from "./assert/validation.mjs";
 import reviewPolicy from "./review-policy.json" with { type: "json" };
 
+export const HAIKU_MODEL = "claude-haiku-4-5-20251001";
 const root = fileURLToPath(new URL("../", import.meta.url));
 const configFile = fileURLToPath(
   new URL("promptfooconfig.yaml", import.meta.url),
@@ -142,9 +143,9 @@ export async function runEvaluation(options) {
   const plan = planEvaluation(samples, { repeat, budget });
   if (!allowModels) throw new Error("Model execution requires --allow-models.");
   if (!model) throw new Error("Pass the exact Haiku model ID with --model.");
-  if (agent !== "claude" || !/^claude-haiku-[\w-]+$/.test(model))
+  if (agent !== "claude" || model !== HAIKU_MODEL)
     throw new Error(
-      "Evaluation uses the owner's fixed Claude Haiku recommendation.",
+      `Evaluation uses the owner's fixed Claude Haiku recommendation ${HAIKU_MODEL}.`,
     );
   if (!Number.isSafeInteger(concurrency) || concurrency < 1)
     throw new Error("concurrency must be a positive integer.");

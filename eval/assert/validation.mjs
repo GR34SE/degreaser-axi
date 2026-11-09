@@ -49,15 +49,7 @@ export function validSample(sample) {
   return (
     ids.every(text) &&
     new Set(ids).size === ids.length &&
-    [...report, ...preserve].every(
-      (item) =>
-        anchor(item) &&
-        (item.alsoAccept === undefined ||
-          (Array.isArray(item.alsoAccept) &&
-            item.alsoAccept.every(
-              (alternate) => text(alternate) || anchor(alternate),
-            ))),
-    ) &&
+    [...report, ...preserve].every(anchor) &&
     forbidden.every(
       (item) =>
         object(item) &&
@@ -104,6 +96,24 @@ function validMeta(meta) {
   );
 }
 
+function resolved(row, count) {
+  if (row.stopCause || row.pending || row.unresolved?.length) return false;
+  if (row.status === "not-applicable" && row.aspect === "scope-creep")
+    return true;
+  if (
+    !["findings", "no-findings", "not-applicable"].includes(row.status) ||
+    (row.status === "findings") !== count > 0
+  )
+    return false;
+  const examined =
+    typeof row.examined === "string" && /^(\d+)\/(\d+)$/.exec(row.examined);
+  return (
+    !!examined &&
+    Number.isSafeInteger(Number(examined[1])) &&
+    Number(examined[1]) === Number(examined[2])
+  );
+}
+
 export function exportProblem(sample, envelope) {
   if (!validSample(sample)) return "invalid-sample";
   if (
@@ -117,7 +127,7 @@ export function exportProblem(sample, envelope) {
   if (
     !object(data) ||
     data.schemaVersion !== 1 ||
-    data.status !== "completed" ||
+    !["completed", "partial"].includes(data.status) ||
     !text(data.run) ||
     data.coverageBasis !== "worker-declared" ||
     data.scope !== sample.review.scope ||
@@ -128,7 +138,7 @@ export function exportProblem(sample, envelope) {
     !Array.isArray(data.coverage) ||
     !strings(data.limitations)
   )
-    return "invalid-or-incomplete-export";
+    return "invalid-export";
   if (
     !data.findings.every((finding) => validFinding(finding, sample.aspects)) ||
     new Set(data.findings.map((finding) => finding.id)).size !==
@@ -141,41 +151,27 @@ export function exportProblem(sample, envelope) {
       sample.aspects.length
   )
     return "missing-coverage";
+  let unresolved = 0;
   for (const row of data.coverage) {
     if (
       !object(row) ||
       !sample.aspects.includes(row.aspect) ||
-      row.rejected !== 0 ||
-      !strings(row.limitations) ||
-      row.stopCause ||
-      row.pending ||
-      row.unresolved?.length
+      !Number.isSafeInteger(row.rejected) ||
+      row.rejected < 0 ||
+      !text(row.status) ||
+      !strings(row.limitations)
     )
       return "invalid-coverage";
     const count = data.findings.filter(
       (finding) => finding.aspect === row.aspect,
     ).length;
-    if (row.status === "not-applicable") {
-      if (count || !text(row.reason)) return "invalid-coverage";
-    } else {
-      if (
-        !["findings", "no-findings"].includes(row.status) ||
-        (row.status === "findings") !== count > 0
-      )
-        return "incomplete-coverage";
-    }
-    if (!(row.status === "not-applicable" && row.aspect === "scope-creep")) {
-      const examined =
-        typeof row.examined === "string" && /^(\d+)\/(\d+)$/.exec(row.examined);
-      if (
-        !examined ||
-        !Number.isSafeInteger(Number(examined[1])) ||
-        Number(examined[1]) !== Number(examined[2])
-      )
-        return "incomplete-coverage";
-    }
+    if (row.status === "not-applicable" && (count || !text(row.reason)))
+      return "invalid-coverage";
+    if (!resolved(row, count)) unresolved++;
   }
-  return null;
+  if (data.status === "completed" ? unresolved : !unresolved)
+    return "invalid-coverage";
+  return data.status === "completed" ? null : "incomplete-review";
 }
 
 export function parseEnvelope(output) {

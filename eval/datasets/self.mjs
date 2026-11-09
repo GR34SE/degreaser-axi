@@ -3,7 +3,24 @@ import { commentLabels, oldDiffRanges } from "./anchors.mjs";
 import { git, gitTree, materialize, ordered, sha256 } from "./io.mjs";
 
 export const SELF_BEFORE = "b4a1edec03d31b01145b923dc5b4dc0d944de0c9";
-export const SELF_AFTER = "4966af6db42dc2348494bd4914ab55defde6283f";
+export const SELF_AFTER = "d232af804ae532c4bd4bf79f56d4d854d7ef2715";
+
+function pinned(directory, revision) {
+  try {
+    return git(directory, [
+      "rev-parse",
+      "--verify",
+      "--quiet",
+      `${revision}^{commit}`,
+    ])
+      .toString("utf8")
+      .trim();
+  } catch {
+    throw new Error(
+      `Pinned self revision ${revision} is missing from ${directory}. Fetch the main branch there or pass --self-repo with a checkout that contains it.`,
+    );
+  }
+}
 
 export function loadSelf(
   directory,
@@ -13,14 +30,8 @@ export function loadSelf(
   counts,
   contrasts,
 ) {
-  const before = git(directory, ["rev-parse", `${SELF_BEFORE}^{commit}`])
-    .toString("utf8")
-    .trim();
-  const after = git(directory, ["rev-parse", `${SELF_AFTER}^{commit}`])
-    .toString("utf8")
-    .trim();
-  if (before !== SELF_BEFORE || after !== SELF_AFTER)
-    throw new Error("Self source revisions do not match pins");
+  const before = pinned(directory, SELF_BEFORE);
+  const after = pinned(directory, SELF_AFTER);
   const parent = git(directory, ["rev-parse", `${before}^`])
     .toString("utf8")
     .trim();
@@ -103,7 +114,9 @@ export function loadSelf(
             task: "Audit the selected source for low-value comments. Preserve comments that explain non-obvious constraints, invariants, security boundaries or tradeoffs.",
           },
           target,
-          contrast: { group: `self/comments/${group}`, overlay, scope },
+          ...(contrasts
+            ? { contrast: { group: `self/comments/${group}`, overlay, scope } }
+            : {}),
           provenance: {
             source: "self",
             revision: before,

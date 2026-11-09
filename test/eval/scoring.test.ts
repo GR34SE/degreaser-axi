@@ -153,7 +153,11 @@ test("fails closed for empty, malformed, partial and inconsistent public exports
     },
     {
       ...envelope.export,
-      coverage: [{ ...envelope.export.coverage[0], rejected: 1 }],
+      coverage: [{ ...envelope.export.coverage[0], rejected: -1 }],
+    },
+    {
+      ...envelope.export,
+      coverage: [{ ...envelope.export.coverage[0], rejected: "1" }],
     },
     {
       ...envelope.export,
@@ -168,6 +172,48 @@ test("fails closed for empty, malformed, partial and inconsistent public exports
   assert.equal(
     scoreSample(sample, { ...envelope, error: "failed" }).complete,
     false,
+  );
+});
+
+test("a completed export whose rejected quotes were recovered by a later pass is complete", () => {
+  // docs/result-contract.md: rejection counts accumulate across passes, and the
+  // coordinator completes an aspect once accumulated examined paths cover it.
+  const { sample, envelope } = fixture();
+  const [coverage] = envelope.export.coverage;
+  assert.ok(coverage);
+  coverage.rejected = 2;
+  const score = scoreSample(sample, envelope);
+  assert.equal(score.complete, true);
+  assert.equal(score.recall, 1);
+  assert.deepEqual(score.hits, ["r1"]);
+});
+
+test("a well-formed partial review is incomplete evidence, distinct from malformed exports", () => {
+  const { sample, envelope } = fixture();
+  const [coverage] = envelope.export.coverage;
+  assert.ok(coverage);
+  const unresolved = { ...coverage, status: "incomplete", examined: "0/1" };
+  const partial = {
+    ...envelope,
+    export: { ...envelope.export, status: "partial", coverage: [unresolved] },
+  };
+  const score = scoreSample(sample, partial);
+  assert.equal(score.complete, false);
+  assert.equal(score.reason, "incomplete-review");
+  assert.equal(score.recall, null);
+  assert.equal(score.precisionProxy, null);
+  for (const exported of [
+    { ...partial.export, coverage: [coverage] },
+    { ...partial.export, coverage: [{ ...unresolved, rejected: null }] },
+    { ...envelope.export, coverage: [unresolved] },
+  ]) {
+    const invalid = scoreSample(sample, { ...envelope, export: exported });
+    assert.equal(invalid.complete, false);
+    assert.notEqual(invalid.reason, "incomplete-review");
+  }
+  assert.equal(
+    scoreSample(sample, { ...partial, sampleId: "other" }).reason,
+    "invalid-envelope",
   );
 });
 

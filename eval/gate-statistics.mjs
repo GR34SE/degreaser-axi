@@ -25,10 +25,12 @@ function clusterValues(pairs, metric) {
     const baseline = value(pair.baseline, metric),
       candidate = value(pair.candidate, metric);
     if (baseline === null || candidate === null) {
+      const incomplete =
+        !pair.baseline.score.complete || !pair.candidate.score.complete;
       excluded.push({
         sampleKey: pair.sampleKey,
         repeat: pair.repeat,
-        reason: "undefined-denominator",
+        reason: incomplete ? "incomplete-review" : "undefined-denominator",
         asymmetric: (baseline === null) !== (candidate === null),
       });
       continue;
@@ -116,7 +118,10 @@ export function compareMetric(pairs, metric, family) {
   };
   if (!values.length || delta === null) return result;
   result.status = "inconclusive";
-  if (values.length < 2 || excluded.some((row) => row.asymmetric))
+  if (
+    values.length < 2 ||
+    excluded.some((row) => row.asymmetric || row.reason === "incomplete-review")
+  )
     return result;
   const interval = bootstrap(values, policy.relative, [family, metric]);
   if (!interval) return result;

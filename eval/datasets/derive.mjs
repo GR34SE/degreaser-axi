@@ -1,8 +1,6 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
-import { parseArgs } from "node:util";
-import { AxiError, runAxiCli } from "axi-sdk-js";
+import { fileURLToPath } from "node:url";
 import { loadCleanup } from "./cleanup.mjs";
 import {
   assertRealPath,
@@ -31,7 +29,7 @@ export async function deriveDatasets({
   outputDir,
   selfRepo = CHECKOUT,
   sources = SOURCES,
-  contrasts = true,
+  contrasts = false,
 } = {}) {
   if (typeof sourceRoot !== "string" || typeof outputDir !== "string") {
     throw new Error("sourceRoot and outputDir are required");
@@ -177,61 +175,3 @@ export async function deriveDatasets({
   );
   return { samples, receipt };
 }
-
-async function main() {
-  const help =
-    "derive --source-root <download-directory> --output-dir <new-directory> [--source self|swe-refactor|simplibench|cleanup-pr] [--self-repo <checkout>] [--no-contrasts]";
-  await runAxiCli({
-    argv: process.argv.slice(2),
-    description: "Derive local source-backed evaluation datasets.",
-    topLevelHelp: help,
-    home: () => ({ help }),
-    commands: {
-      derive: async (args) => {
-        // SDK routes/renders; it does not expose command flag parsing.
-        let values;
-        try {
-          ({ values } = parseArgs({
-            args,
-            options: {
-              "source-root": { type: "string" },
-              "output-dir": { type: "string" },
-              source: { type: "string", multiple: true },
-              "self-repo": { type: "string" },
-              "no-contrasts": { type: "boolean" },
-              help: { type: "boolean" },
-            },
-          }));
-        } catch (error) {
-          throw new AxiError(error.message, "VALIDATION_ERROR", [help]);
-        }
-        if (values.help) return { help };
-        if (!values["source-root"] || !values["output-dir"]) {
-          throw new AxiError(
-            "--source-root and --output-dir are required",
-            "VALIDATION_ERROR",
-            [help],
-          );
-        }
-        const { samples } = await deriveDatasets({
-          sourceRoot: values["source-root"],
-          outputDir: values["output-dir"],
-          selfRepo: values["self-repo"] ?? CHECKOUT,
-          sources: values.source ?? SOURCES,
-          contrasts: !values["no-contrasts"],
-        });
-        return {
-          samples: samples.length,
-          manifest: join(resolve(values["output-dir"]), "samples.jsonl"),
-          receipt: join(resolve(values["output-dir"]), "receipt.json"),
-        };
-      },
-    },
-  });
-}
-
-if (
-  process.argv[1] &&
-  import.meta.url === pathToFileURL(resolve(process.argv[1])).href
-)
-  await main();

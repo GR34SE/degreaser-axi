@@ -10,12 +10,15 @@ Keep the downloaded corpus outside Git. `pnpm eval:derive -- --source-root
 <collection> --output eval/.generated/datasets` reads it without installing or
 executing third-party code. The output contains disposable Git repositories,
 a JSONL sample manifest and derivation receipts. Do not commit that output.
+`--source` (repeatable) selects sources, `--self-repo` names a checkout that
+contains the pinned self revisions, and `--contrasts` opts into the self
+instruction/scope variants described in [datasets](datasets/README.md).
 
 Sources:
 
 | Source                                              | Pinned input                                      | Meaning                                                   |
 | --------------------------------------------------- | ------------------------------------------------- | --------------------------------------------------------- |
-| Degreaser self-cleanup                              | `b4a1ede` → `4966af6`                             | owner removal of comment blocks                           |
+| Degreaser self-cleanup                              | `b4a1ede` → `d232af8`                             | owner removal of comment blocks                           |
 | [SWE-Refactor](https://zenodo.org/records/17196850) | `pure_refactoring_data.json` from record 17196850 | accepted refactoring regions, mapped by operation type    |
 | [SimpliBench](https://zenodo.org/records/12176049)  | paired tagged/untagged `small/test.jsonl`         | source simplification regions; tags removed before review |
 | Cleanup PR corpus                                   | pinned raw PR metadata and base/head snapshots    | accepted change regions; closed/unmerged PRs excluded     |
@@ -102,6 +105,9 @@ pnpm eval:gate -- --baseline <baseline>/records.jsonl \
 
 The gate checks paired data, per-family recall uncertainty, proxy precision,
 explicit PRESERVE/forbidden sentinels, completeness and resource margins.
+A well-formed `partial` review pairs as completeness 0; its anchor metrics are
+missing, so they stay inconclusive rather than pass. A completed review with
+rejected quotes whose coverage a later pass recovered is complete.
 Insufficient evidence is not a pass. A non-regression pass alone does not prove
 improvement. Only a separate ordinary code review can merge a rubric change;
 no human labels or per-finding decisions are required.

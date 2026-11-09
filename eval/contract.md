@@ -12,6 +12,7 @@ no model calls in deterministic tests. Haiku stays the recommended model.
   "id": "self/comments/module",
   "family": "self",
   "split": "dev",
+  "cluster": "repository:degreaser-axi",
   "labelKind": "owner-diff",
   "aspects": ["low-value-comments"],
   "repo": { "directory": "/absolute/materialized/repo" },
@@ -40,7 +41,7 @@ no model calls in deterministic tests. Haiku stays the recommended model.
 `review.base` is required for branch scope. The provider copies the materialized
 Git repo into its own temporary directory before every run, never edits source
 datasets, never includes labels in the worker repo. Each label has a stable ID,
-source-side line range, optional accepted `aspects` and `alsoAccept` arrays.
+source-side line range and an optional accepted `aspects` array.
 `forbidden` entries are `{id, pattern, path?}` literal case-insensitive direction
 matches, only an explicit lexical sentinel, not a semantic harm judge.
 
@@ -49,6 +50,8 @@ are change proxies, not verified slop labels. Untouched source is not guaranteed
 clean and must not be converted to hard negatives. Only explicit source-backed
 negative cases enter `preserve`. Unmatched findings remain proxy measurements.
 Splits group all records from the same repository/commit/template family.
+`cluster` names that independent source group; the gate rejects records
+without it rather than treating each revision as independent evidence.
 
 ## Provider
 
@@ -75,13 +78,16 @@ promptfoo assertion `(output, context)`, reading `context.vars.sample`.
 forbiddenCount, complete, hits, misses, unmatchedFindingIds}`.
 Match only cited locations in the correct file and aspect; include valid
 `path:line[-line]` references in finding `evidence`, deduplicate repeated hits.
-Invalid/partial exports fail closed. Undefined metric denominators are null,
-never fabricated perfect scores. `preserveRate` is retention: 1 means no
+Invalid exports fail closed. A completed export is complete under the
+product's contract even when rejected quotes were later recovered; a well-formed
+`partial` export is incomplete (`reason: "incomplete-review"`), never clean.
+Undefined metric denominators are null, never fabricated perfect scores. `preserveRate` is retention: 1 means no
 PRESERVE anchors were hit, 0 means all were hit.
 
 `eval/gate.mjs` consumes paired JSON run records with
 `{sample, envelope, repeat}`. Pair exact sample/input, repetition, agent/model;
 require same evaluated sample manifest and report per-family metrics, excluded
-or missing rows and paired recall deltas. It must not pass absent/incomplete
-data, compare an absolute confidence bound to a point baseline, or treat repeats
-as independent source samples.
+or missing rows and paired recall deltas. Partial reviews count as
+completeness 0 and leave anchor metrics inconclusive. It must not pass
+absent/incomplete data, compare an absolute confidence bound to a point
+baseline, or treat repeats as independent source samples.

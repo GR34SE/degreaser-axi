@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "eval/gepa"))
 from adapter import DegreaserAdapter, surface_path
+import campaign
 from campaign import reflection_lm
 from feedback import source_context
 
@@ -57,6 +58,40 @@ class CampaignBoundaryTests(unittest.TestCase):
             with patch("campaign.subprocess.run", return_value=fake):
                 with self.assertRaises(RuntimeError):
                     reflection_lm("claude-haiku-example")([])
+
+    def test_native_reflection_receives_gepa_prompt_text_unchanged(self):
+        prompt = 'Improve the rubric.\n"Quoted" feedback follows.'
+        fake = SimpleNamespace(returncode=0, stdout='{"result":"candidate"}')
+        with patch("campaign.subprocess.run", return_value=fake) as invoke:
+            reflection_lm("claude-haiku-4-5-20251001")(prompt)
+            self.assertEqual(invoke.call_args.kwargs["input"], prompt)
+            messages = [{"role": "user", "content": "input"}]
+            reflection_lm("claude-haiku-4-5-20251001")(messages)
+            self.assertEqual(json.loads(invoke.call_args.kwargs["input"]), messages)
+            admitted = []
+            with self.assertRaises(TypeError):
+                reflection_lm("claude-haiku-4-5-20251001", admit=admitted.append)({"role": "user"})
+            self.assertEqual(invoke.call_count, 2)
+            self.assertEqual(admitted, [])
+
+    def test_campaign_rejects_unpinned_haiku_before_any_command(self):
+        with tempfile.TemporaryDirectory() as temp:
+            for model in ("claude-haiku-4-5", "claude-haiku-latest", "claude-sonnet-4-5"):
+                config = Path(temp) / f"{model}.json"
+                config.write_text(json.dumps({
+                    "agent": "claude", "model": model, "productDir": temp,
+                    "baseSha": "HEAD", "surface": "src/review/attempt/prompt/worker.md",
+                    "samples": str(Path(temp) / "samples.jsonl"),
+                    "outputDir": str(Path(temp) / "out"), "maxMetricCalls": 1,
+                }))
+                argv = ["campaign.py", "--config", str(config), "--allow-models"]
+                with patch("sys.argv", argv), patch("campaign.command") as command, \
+                        patch("campaign.subprocess.run") as run:
+                    with self.assertRaisesRegex(ValueError, "claude-haiku-4-5-20251001"):
+                        campaign.main()
+                    command.assert_not_called()
+                    run.assert_not_called()
+                self.assertFalse((Path(temp) / "out").exists())
 
     def test_reflection_context_reads_missed_source_without_following_escape(self):
         with tempfile.TemporaryDirectory() as temp:
