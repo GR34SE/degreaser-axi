@@ -95,8 +95,10 @@ product and calls the same promptfoo provider. Its native reflection call has
 no tools, hooks, skills or MCP access. No API fallback is configured. A campaign
 produces a candidate, not a product edit or an effectiveness claim.
 The provider attributes a `partial` review to worker quality only when every
-unresolved aspect's last attempt ended in invalid output, the output limit, a
-timeout or deadline, or a valid incomplete result. Authentication, quota,
+unresolved aspect's last attempt ended in invalid output, the output limit, or
+a valid incomplete result, including one stopped by a lifecycle timeout or
+deadline. A timeout without validated evidence or with a network-level code
+(`ETIMEDOUT`, `TIMEOUT` and peers) is ambiguous and fails closed. Authentication, quota,
 account, model, environment, network, cleanup or unknown causes become provider
 errors that name the cause and recovery; they are not candidate evidence.
 Such an attributed `partial` review of a candidate scores 0 for that sample,

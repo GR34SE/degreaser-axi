@@ -167,6 +167,11 @@ test("only unresolved worker-quality failures make a partial review rubric evide
       { error: { message: "Denied", data: { authRequired: true } } },
       /authentication failure \(recovery: fix-authentication\)/,
     ],
+    [
+      "network timeout without evidence",
+      { error: { message: "Request timed out" } },
+      /timeout failure \(recovery: resume\)/,
+    ],
     ["invalid output", { result: "not a result" }, "partial"],
     [
       "recovered retry",
