@@ -80,7 +80,9 @@ Match only cited locations in the correct file and aspect; include valid
 `path:line[-line]` references in finding `evidence`, deduplicate repeated hits.
 Invalid exports fail closed. A completed export is complete under the
 product's contract even when rejected quotes were later recovered; a well-formed
-`partial` export is incomplete (`reason: "incomplete-review"`), never clean.
+`partial` export is incomplete (`reason: "incomplete-review"`), never clean,
+only with the provider's `meta.outcome: "worker-quality-partial"`; without it
+the reason is `unattributed-partial` and the record is invalid evidence.
 Undefined metric denominators are null, never fabricated perfect scores. `preserveRate` is retention: 1 means no
 PRESERVE anchors were hit, 0 means all were hit.
 

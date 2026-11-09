@@ -116,6 +116,7 @@ class OptimizerIntegrationTests(unittest.TestCase):
             for failure in (
                 {"error": "Authentication required."},
                 {"envelope": {}, "metrics": {"complete": False, "reason": "invalid-export"}},
+                {"envelope": {}, "metrics": {"complete": False, "reason": "unattributed-partial"}},
                 {"envelope": {}, "metrics": {"complete": True, "recall": None}},
             ):
                 with self.subTest(failure=failure), self.assertRaises((RuntimeError, ValueError)):

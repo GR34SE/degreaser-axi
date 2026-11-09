@@ -6,6 +6,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { decode } from "@toon-format/toon";
 import { reserveSessions } from "./admissions.mjs";
 import { productIdentity } from "./product-identity.mjs";
+import { partialOutcome } from "./provider-outcome.mjs";
 import { environment, execute, git } from "./provider-process.mjs";
 import { materialize, validateSample } from "./provider-sample.mjs";
 import reviewPolicy from "./review-policy.json" with { type: "json" };
@@ -257,6 +258,9 @@ export default class DegreaserProvider {
           sampleHash: materialized.sampleHash,
           sessionCount,
           waitCount,
+          ...(data.status === "partial"
+            ? { outcome: partialOutcome(data, full) }
+            : {}),
         },
       };
       if (productHash !== (await productIdentity(product)))

@@ -94,8 +94,13 @@ GEPA evaluates candidate text in temporary detached worktrees, builds that
 product and calls the same promptfoo provider. Its native reflection call has
 no tools, hooks, skills or MCP access. No API fallback is configured. A campaign
 produces a candidate, not a product edit or an effectiveness claim.
-A well-formed `partial` review of a candidate scores 0 for that sample, keeps
-`complete: false` and its reason in the feedback, and the campaign continues to
+The provider attributes a `partial` review to worker quality only when every
+unresolved aspect's last attempt ended in invalid output, the output limit, a
+timeout or deadline, or a valid incomplete result. Authentication, quota,
+account, model, environment, network, cleanup or unknown causes become provider
+errors that name the cause and recovery; they are not candidate evidence.
+Such an attributed `partial` review of a candidate scores 0 for that sample,
+keeps `complete: false` and its reason in the feedback, and the campaign continues to
 save its best candidate. Provider, authentication or quota errors, malformed or
 mismatched exports, a missing REPORT denominator, and any run failure not
 explained by partial records still stop the campaign.
@@ -110,8 +115,9 @@ pnpm eval:gate -- --baseline <baseline>/records.jsonl \
 
 The gate checks paired data, per-family recall uncertainty, proxy precision,
 explicit PRESERVE/forbidden sentinels, completeness and resource margins.
-A well-formed `partial` review pairs as completeness 0; its anchor metrics are
-missing, so they stay inconclusive rather than pass. A completed review with
+A worker-quality `partial` review pairs as completeness 0 and its missing
+anchor metrics stay inconclusive rather than pass; an unattributed `partial`
+record is invalid evidence. A completed review with
 rejected quotes whose coverage a later pass recovered is complete.
 Insufficient evidence is not a pass. A non-regression pass alone does not prove
 improvement. Only a separate ordinary code review can merge a rubric change;

@@ -3,6 +3,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { scoreSample } from "../../eval/assert/anchor-match.mjs";
 import { setup } from "../utils/public-review-fixture.ts";
 
 const productDir = fileURLToPath(new URL("../../", import.meta.url));
@@ -147,8 +148,64 @@ test("provider preserves partial status rather than treating export exit zero as
   });
   const result = await f.invoke();
   assert.equal(result.error, undefined, result.error);
-  assert.equal(JSON.parse(result.output).export.status, "partial");
+  const envelope = JSON.parse(result.output);
+  assert.equal(envelope.export.status, "partial");
+  assert.equal(envelope.meta.outcome, "worker-quality-partial");
   f.cleaned();
+});
+
+test("only unresolved worker-quality failures make a partial review rubric evidence", async (t) => {
+  const peers = ["masked-errors", "low-value-comments"];
+  for (const [name, worker, expected] of [
+    [
+      "rate limit",
+      { error: { message: "Quota exhausted" } },
+      /rate-limited failure \(recovery: wait-for-quota\)/,
+    ],
+    [
+      "authentication",
+      { error: { message: "Denied", data: { authRequired: true } } },
+      /authentication failure \(recovery: fix-authentication\)/,
+    ],
+    ["invalid output", { result: "not a result" }, "partial"],
+    [
+      "recovered retry",
+      { attempts: [{ result: "not a result" }, {}] },
+      "completed",
+    ],
+  ] as const) {
+    await t.test(name, async (t) => {
+      const f = await fixture(t, { workers: { "low-value-comments": worker } });
+      const sample = { ...f.sample, aspects: peers };
+      const result = await f.provider.callApi("", { vars: { sample } });
+      if (expected instanceof RegExp) {
+        assert.match(result.error, expected);
+        assert.equal(result.output, undefined);
+      } else {
+        assert.equal(result.error, undefined, result.error);
+        const envelope = JSON.parse(result.output);
+        assert.equal(envelope.export.status, expected);
+        const score = scoreSample(
+          {
+            ...sample,
+            family: "synthetic",
+            target: {
+              report: [{ id: "R1", path: "module.ts", lines: [1, 1] }],
+              preserve: [],
+              forbidden: [],
+            },
+          },
+          envelope,
+        );
+        assert.equal(score.complete, expected === "completed");
+        if (expected === "partial") {
+          assert.equal(envelope.meta.outcome, "worker-quality-partial");
+          assert.equal(score.reason, "incomplete-review");
+        } else assert.equal(envelope.meta.outcome, undefined);
+      }
+      f.cleaned();
+    });
+  }
 });
 
 test("invalid worker output and metadata failure produce errors, never clean output", async (t) => {

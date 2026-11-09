@@ -162,11 +162,15 @@ test("real promptfoo runs file assertions, repeats without cache and journals sc
     const partial = envelope(input);
     for (const row of recovered.export.coverage) row.rejected = 1;
     partial.export.status = "partial";
+    Object.assign(partial.meta, { outcome: "worker-quality-partial" });
     for (const row of partial.export.coverage)
       Object.assign(row, { status: "incomplete", examined: "0/1" });
+    const unattributed = structuredClone(partial);
+    delete (unattributed.meta as { outcome?: string }).outcome;
     for (const [name, output, incomplete] of [
       ["recovered", recovered, 0],
       ["partial", partial, 1],
+      ["unattributed", unattributed, 1],
     ] as const) {
       const report = await runEvaluation({
         samples: [input],
@@ -190,6 +194,9 @@ test("real promptfoo runs file assertions, repeats without cache and journals sc
     ]);
     assert.deepEqual(adapterRecords(1, join(directory, "partial")), [
       "incomplete-review",
+    ]);
+    assert.deepEqual(adapterRecords(1, join(directory, "unattributed")), [
+      "unattributed-partial",
     ]);
     assert.equal(adapterRecords(0, join(directory, "partial")), "stopped");
     assert.equal(adapterRecords(2, join(directory, "partial")), "stopped");

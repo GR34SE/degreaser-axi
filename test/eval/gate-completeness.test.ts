@@ -61,3 +61,21 @@ test("records without a source cluster are invalid rather than independent", () 
     ),
   );
 });
+
+test("a partial review without a worker-quality attribution is invalid, not a completeness loss", () => {
+  const baseline = records();
+  const candidate = structuredClone(baseline);
+  for (const row of candidate) {
+    partial(row);
+    delete (row.envelope.meta as { outcome?: string }).outcome;
+  }
+  const result = compareRuns(baseline, candidate);
+  assert.equal(result.pass, false);
+  assert.equal(result.status, "invalid");
+  assert.ok(
+    result.issues.every(
+      (issue: { code: string }) =>
+        issue.code === "invalid-export" || issue.code === "missing-pair",
+    ),
+  );
+});

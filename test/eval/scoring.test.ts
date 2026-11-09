@@ -195,6 +195,7 @@ test("a well-formed partial review is incomplete evidence, distinct from malform
   const unresolved = { ...coverage, status: "incomplete", examined: "0/1" };
   const partial = {
     ...envelope,
+    meta: { ...envelope.meta, outcome: "worker-quality-partial" },
     export: { ...envelope.export, status: "partial", coverage: [unresolved] },
   };
   const score = scoreSample(sample, partial);
@@ -207,10 +208,13 @@ test("a well-formed partial review is incomplete evidence, distinct from malform
     { ...partial.export, coverage: [{ ...unresolved, rejected: null }] },
     { ...envelope.export, coverage: [unresolved] },
   ]) {
-    const invalid = scoreSample(sample, { ...envelope, export: exported });
+    const invalid = scoreSample(sample, { ...partial, export: exported });
     assert.equal(invalid.complete, false);
     assert.notEqual(invalid.reason, "incomplete-review");
   }
+  const unattributed = scoreSample(sample, { ...partial, meta: envelope.meta });
+  assert.equal(unattributed.complete, false);
+  assert.equal(unattributed.reason, "unattributed-partial");
   assert.equal(
     scoreSample(sample, { ...partial, sampleId: "other" }).reason,
     "invalid-envelope",

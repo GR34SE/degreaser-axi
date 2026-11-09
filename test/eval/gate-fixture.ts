@@ -85,4 +85,5 @@ export function partial(row: ReturnType<typeof record>) {
   const coverage = first(row.envelope.export.coverage);
   coverage.status = "incomplete";
   coverage.examined = "0/1";
+  Object.assign(row.envelope.meta, { outcome: "worker-quality-partial" });
 }

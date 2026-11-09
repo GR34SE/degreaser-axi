@@ -171,7 +171,10 @@ export function exportProblem(sample, envelope) {
   }
   if (data.status === "completed" ? unresolved : !unresolved)
     return "invalid-coverage";
-  return data.status === "completed" ? null : "incomplete-review";
+  if (data.status === "completed") return null;
+  return envelope.meta.outcome === "worker-quality-partial"
+    ? "incomplete-review"
+    : "unattributed-partial";
 }
 
 export function parseEnvelope(output) {
