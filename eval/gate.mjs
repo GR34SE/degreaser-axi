@@ -1,140 +1,250 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
-import { pairRuns } from "./gate-pairs.mjs";
-import { compareMetric, METRICS } from "./gate-statistics.mjs";
+import { scoreSample } from "./assert/anchor-match.mjs";
+import { object } from "./assert/validation.mjs";
+
+const MIN_SAMPLES = 8;
+const RESAMPLES = 10000;
+const MARGIN = -0.03;
+const TOLERANCE = 1e-12;
+
+const mean = (values) =>
+  values.reduce((sum, value) => sum + value, 0) / values.length;
+
+function canonical(value) {
+  if (Array.isArray(value)) return value.map(canonical);
+  if (!object(value)) return value;
+  return Object.fromEntries(
+    Object.keys(value)
+      .sort()
+      .map((key) => [key, canonical(value[key])]),
+  );
+}
+function inputKey(sample) {
+  const { directory, ...repo } = sample.repo ?? {};
+  return JSON.stringify(canonical({ ...sample, repo }));
+}
+
+function readRun(input, side, issues) {
+  const rows = Array.isArray(input) ? input : input?.records;
+  const run = new Map();
+  if (!Array.isArray(rows) || !rows.length) {
+    issues.push({ code: "no-records", side });
+    return run;
+  }
+  for (const [row, record] of rows.entries()) {
+    const reject = (code, reason) =>
+      issues.push({ code, side, row, ...(reason && { reason }) });
+    if (
+      !object(record) ||
+      !object(record.sample) ||
+      !Number.isSafeInteger(record.repeat) ||
+      record.repeat < 0
+    ) {
+      reject("invalid-record");
+      continue;
+    }
+    if (record.error) {
+      reject("provider-error");
+      continue;
+    }
+    const score = scoreSample(record.sample, record.envelope);
+    if (!score.complete && score.reason !== "incomplete-review") {
+      reject("invalid-export", score.reason);
+      continue;
+    }
+    const key = JSON.stringify([record.sample.id, record.repeat]);
+    if (run.has(key)) {
+      reject("duplicate-record");
+      continue;
+    }
+    run.set(key, {
+      sample: record.sample,
+      repeat: record.repeat,
+      meta: record.envelope.meta,
+      input: inputKey(record.sample),
+      score,
+    });
+  }
+  return run;
+}
+
+function pairRuns(baselineInput, candidateInput, issues) {
+  const baseline = readRun(baselineInput, "baseline", issues);
+  const candidate = readRun(candidateInput, "candidate", issues);
+  const pairs = [];
+  for (const key of new Set([...baseline.keys(), ...candidate.keys()])) {
+    const b = baseline.get(key),
+      c = candidate.get(key);
+    const at = { sample: (b ?? c).sample.id, repeat: (b ?? c).repeat };
+    if (!b || !c) issues.push({ code: "missing-pair", ...at });
+    else if (
+      b.input !== c.input ||
+      ["sampleHash", "agent", "model"].some(
+        (field) => b.meta[field] !== c.meta[field],
+      )
+    )
+      issues.push({ code: "mismatched-pair-input-or-model", ...at });
+    else pairs.push({ baseline: b, candidate: c });
+  }
+  return pairs.sort(
+    (a, b) =>
+      a.baseline.sample.id.localeCompare(b.baseline.sample.id) ||
+      a.baseline.repeat - b.baseline.repeat,
+  );
+}
+
+function sampleUnits(pairs, metric) {
+  const bySample = new Map();
+  let incomplete = false;
+  for (const pair of pairs) {
+    const sides = [pair.baseline, pair.candidate];
+    if (
+      metric !== "completeness" &&
+      !sides.every((side) => side.score.complete)
+    ) {
+      incomplete = true;
+      continue;
+    }
+    const values = sides.map((side) =>
+      metric === "completeness"
+        ? Number(side.score.complete)
+        : side.score[metric],
+    );
+    if (values.includes(null)) continue;
+    const id = pair.baseline.sample.id;
+    bySample.set(id, [...(bySample.get(id) ?? []), values]);
+  }
+  const units = [...bySample.values()].map((rows) => [
+    mean(rows.map((row) => row[0])),
+    mean(rows.map((row) => row[1])),
+  ]);
+  return { units, incomplete };
+}
+
+function bootstrap(units) {
+  let state = 2463534242;
+  const random = () => {
+    state ^= state << 13;
+    state ^= state >>> 17;
+    state ^= state << 5;
+    return (state >>> 0) / 4294967296;
+  };
+  const deltas = [];
+  for (let iteration = 0; iteration < RESAMPLES; iteration++) {
+    let delta = 0;
+    for (let index = 0; index < units.length; index++) {
+      const unit = units[Math.floor(random() * units.length)];
+      delta += unit[1] - unit[0];
+    }
+    deltas.push(delta / units.length);
+  }
+  deltas.sort((a, b) => a - b);
+  return [
+    deltas[Math.floor(0.025 * (deltas.length - 1))],
+    deltas[Math.ceil(0.975 * (deltas.length - 1))],
+  ];
+}
+
+function compareMetric(pairs, metric) {
+  const { units, incomplete } = sampleUnits(pairs, metric);
+  const baseline = units.length ? mean(units.map((unit) => unit[0])) : null;
+  const candidate = units.length ? mean(units.map((unit) => unit[1])) : null;
+  const result = {
+    baseline,
+    candidate,
+    delta: units.length ? candidate - baseline : null,
+    interval95: null,
+    margin: MARGIN,
+    samples: units.length,
+    status: "inconclusive",
+    improved: false,
+  };
+  if (!units.length && !incomplete) result.status = "unsupported";
+  if (!units.length || incomplete || units.length < MIN_SAMPLES) return result;
+  const interval = bootstrap(units);
+  result.interval95 = interval;
+  result.status =
+    interval[0] >= MARGIN - TOLERANCE
+      ? "passed"
+      : interval[1] < MARGIN
+        ? "regressed"
+        : "inconclusive";
+  result.improved = interval[0] > TOLERANCE;
+  return result;
+}
+
+function verdict(issues, metrics, mode) {
+  const values = Object.values(metrics);
+  const nonRegression =
+    metrics.recall.status !== "unsupported" &&
+    values.every((m) => m.status === "passed" || m.status === "unsupported");
+  const improved = nonRegression && values.some((m) => m.improved);
+  const pass = nonRegression && (mode !== "improvement" || improved);
+  if (issues.length) return { pass: false, improved: false, status: "invalid" };
+  const status = pass
+    ? "passed"
+    : values.some((m) => m.status === "regressed")
+      ? "regressed"
+      : nonRegression
+        ? "not-improved"
+        : "inconclusive";
+  return { pass, improved, status };
+}
 
 export function compareRuns(baseline, candidate, options = {}) {
-  const requestedMode = options.mode ?? "non-regression";
-  const mode = ["non-regression", "improvement"].includes(requestedMode)
-    ? requestedMode
-    : "invalid";
-  const { pairs, issues, excludedRows } = pairRuns(baseline, candidate);
+  const mode = options.mode ?? "non-regression";
+  const issues = [];
   if (!["non-regression", "improvement"].includes(mode))
     issues.push({ code: "unsupported-mode" });
-  if (options.metrics !== undefined)
-    issues.push({ code: "unsupported-metric-override" });
-  const grouped = new Map();
-  for (const pair of pairs) {
-    if (!grouped.has(pair.family)) grouped.set(pair.family, []);
-    grouped.get(pair.family).push(pair);
-  }
-  const families = [...grouped]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([family, rows]) => {
-      const metrics = Object.fromEntries(
-        Object.keys(METRICS).map((metric) => [
-          metric,
-          compareMetric(rows, metric, family),
-        ]),
-      );
-      const newForbidden = rows.flatMap((pair) =>
-        pair.candidate.score.forbiddenHits
-          .filter((id) => !pair.baseline.score.forbiddenHits.includes(id))
-          .map(() => ({ sampleKey: pair.sampleKey, repeat: pair.repeat })),
-      );
-      const unsupportedMetrics = Object.entries(metrics)
-        .filter(([, m]) => m.status === "unsupported" && m.notApplicable)
-        .map(([name]) => name);
-      const singleSource = Object.values(metrics).some(
-        (m) => m.unit === "sample" && m.interval95 !== null,
-      );
-      return {
-        family,
-        pairs: rows.length,
-        evidenceScope: singleSource ? "single-source" : "multi-source",
-        unsupportedMetrics,
-        metrics,
-        newForbiddenSentinels: newForbidden.length,
-        forbiddenRows: newForbidden,
-        pass:
-          !newForbidden.length &&
-          metrics.recall?.status !== "unsupported" &&
-          Object.values(metrics).every(
-            (m) => m.pass || (m.status === "unsupported" && m.notApplicable),
-          ),
-      };
-    });
-  const improved = families.some((family) =>
-    Object.values(family.metrics).some((metric) => metric.improved),
-  );
-  const nonRegression =
-    families.length > 0 && families.every((family) => family.pass);
-  const pass =
-    !issues.length && nonRegression && (mode !== "improvement" || improved);
-  const regressed = families.some(
-    (family) =>
-      family.newForbiddenSentinels ||
-      Object.values(family.metrics).some(
-        (metric) => metric.status === "regressed",
-      ),
-  );
+  const pairs = pairRuns(baseline, candidate, issues);
+  const metrics = {
+    recall: compareMetric(pairs, "recall"),
+    preserveRate: compareMetric(pairs, "preserveRate"),
+    completeness: compareMetric(pairs, "completeness"),
+  };
+  const identity = (side) => {
+    const meta = pairs[0]?.[side].meta;
+    return meta
+      ? {
+          agent: meta.agent,
+          model: meta.model,
+          productSha: meta.productSha,
+        }
+      : null;
+  };
   return {
-    schemaVersion: 1,
-    pass,
-    runIdentities: Object.fromEntries(
-      ["baseline", "candidate"].map((side) => {
-        const meta = pairs[0]?.[side].envelope.meta;
-        return [
-          side,
-          meta
-            ? {
-                agent: meta.agent,
-                model: meta.model,
-                productSha: meta.productSha,
-                productHash: meta.productHash ?? null,
-              }
-            : null,
-        ];
-      }),
-    ),
-    status: issues.length
-      ? "invalid"
-      : pass
-        ? "passed"
-        : regressed
-          ? "regressed"
-          : nonRegression && !improved
-            ? "not-improved"
-            : "inconclusive",
+    schemaVersion: 2,
+    ...verdict(issues, metrics, mode),
     mode,
-    improved: !issues.length && nonRegression && improved,
-    evidenceScope: families.some((f) => f.evidenceScope === "single-source")
-      ? "single-source"
-      : "multi-source",
+    runIdentities: {
+      baseline: identity("baseline"),
+      candidate: identity("candidate"),
+    },
     pairedRows: pairs.length,
-    excludedRows,
     issues,
-    families,
-    pairedRecallDeltas: pairs.map((pair) => ({
-      sampleKey: pair.sampleKey,
-      clusterKey: pair.cluster,
-      family: pair.family,
-      repeat: pair.repeat,
-      baseline: pair.baseline.score.recall,
-      candidate: pair.candidate.score.recall,
+    metrics,
+    pairedRecallDeltas: pairs.map(({ baseline: b, candidate: c }) => ({
+      sample: b.sample.id,
+      family: b.sample.family,
+      repeat: b.repeat,
+      baseline: b.score.recall,
+      candidate: c.score.recall,
       delta:
-        pair.baseline.score.recall === null ||
-        pair.candidate.score.recall === null
+        b.score.recall === null || c.score.recall === null
           ? null
-          : pair.candidate.score.recall - pair.baseline.score.recall,
+          : c.score.recall - b.score.recall,
     })),
     method: {
       name: "paired-percentile-bootstrap",
-      resamples: 10000,
+      unit: "sample (mean of its repeats)",
+      resamples: RESAMPLES,
       interval: 0.95,
-      minimumClusters: 2,
-      minimumSamplesSingleCluster: 8,
-      aggregation:
-        "repeat -> sample -> source cluster -> family; one source cluster resamples samples",
+      minimumSamples: MIN_SAMPLES,
       notes: [
-        "Intervals bound paired differences, never absolute candidate scores.",
-        "Precision proxy and lexical sentinels do not establish semantic correctness or harm.",
-        "A family spanning two or more source clusters resamples cluster means; a family from exactly one source cluster resamples samples (each the mean of its repeats) when it has at least 8, otherwise it is inconclusive.",
-        "A single-source verdict supports a claim about that source repository only, not about other codebases.",
-        "A metric with no defined value on either side in any pair is unsupported and not applicable to the family verdict; unsupported recall, one-sided absence and incomplete reviews never pass.",
-        "A partial review counts as completeness 0 and leaves its anchor metrics inconclusive.",
-        "Preserve-rate margin -0.03 is equivalent to preserve-violation margin +0.03.",
+        "Intervals bound paired differences of one repository's samples, not other codebases.",
+        "Incomplete reviews leave recall and preserve inconclusive; unlabelled preserve is unsupported and does not block.",
       ],
     },
   };
@@ -144,14 +254,13 @@ function parseRecords(source) {
   try {
     return JSON.parse(source);
   } catch {
-    const lines = source.split(/\r?\n/).filter((line) => line.trim());
-    if (!lines.length) return [];
-    return lines.map((line) => JSON.parse(line));
+    return source
+      .split(/\r?\n/)
+      .filter((line) => line.trim())
+      .map((line) => JSON.parse(line));
   }
 }
 
-// This development entry point emits a fixed JSON artifact, not the product's
-// SDK-routed interactive CLI, errors, help, hooks or output surfaces.
 async function main() {
   try {
     const { values } = parseArgs({
@@ -168,9 +277,7 @@ async function main() {
         parseRecords(await readFile(file, "utf8")),
       ),
     );
-    const report = compareRuns(baseline, candidate, {
-      mode: values.mode ?? "non-regression",
-    });
+    const report = compareRuns(baseline, candidate, { mode: values.mode });
     const output = `${JSON.stringify(report, null, 2)}\n`;
     if (values.output) await writeFile(values.output, output, { mode: 0o600 });
     process.stdout.write(output);
@@ -178,7 +285,7 @@ async function main() {
   } catch {
     process.stdout.write(
       `${JSON.stringify({
-        schemaVersion: 1,
+        schemaVersion: 2,
         pass: false,
         status: "invalid",
         issues: [{ code: "invalid-arguments-or-input-file" }],

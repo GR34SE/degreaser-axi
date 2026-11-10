@@ -1,5 +1,4 @@
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { AxiError, runAxiCli } from "axi-sdk-js";
@@ -13,14 +12,11 @@ import {
 const help = `Evaluation development tools (no inference in CI)
   run --samples <jsonl> --model <exact-haiku-id> --output <new-directory>
       [--product <checkout>] [--repeat 3] [--budget 600] [--concurrency 1]
-      [--family <name>] [--split dev|regression|holdout|all|a,b] [--limit <sample-count>]
+      [--family <name>] [--split dev|regression|all] [--limit <sample-count>]
       [--allow-models] (without this flag, print a plan only)
-  derive --output <new-directory> [--source-root <collection>]
-      (default source: self; --source-root is required for any other source)
-      [--source self|swe-refactor|simplibench|cleanup-pr]... [--self-repo <checkout>]
-      [--contrasts] (opt-in self instruction/scope variants in the same cluster)
+  derive --output <new-directory>
   gate --baseline <records.jsonl> --candidate <records.jsonl> [--output <json>]
-  campaign --config <campaign.json> --allow-models
+      [--mode non-regression|improvement]
 Examples:
   pnpm eval -- --samples <samples.jsonl> --model <haiku-id> --output <new-directory>
   pnpm eval:derive -- --output eval/.generated/datasets
@@ -90,25 +86,11 @@ async function run(args) {
 }
 
 async function derive(args) {
-  const values = flags(args, {
-    "source-root": { type: "string" },
-    output: { type: "string" },
-    source: { type: "string", multiple: true },
-    "self-repo": { type: "string" },
-    contrasts: { type: "boolean", default: false },
-  });
+  const values = flags(args, { output: { type: "string" } });
   required(values, ["output"]);
-  if (values.source?.some((source) => source !== "self"))
-    required(values, ["source-root"]);
-  const { deriveDatasets } = await import("./datasets/derive.mjs");
-  const result = await deriveDatasets({
-    sourceRoot: values["source-root"],
-    outputDir: values.output,
-    selfRepo: values["self-repo"],
-    sources: values.source,
-    contrasts: values.contrasts,
-  });
-  return { samples: result.samples.length, output: values.output };
+  const { deriveDatasets } = await import("./datasets/self.mjs");
+  const samples = deriveDatasets({ outputDir: values.output });
+  return { samples: samples.length, output: values.output };
 }
 
 async function gate(args) {
@@ -123,40 +105,10 @@ async function gate(args) {
   return {};
 }
 
-async function campaign(args) {
-  const values = flags(args, {
-    config: { type: "string" },
-    "allow-models": { type: "boolean" },
-  });
-  required(values, ["config"]);
-  const config = JSON.parse(readFileSync(values.config, "utf8"));
-  if (!values["allow-models"]) return { mode: "plan-only", config };
-  const directory = fileURLToPath(new URL("gepa/", import.meta.url));
-  const result = spawnSync(
-    "uv",
-    [
-      "run",
-      "--locked",
-      "--project",
-      directory,
-      "--python",
-      "3.14",
-      `${directory}campaign.py`,
-      "--config",
-      values.config,
-      "--allow-models",
-    ],
-    { stdio: "inherit" },
-  );
-  if (result.error) throw result.error;
-  process.exitCode = result.status ?? 1;
-  return {};
-}
-
 await runAxiCli({
-  description: "Local source-backed evaluation and rubric optimization",
+  description: "Local source-backed evaluation",
   topLevelHelp: help,
-  commands: { run, derive, gate, campaign },
+  commands: { run, derive, gate },
   home: () => ({
     status:
       "Model execution is opt-in; deterministic replay runs in pnpm test.",

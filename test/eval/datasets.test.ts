@@ -6,54 +6,20 @@ import {
   readFileSync,
   realpathSync,
   rmSync,
-  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import {
-  deriveDatasets,
-  splitForCluster,
-} from "../../eval/datasets/derive.mjs";
+import { commentLabels } from "../../eval/datasets/comments.mjs";
+import { deriveDatasets } from "../../eval/datasets/self.mjs";
 
-const SWE = "extracted/swe-refactor-v1/SWE-Refactor/pure_refactoring_data.json";
-const SIMPLI = "extracted/simplibench-dataset/remove_duplication";
-const REVISION = "a".repeat(40);
+type Sample = ReturnType<typeof deriveDatasets>[number];
+type Label = { id: string; path: string; lines: number[] };
 
-function fixture(t: test.TestContext) {
-  const root = mkdtempSync(join(realpathSync(tmpdir()), "degreaser-datasets-"));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
-  const sourceRoot = join(root, "source");
-  mkdirSync(sourceRoot);
-  const put = (path: string, value: unknown) => {
-    const full = join(sourceRoot, path);
-    mkdirSync(dirname(full), { recursive: true });
-    writeFileSync(
-      full,
-      typeof value === "string" ? value : JSON.stringify(value),
-    );
-  };
-  return { root, sourceRoot, put };
-}
-
-function refactoring(overrides: Record<string, unknown> = {}) {
-  return {
-    type: "Inline Method",
-    projectName: "one-project",
-    commitId: REVISION,
-    uniqueId: "one-method",
-    isPureRefactoring: true,
-    filePathBefore: "src/A.java",
-    sourceCodeBeforeForWhole:
-      "class A {\n  int field;\n\n  void redundant() {\n    field = 0;\n  }\n}\n",
-    sourceCodeBeforeRefactoring: "void redundant() {\n    field = 0;\n  }",
-    // Deliberately misleading after-side ranges, not the target's location.
-    diffLocations: [{ filePath: "src/A.java", startLine: 900, endLine: 910 }],
-    ...overrides,
-  };
-}
+const CLI = fileURLToPath(new URL("../../eval/cli.mjs", import.meta.url));
+const FIXTURES = "test/live/support/comment-fixtures.ts";
 
 function git(directory: string, ...args: string[]) {
   return execFileSync("git", ["-C", directory, ...args], {
@@ -61,304 +27,215 @@ function git(directory: string, ...args: string[]) {
   }).trim();
 }
 
-test("derivation anchors the unique before method, not mixed-side diffLocations", async (t) => {
-  const { root, sourceRoot, put } = fixture(t);
-  put(SWE, [
-    refactoring(),
-    refactoring({ uniqueId: "other", commitId: "b".repeat(40) }),
-    refactoring({ uniqueId: "unsupported", type: "toString" }),
-    refactoring({
-      uniqueId: "ambiguous",
-      sourceCodeBeforeForWhole: "void repeated() {}\nvoid repeated() {}\n",
-      sourceCodeBeforeRefactoring: "void repeated() {}",
-    }),
+function commit(repo: string, files: Record<string, string>) {
+  for (const [path, content] of Object.entries(files)) {
+    mkdirSync(dirname(join(repo, path)), { recursive: true });
+    writeFileSync(join(repo, path), content);
+  }
+  git(repo, "add", "-A");
+  git(
+    repo,
+    "-c",
+    "user.name=t",
+    "-c",
+    "user.email=t@example.invalid",
+    "commit",
+    "--quiet",
+    "-m",
+    "c",
+  );
+  return git(repo, "rev-parse", "HEAD");
+}
+
+function tempRepo(t: test.TestContext) {
+  const root = mkdtempSync(join(realpathSync(tmpdir()), "degreaser-self-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const repo = join(root, "repo");
+  mkdirSync(repo);
+  git(repo, "init", "--quiet");
+  commit(repo, { "README.md": "root\n" });
+  return { root, repo };
+}
+
+function derive(t: test.TestContext) {
+  const { root, repo } = tempRepo(t);
+  const before = commit(repo, {
+    "src/a/edit.ts":
+      "// Gets the value.\nexport const a = 1;\n// Invariant: retries must keep caller identity.\nexport const b = 2;\n// Edited later.\nexport const c = 3;\n",
+    "src/b/untouched.ts":
+      "// Boundary: input is untrusted here.\nexport const d = 4;\n",
+    "src/c/gone.ts": "// Removed note.\nexport const e = 5;\n",
+    [FIXTURES]: "// Obvious fixture comment.\nexport const f = 1;\n",
+  });
+  const after = commit(repo, {
+    "src/a/edit.ts":
+      "export const a = 1;\n// Invariant: retries must keep caller identity.\nexport const b = 2;\n// Edited differently.\nexport const c = 3;\n",
+    "src/c/gone.ts": "export const e = 5;\n",
+    [FIXTURES]: "export const f = 1;\n",
+  });
+  return deriveDatasets({ outputDir: join(root, "out"), repo, before, after });
+}
+
+const labels = (sample: Sample | undefined, kind: "report" | "preserve") =>
+  sample?.target[kind].map(
+    (label: Label) => `${label.path}:${label.lines.join("-")}`,
+  );
+
+test("removed comments become REPORT, kept comments outside diffs PRESERVE, fixtures neither", (t) => {
+  const samples = derive(t);
+  const group = (path: string) =>
+    samples.find(
+      (sample) =>
+        sample.id === `self/comments/${path}/source-instructions/repository`,
+    );
+  const edit = group("src/a/edit.ts");
+  assert.deepEqual(labels(edit, "report"), [
+    "src/a/edit.ts:1-1",
+    "src/a/edit.ts:5-5",
   ]);
-  const { samples } = await deriveDatasets({
-    sourceRoot,
+  assert.deepEqual(labels(edit, "preserve"), ["src/a/edit.ts:3-3"]);
+  const untouched = group("src/b/untouched.ts");
+  assert.deepEqual(untouched?.review.paths, ["src/b/untouched.ts"]);
+  assert.deepEqual(labels(untouched, "preserve"), ["src/b/untouched.ts:1-1"]);
+  assert.deepEqual(untouched?.target.report, []);
+  const gone = group("src/c/gone.ts");
+  assert.deepEqual(labels(gone, "report"), ["src/c/gone.ts:1-1"]);
+  assert.deepEqual(gone?.target.preserve, []);
+  const paths = samples.flatMap((sample) => [
+    ...sample.review.paths,
+    ...sample.target.report.map((label: Label) => label.path),
+    ...sample.target.preserve.map((label: Label) => label.path),
+  ]);
+  assert.ok(!paths.includes(FIXTURES));
+});
+
+test("the whole-repository sample has empty paths and the union of all self anchors", (t) => {
+  const samples = derive(t);
+  const whole = samples.filter((sample) => sample.family === "self-whole");
+  const grouped = samples.filter((sample) => sample.family === "self");
+  assert.equal(whole.length, 1);
+  assert.equal(grouped.length, 3);
+  const [sample] = whole;
+  assert.equal(sample?.id, "self-whole/comments/whole-repository");
+  assert.equal(sample?.split, "regression");
+  assert.equal(sample?.review.scope, "repository");
+  assert.deepEqual(sample?.review.paths, []);
+  for (const kind of ["report", "preserve"] as const)
+    assert.deepEqual(
+      sample?.target[kind].map((label: Label) => label.id).sort(),
+      grouped
+        .flatMap((s) => s.target[kind].map((label: Label) => label.id))
+        .sort(),
+    );
+  assert.equal(sample?.target.report.length, 3);
+  assert.equal(sample?.target.preserve.length, 2);
+  assert.equal(git(sample?.repo.directory ?? "", "status", "--porcelain"), "");
+});
+
+test("directory groups are split between dev and regression", (t) => {
+  const { root, repo } = tempRepo(t);
+  const head = commit(
+    repo,
+    Object.fromEntries(
+      Array.from({ length: 20 }, (_, i) => [
+        `src/m${i}/a.ts`,
+        `// Kept note ${i}.\nexport const v = ${i};\n`,
+      ]),
+    ),
+  );
+  const groups = deriveDatasets({
     outputDir: join(root, "out"),
-    sources: ["swe-refactor"],
-  });
-  assert.equal(samples.length, 2);
-  const sample = samples[0];
-  assert.ok(sample);
-  assert.deepEqual(sample.target.report, [
-    {
-      id: "before-method",
-      path: "src/A.java",
-      lines: [4, 6],
-      aspects: ["unnecessary-layers", "unnecessary-complexity"],
-    },
-  ]);
-  assert.equal(samples[1]?.split, sample.split);
-  assert.equal(samples[1]?.cluster, sample.cluster);
-  assert.equal(sample.labelKind, "change-proxy");
-  assert.deepEqual(sample.target.preserve, []);
-  assert.equal(git(sample.repo.directory, "status", "--porcelain"), "");
-  assert.equal(git(sample.repo.directory, "ls-files"), "src/A.java");
-  assert.equal(
-    readFileSync(join(sample.repo.directory, "src/A.java"), "utf8"),
-    refactoring().sourceCodeBeforeForWhole,
-  );
-  const receipt = JSON.parse(
-    readFileSync(join(root, "out/receipt.json"), "utf8"),
-  );
-  assert.equal(receipt.rawCounts["swe-refactor"], 4);
-  assert.equal(
-    receipt.skippedByReason["swe-refactor:unsupported-refactoring-type"],
-    1,
-  );
-  assert.equal(
-    receipt.skippedByReason["swe-refactor:missing-or-ambiguous-before-snippet"],
-    1,
-  );
-  assert.equal(receipt.sourceFiles.length, 1);
-  assert.match(receipt.sourceFiles[0].sha256, /^[a-f0-9]{64}$/);
+    repo,
+    before: head,
+    after: head,
+  }).filter((sample) => sample.family === "self");
+  assert.equal(groups.length, 20);
+  const dev = groups.filter((sample) => sample.split === "dev").length;
+  assert.ok(dev > 7 && dev < 20, `dev groups: ${dev}`);
+  assert.ok(groups.every((s) => ["dev", "regression"].includes(s.split)));
 });
 
-test("tagged fragments collapse to honest raw physical lines and never enter the repo", async (t) => {
-  const { root, sourceRoot, put } = fixture(t);
-  const raw = {
-    idx: 1,
-    cs: "void run() { a(); b(); }",
-    java: "void run() { c(); }",
-  };
-  const tagged = {
-    idx: 1,
-    cs: "void run() { <original>a();</original> <original>b();</original> }",
-    java: "void run() { <simplified>c();</simplified> }",
-  };
-  put(`${SIMPLI}/untagged/json/small/test.jsonl`, `${JSON.stringify(raw)}\n`);
-  put(`${SIMPLI}/tagged/json/small/test.jsonl`, `${JSON.stringify(tagged)}\n`);
-  const { samples: first } = await deriveDatasets({
-    sourceRoot,
-    outputDir: join(root, "one"),
-    sources: ["simplibench"],
-  });
-  mkdirSync(join(root, "repos"));
-  const { samples: second } = await deriveDatasets({
-    sourceRoot,
-    outputDir: join(root, "repos/two"),
-    sources: ["simplibench"],
-  });
-  const sample = first[0];
-  assert.ok(sample);
-  assert.equal(sample.split, "holdout");
-  assert.equal(sample.provenance.coarseLocalization, true);
-  assert.deepEqual(sample.target.report, [
-    { id: "original-1", path: "Before.java", lines: [1, 1] },
-  ]);
-  assert.deepEqual(sample.target.preserve, []);
-  assert.equal(
-    readFileSync(join(sample.repo.directory, "Before.java"), "utf8"),
-    raw.cs,
-  );
-  assert.equal(git(sample.repo.directory, "ls-files"), "Before.java");
-  assert.equal(
-    git(sample.repo.directory, "rev-parse", "HEAD"),
-    git(second[0]?.repo.directory ?? "", "rev-parse", "HEAD"),
-  );
-  const receipt = (path: string) =>
-    JSON.parse(readFileSync(join(root, path, "receipt.json"), "utf8"));
-  assert.equal(
-    receipt("one").portableSamplesSha256,
-    receipt("repos/two").portableSamplesSha256,
-  );
-  assert.equal(
-    receipt("one").sourceManifestSha256,
-    receipt("repos/two").sourceManifestSha256,
-  );
-  await assert.rejects(
-    deriveDatasets({
-      sourceRoot,
-      outputDir: join(root, "one"),
-      sources: ["simplibench"],
-    }),
-    /new directory/,
-  );
-});
-
-test("mismatched tagged source is excluded, not approximated into a label", async (t) => {
-  const { root, sourceRoot, put } = fixture(t);
-  put(
-    `${SIMPLI}/untagged/json/small/test.jsonl`,
-    `${JSON.stringify({ idx: 1, cs: "a();", java: "b();" })}\n`,
-  );
-  put(
-    `${SIMPLI}/tagged/json/small/test.jsonl`,
-    `${JSON.stringify({ idx: 1, cs: "<original>different();</original>", java: "b();" })}\n`,
+test("comment blocks are grouped lexically and partially edited deletions are not REPORT", () => {
+  const before = [
+    'const url = "https://example.invalid";',
+    "/**",
+    " * Repeats the obvious.",
+    " */",
+    "function a() {}",
+    "// First obvious statement.",
+    "// Second obvious statement.",
+    "const b = 1;",
+    "// Required because retries must preserve caller identity.",
+    "const c = 2;",
+    "const text = `// not an actual comment`;",
+  ].join("\n");
+  const after = [
+    'const url = "https://example.invalid";',
+    "function a() {}",
+    "// Required because retries must preserve caller identity.",
+    "const c = 2;",
+    "const text = `// not an actual comment`;",
+  ].join("\n");
+  const labels = commentLabels(before, after, [[2, 8]], "src/a.ts");
+  assert.deepEqual(
+    labels.report.map((label) => label.lines),
+    [
+      [2, 4],
+      [6, 7],
+    ],
   );
   assert.deepEqual(
-    (
-      await deriveDatasets({
-        sourceRoot,
-        outputDir: join(root, "out"),
-        sources: ["simplibench"],
-      })
-    ).samples,
+    labels.preserve.map((label) => label.id),
+    ["src/a.ts:keep:9-9"],
+  );
+  assert.deepEqual(
+    commentLabels(before, after, [[3, 3]], "src/a.ts").report,
     [],
   );
-  const receipt = JSON.parse(
-    readFileSync(join(root, "out/receipt.json"), "utf8"),
-  );
-  assert.equal(
-    receipt.skippedByReason["simplibench:unverified-original-localization"],
-    1,
+});
+
+test("derive fails with an actionable message when a pinned revision is absent", (t) => {
+  const { root, repo } = tempRepo(t);
+  assert.throws(
+    () => deriveDatasets({ outputDir: join(root, "out"), repo }),
+    /b4a1edec03d31b01145b923dc5b4dc0d944de0c9 is missing.*Fetch/,
   );
 });
 
-test("source traversal, Git internals, symlinks, and source-root output are rejected", async (t) => {
-  const { root, sourceRoot, put } = fixture(t);
-  for (const [index, path] of [
-    "../escape.java",
-    "/absolute.java",
-    ".git/hooks/pre-commit",
-    "src/.GiT/config",
-    "src\\escape.java",
-    "src/\0escape.java",
-    ".git\u200c/hooks/pre-commit",
-  ].entries()) {
-    put(SWE, [refactoring({ filePathBefore: path })]);
-    await assert.rejects(
-      deriveDatasets({
-        sourceRoot,
-        outputDir: join(root, `bad-${index}`),
-        sources: ["swe-refactor"],
-      }),
-      /Unsafe source path/,
-    );
-  }
-  const full = join(sourceRoot, SWE);
-  rmSync(full);
-  writeFileSync(join(root, "outside.json"), JSON.stringify([refactoring()]));
-  symlinkSync(join(root, "outside.json"), full);
-  await assert.rejects(
-    deriveDatasets({
-      sourceRoot,
-      outputDir: join(root, "symlink"),
-      sources: ["swe-refactor"],
-    }),
-    /Symlink rejected/,
-  );
-  rmSync(full);
-  put(SWE, [refactoring()]);
-  await assert.rejects(
-    deriveDatasets({
-      sourceRoot,
-      outputDir: join(sourceRoot, "generated"),
-      sources: ["swe-refactor"],
-    }),
-    /outside sourceRoot/,
-  );
-});
-
-test("source populations have pinned split roles and invalid source selections are rejected", async (t) => {
-  const { root, sourceRoot } = fixture(t);
-  assert.equal(splitForCluster("repository:degreaser-axi"), "dev");
-  assert.equal(splitForCluster("population:simplibench-small-test"), "holdout");
-  await assert.rejects(
-    deriveDatasets({
-      sourceRoot,
-      outputDir: join(root, "out"),
-      sources: ["unknown"],
-    }),
-    /Invalid dataset sources/,
-  );
-});
-
-const CLI = fileURLToPath(new URL("../../eval/cli.mjs", import.meta.url));
-
-test("derive CLI rejects unknown and missing flags before reading source data", () => {
-  for (const args of [["derive", "--unknown"], ["derive"]]) {
+test("derive CLI requires --output, rejects removed flags and derives self from this checkout", (t) => {
+  for (const args of [
+    ["derive"],
+    ["derive", "--output", "x", "--source", "self"],
+  ]) {
     const result = spawnSync(process.execPath, [CLI, ...args], {
       encoding: "utf8",
     });
     assert.notEqual(result.status, 0, result.stdout + result.stderr);
     assert.match(result.stdout, /invalid-argument/);
-    assert.match(result.stdout, /--output/);
   }
-});
-
-test("self derivation fails with an actionable message when a pinned revision is absent", async (t) => {
-  const { root, sourceRoot } = fixture(t);
-  const empty = join(root, "empty");
-  mkdirSync(empty);
-  execFileSync("git", ["init", "--quiet", empty]);
-  await assert.rejects(
-    deriveDatasets({
-      sourceRoot,
-      outputDir: join(root, "out"),
-      sources: ["self"],
-      selfRepo: empty,
-    }),
-    /b4a1edec03d31b01145b923dc5b4dc0d944de0c9 is missing.*--self-repo/,
+  const root = mkdtempSync(join(realpathSync(tmpdir()), "degreaser-derive-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const output = join(root, "out");
+  const real = spawnSync(
+    process.execPath,
+    [CLI, "derive", "--output", output],
+    { encoding: "utf8" },
   );
-});
-
-test("derive CLI keeps self contrasts opt-in and inside the one self cluster", (t) => {
-  const { root, sourceRoot } = fixture(t);
-  const derive = (name: string, ...extra: string[]) => {
-    const output = join(root, name);
-    const result = spawnSync(
-      process.execPath,
-      [
-        CLI,
-        "derive",
-        "--source-root",
-        sourceRoot,
-        "--output",
-        output,
-        "--source",
-        "self",
-        ...extra,
-      ],
-      { encoding: "utf8" },
-    );
-    assert.equal(result.status, 0, result.stdout + result.stderr);
-    const samples = readFileSync(join(output, "samples.jsonl"), "utf8")
-      .trim()
-      .split("\n")
-      .map((line) => JSON.parse(line));
-    const receipt = JSON.parse(
-      readFileSync(join(output, "receipt.json"), "utf8"),
-    );
-    return { samples, receipt };
-  };
-  const plain = derive("plain");
-  // Accepted owner cleanup on main (squash merge of the self-cleanup PR).
-  assert.equal(
-    plain.receipt.gitSources[0].ownerRevision,
-    "d232af804ae532c4bd4bf79f56d4d854d7ef2715",
+  assert.equal(real.status, 0, real.stdout + real.stderr);
+  const samples = readFileSync(join(output, "samples.jsonl"), "utf8")
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line));
+  assert.deepEqual(
+    [...new Set(samples.map((sample) => sample.family))].sort(),
+    ["self", "self-whole"],
   );
-  assert.equal(plain.receipt.contrasts, false);
-  assert.ok(plain.samples.length > 0);
-  for (const sample of plain.samples) {
+  for (const sample of samples) {
     assert.equal(sample.cluster, "repository:degreaser-axi");
-    assert.equal(sample.review.scope, "repository");
-    assert.equal(sample.contrast, undefined);
+    assert.equal(
+      sample.provenance.ownerRevision,
+      "d232af804ae532c4bd4bf79f56d4d854d7ef2715",
+    );
     assert.ok(sample.target.report.length + sample.target.preserve.length > 0);
   }
-  const contrasted = derive("contrasted", "--contrasts");
-  const grouped = (samples: { family: string }[]) =>
-    samples.filter((sample) => sample.family === "self").length;
-  assert.equal(grouped(contrasted.samples), grouped(plain.samples) * 4);
-  assert.deepEqual(
-    new Set(contrasted.samples.map((sample) => sample.cluster)),
-    new Set(["repository:degreaser-axi"]),
-  );
-  const overlays = new Map<string, string>();
-  for (const sample of contrasted.samples.filter(
-    (sample) => sample.family === "self",
-  )) {
-    assert.ok(sample.contrast);
-    overlays.set(sample.contrast.overlay, sample.repo.directory);
-    if (sample.review.scope === "branch") assert.ok(sample.review.base);
-  }
-  assert.equal(
-    git(overlays.get("source-instructions") ?? "", "ls-files", "AGENTS.md"),
-    "AGENTS.md",
-  );
-  assert.equal(
-    git(overlays.get("no-instructions") ?? "", "ls-files", "AGENTS.md"),
-    "",
-  );
 });

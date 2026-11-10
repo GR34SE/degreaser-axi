@@ -6,95 +6,88 @@ import { join } from "node:path";
 import test from "node:test";
 import { promisify } from "node:util";
 import { compareRuns } from "../../eval/gate.mjs";
-import { first, record, records } from "./gate-fixture.ts";
+import { first, partial, type Row, record, records } from "./gate-fixture.ts";
 
-test("perfectly paired unchanged samples pass non-regression without claiming improvement", () => {
-  const baseline = records();
+test("unchanged paired samples pass non-regression without claiming improvement", () => {
+  const baseline = records(8, (i) => i % 2 === 0);
   const candidate = structuredClone(baseline);
-  for (const row of candidate)
-    row.sample.repo.directory = "/different/machine/source";
+  for (const row of candidate) row.sample.repo.directory = "/different/machine";
   const result = compareRuns(baseline, candidate);
-  assert.equal(result.pass, true);
+  assert.deepEqual(result.issues, []);
+  assert.equal(result.status, "passed");
   assert.equal(result.improved, false);
-  const recall = first(result.families).metrics.recall;
-  assert.ok(recall);
-  assert.equal(recall.baseline, 0.5);
-  assert.equal(recall.candidate, 0.5);
-  assert.deepEqual(recall.interval95, [0, 0]);
-  assert.equal(
-    compareRuns(baseline, candidate, { mode: "improvement" }).pass,
-    false,
-  );
+  assert.equal(result.metrics.recall.baseline, 0.5);
+  assert.deepEqual(result.metrics.recall.interval95, [0, 0]);
+  assert.equal(result.metrics.recall.samples, 8);
+  const improvement = compareRuns(baseline, candidate, { mode: "improvement" });
+  assert.equal(improvement.pass, false);
+  assert.equal(improvement.status, "not-improved");
 });
 
-test("checks every family, not an average which hides a regression", () => {
-  const baseline = [
-    ...Array.from({ length: 20 }, (_, i) => record(i, false, "large")),
-    ...Array.from({ length: 4 }, (_, i) => record(i, true, "small")),
-  ];
-  const candidate = baseline.map((row) =>
-    record(
-      Number(row.sample.id.split("/")[1]),
-      row.sample.family === "large",
-      row.sample.family,
-    ),
+test("fewer than eight paired samples stay inconclusive, however many repeats", () => {
+  for (const baseline of [
+    records(7),
+    records(1, () => true, 20),
+    records(7, () => true, 3),
+  ]) {
+    const result = compareRuns(baseline, structuredClone(baseline));
+    assert.equal(result.pass, false);
+    assert.equal(result.status, "inconclusive");
+    assert.equal(result.metrics.recall.status, "inconclusive");
+    assert.equal(result.metrics.recall.interval95, null);
+  }
+  const eight = records(8, () => true, 3);
+  const enough = compareRuns(eight, structuredClone(eight));
+  assert.equal(enough.metrics.recall.samples, 8);
+  assert.equal(enough.pass, true);
+});
+
+test("a candidate clearly worse on recall regresses; clearly better improves", () => {
+  const regressed = compareRuns(
+    records(10),
+    records(10, () => false),
   );
+  assert.equal(regressed.status, "regressed");
+  assert.equal(regressed.metrics.recall.status, "regressed");
+  const improved = compareRuns(
+    records(10, () => false),
+    records(10),
+    {
+      mode: "improvement",
+    },
+  );
+  assert.equal(improved.pass, true);
+  assert.equal(improved.improved, true);
+  assert.equal(improved.metrics.recall.improved, true);
+});
+
+test("paired uncertainty, not the point difference, controls acceptance", () => {
+  const baseline = records(8, (i) => i % 2 === 0);
+  const candidate = records(8, (i) => (i < 2 ? i % 2 === 1 : i % 2 === 0));
   const result = compareRuns(baseline, candidate);
+  assert.equal(result.metrics.recall.delta, 0);
+  assert.equal(result.metrics.recall.status, "inconclusive");
   assert.equal(result.pass, false);
-  assert.equal(result.status, "regressed");
-  const small = result.families.find(
-    (family: { family: string }) => family.family === "small",
-  );
-  assert.ok(small?.metrics.recall);
-  assert.equal(small.metrics.recall.delta, -1);
 });
 
-test("paired quality improvement can accept a campaign explicitly", () => {
-  const baseline = Array.from({ length: 6 }, (_, i) => record(i, false));
-  const candidate = Array.from({ length: 6 }, (_, i) => record(i, true));
-  const result = compareRuns(baseline, candidate, { mode: "improvement" });
-  assert.equal(result.pass, true);
-  assert.equal(result.improved, true);
-});
-
-test("repeated model attempts do not create independent source samples", () => {
-  const baseline = Array.from({ length: 20 }, (_, repeat) =>
-    record(1, true, "self", repeat),
-  );
-  const result = compareRuns(baseline, structuredClone(baseline));
-  assert.equal(result.pass, false);
-  assert.equal(result.status, "inconclusive");
-  assert.equal(first(result.families).metrics.recall?.clusters, 1);
-});
-
-test("blocks mismatched identities, missing and duplicate pairs, and inconsistent repetition sets", () => {
+test("refuses mismatched manifests, identities, missing and duplicate pairs", () => {
   const baseline = records();
-  const mutations = [
-    (rows: ReturnType<typeof records>) => {
-      rows.pop();
-    },
-    (rows: ReturnType<typeof records>) => {
-      rows.push(structuredClone(first(rows)));
-    },
-    (rows: ReturnType<typeof records>) => {
+  const mutations: ((rows: Row[]) => void)[] = [
+    (rows) => rows.pop(),
+    (rows) => rows.push(structuredClone(first(rows))),
+    (rows) => {
       first(rows).envelope.meta.sampleHash = "other";
     },
-    (rows: ReturnType<typeof records>) => {
-      first(rows).sample.provenance.revision = "changed";
-    },
-    (rows: ReturnType<typeof records>) => {
+    (rows) => {
       first(first(rows).sample.target.report).lines = [4, 4];
     },
-    (rows: ReturnType<typeof records>) => {
+    (rows) => {
       first(rows).envelope.meta.model = "other";
     },
-    (rows: ReturnType<typeof records>) => {
+    (rows) => {
       first(rows).envelope.meta.agent = "other";
     },
-    (rows: ReturnType<typeof records>) => {
-      Object.assign(first(rows).envelope.meta, { productHash: "a".repeat(64) });
-    },
-    (rows: ReturnType<typeof records>) => {
+    (rows) => {
       first(rows).repeat = 2;
     },
   ];
@@ -108,79 +101,38 @@ test("blocks mismatched identities, missing and duplicate pairs, and inconsisten
   }
 });
 
-test("no records, errors, incomplete outputs and unsupported denominators fail closed", () => {
-  assert.equal(compareRuns([], []).pass, false);
-  assert.equal(compareRuns([{}], [{}]).pass, false);
+test("empty runs, provider errors and unknown modes are invalid, never dropped", () => {
+  assert.equal(compareRuns([], []).status, "invalid");
+  assert.equal(compareRuns([{}], [{}]).status, "invalid");
   const baseline = records();
   const candidate = structuredClone(baseline);
-  first(candidate).envelope.export.status = "partial";
-  assert.equal(compareRuns(baseline, candidate).pass, false);
-  const empty = records();
-  for (const row of empty) row.sample.target.preserve = [];
-  const result = compareRuns(empty, structuredClone(empty));
-  assert.equal(result.pass, true);
-  assert.equal(
-    first(result.families).metrics.preserveRate?.status,
-    "unsupported",
-  );
-  assert.deepEqual(first(result.families).unsupportedMetrics, ["preserveRate"]);
-  assert.equal(
-    compareRuns(baseline, baseline, { metrics: ["semanticPrecision"] }).pass,
-    false,
-  );
-});
-
-test("sentinels and resource budgets are hard gates", () => {
-  const baseline = records();
-  for (const mutate of [
-    (row: ReturnType<typeof record>) => {
-      first(row.envelope.export.findings).recommendation = "Delete safety";
-    },
-    (row: ReturnType<typeof record>) => {
-      row.envelope.meta.sessionCount = 2;
-    },
-    (row: ReturnType<typeof record>) => {
-      row.envelope.meta.durationMs = 116;
-    },
-  ]) {
-    const candidate = structuredClone(baseline);
-    candidate.forEach(mutate);
-    assert.equal(compareRuns(baseline, candidate).pass, false);
-  }
-  const candidate = structuredClone(baseline);
-  for (const row of candidate) row.envelope.meta.durationMs = 115;
-  assert.equal(compareRuns(baseline, candidate).pass, true);
-});
-
-test("paired uncertainty, not the point difference, controls acceptance", () => {
-  const baseline = records();
-  const candidate = structuredClone(baseline);
-  first(candidate).envelope.export.findings = record(
-    0,
-    false,
-  ).envelope.export.findings;
-  const second = candidate.at(1);
-  assert.ok(second);
-  second.envelope.export.findings = record(1, true).envelope.export.findings;
+  Object.assign(first(candidate), { error: "quota exhausted" });
   const result = compareRuns(baseline, candidate);
-  const recall = first(result.families).metrics.recall;
-  assert.ok(recall);
-  assert.equal(recall.delta, 0);
-  assert.equal(recall.status, "inconclusive");
-  assert.equal(result.pass, false);
+  assert.equal(result.status, "invalid");
+  assert.ok(
+    result.issues.some(
+      (issue: { code: string }) => issue.code === "provider-error",
+    ),
+  );
+  assert.equal(
+    compareRuns(baseline, baseline, { mode: "best" }).status,
+    "invalid",
+  );
 });
 
-test("slices sharing an explicit dataset cluster cannot inflate confidence", () => {
-  const baseline = records().map((row) => ({
-    ...row,
-    sample: { ...row.sample, cluster: "one-repository" },
-  }));
-  const result = compareRuns(baseline, structuredClone(baseline));
-  assert.equal(result.pass, false);
-  assert.equal(first(result.families).metrics.recall?.clusters, 1);
+test("preserve without labels is unsupported and does not block; recall without labels cannot pass", () => {
+  const unlabelled = records();
+  for (const row of unlabelled) row.sample.target.preserve = [];
+  const preserve = compareRuns(unlabelled, structuredClone(unlabelled));
+  assert.equal(preserve.pass, true);
+  assert.equal(preserve.metrics.preserveRate.status, "unsupported");
+  for (const row of unlabelled) row.sample.target.report = [];
+  const recall = compareRuns(unlabelled, structuredClone(unlabelled));
+  assert.equal(recall.pass, false);
+  assert.equal(recall.metrics.recall.status, "unsupported");
 });
 
-test("applies the recall and preserve three-percentage-point margins", () => {
+test("applies the recall and preserve three-point margins", () => {
   const baseline = records();
   for (const row of baseline) {
     const finding = first(row.envelope.export.findings);
@@ -194,25 +146,22 @@ test("applies the recall and preserve three-percentage-point margins", () => {
       path: "a.ts",
       lines: [i + 1000, i + 1000],
     }));
-    row.envelope.export.findings = row.sample.target.report.map(
-      (anchor, i) => ({
-        ...finding,
-        id: `F${i + 1}`,
-        startLine: i + 1,
-        endLine: i + 1,
-        title: anchor.id,
-      }),
-    );
+    row.envelope.export.findings = row.sample.target.report.map((_, i) => ({
+      ...finding,
+      id: `F${i + 1}`,
+      startLine: i + 1,
+      endLine: i + 1,
+    }));
   }
   for (const lost of [3, 4]) {
     const candidate = structuredClone(baseline);
-    for (const row of candidate) {
+    for (const row of candidate)
       for (const finding of row.envelope.export.findings.slice(0, lost)) {
         finding.startLine += 10000;
         finding.endLine += 10000;
       }
-    }
-    assert.equal(compareRuns(baseline, candidate).pass, lost === 3);
+    const result = compareRuns(baseline, candidate);
+    assert.equal(result.status, lost === 3 ? "passed" : "regressed");
   }
   for (const touched of [3, 4]) {
     const candidate = structuredClone(baseline);
@@ -221,25 +170,67 @@ test("applies the recall and preserve three-percentage-point margins", () => {
         { length: touched },
         (_, i) => `a.ts:${i + 1000}`,
       ).join(" ");
-    assert.equal(compareRuns(baseline, candidate).pass, touched === 3);
+    const result = compareRuns(baseline, candidate);
+    assert.equal(
+      result.metrics.preserveRate.status,
+      touched === 3 ? "passed" : "regressed",
+    );
   }
 });
 
-test("JSON gate CLI writes portable redacted artifacts and meaningful exit codes", async () => {
+test("a candidate that loses completeness regresses instead of vanishing", () => {
+  const baseline = records();
+  const candidate = structuredClone(baseline);
+  candidate.forEach(partial);
+  const result = compareRuns(baseline, candidate);
+  assert.deepEqual(result.issues, []);
+  assert.equal(result.status, "regressed");
+  assert.equal(result.metrics.completeness.candidate, 0);
+  assert.equal(result.metrics.recall.status, "inconclusive");
+});
+
+test("one incomplete review on both sides cannot grant a pass", () => {
+  const baseline = records();
+  partial(first(baseline));
+  const result = compareRuns(baseline, structuredClone(baseline));
+  assert.deepEqual(result.issues, []);
+  assert.equal(result.status, "inconclusive");
+  assert.equal(result.metrics.completeness.status, "passed");
+  assert.equal(result.metrics.recall.status, "inconclusive");
+});
+
+test("an unattributed partial is invalid; recovered rejected quotes are complete", () => {
+  const baseline = records();
+  const unattributed = structuredClone(baseline);
+  for (const row of unattributed) {
+    partial(row);
+    delete (row.envelope.meta as { outcome?: string }).outcome;
+  }
+  assert.equal(compareRuns(baseline, unattributed).status, "invalid");
+  const recovered = structuredClone(baseline);
+  for (const row of recovered) first(row.envelope.export.coverage).rejected = 1;
+  assert.equal(compareRuns(baseline, recovered).status, "passed");
+});
+
+test("gate CLI writes a portable artifact without machine paths or quotes and exits by verdict", async () => {
   const directory = await mkdtemp(join(tmpdir(), "eval-gate-"));
+  const run = promisify(execFile);
+  const cli = new URL("../../eval/gate.mjs", import.meta.url).pathname;
   try {
-    const baseline = join(directory, "baseline.json");
+    const baseline = join(directory, "baseline.jsonl");
     const candidate = join(directory, "candidate.json");
     const output = join(directory, "gate.json");
-    await writeFile(baseline, JSON.stringify(records()));
-    await writeFile(candidate, JSON.stringify(records()));
-    const cli = new URL("../../eval/gate.mjs", import.meta.url).pathname;
-    const { stdout } = await promisify(execFile)(process.execPath, [
-      cli,
-      "--baseline",
+    await writeFile(
       baseline,
-      "--candidate",
-      candidate,
+      records()
+        .map((row) => JSON.stringify(row))
+        .join("\n"),
+    );
+    await writeFile(candidate, JSON.stringify(records()));
+    const args = ["--baseline", baseline, "--candidate", candidate];
+    const { stdout } = await run(process.execPath, [
+      cli,
+      ...args,
       "--output",
       output,
     ]);
@@ -248,17 +239,15 @@ test("JSON gate CLI writes portable redacted artifacts and meaningful exit codes
     assert.equal(JSON.parse(artifact).pass, true);
     assert.ok(!artifact.includes("/private/machine"));
     assert.ok(!artifact.includes("SENSITIVE SOURCE QUOTE"));
-    await writeFile(candidate, "{}");
     await assert.rejects(
-      promisify(execFile)(process.execPath, [
-        cli,
-        "--baseline",
-        baseline,
-        "--candidate",
-        candidate,
-      ]),
+      run(process.execPath, [cli, ...args, "--mode", "improvement"]),
       { code: 1 },
     );
+    await writeFile(candidate, JSON.stringify([record(0, false)]));
+    await assert.rejects(run(process.execPath, [cli, ...args]), { code: 1 });
+    await assert.rejects(run(process.execPath, [cli, "--baseline", baseline]), {
+      code: 2,
+    });
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

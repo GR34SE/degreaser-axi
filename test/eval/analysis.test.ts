@@ -29,9 +29,8 @@ type Analysis = {
       Bucket
     >
   >;
-  evidenceGap: { gap: number | null }[];
+  systematicMisses: object[];
   diagnosis: { signal: string }[];
-  diagnosisNote: string;
 };
 const analyzeRecords = (records: object[]): Analysis =>
   analyze(records) as unknown as Analysis;
@@ -164,14 +163,6 @@ test("incomplete records are excluded from factors, kept in completeness; unread
   assert.equal(result.breakdown[0]?.completeness, 0.5);
 });
 
-test("old records without recallPrimary yield nulls", () => {
-  const s = sample("s");
-  const result = analyzeRecords([record(s, 0, { recall: 0.5 })]);
-  assert.equal(result.breakdown[0]?.recallPrimary, null);
-  assert.equal(result.evidenceGap[0]?.gap, null);
-  assert.equal(result.breakdown[0]?.reportAnchors, 0);
-});
-
 test("evidence gap and preserve violation rates", () => {
   const s = sample("s", {
     target: { report: [], preserve: [anchor("P", "f.ts", 1)] },
@@ -186,7 +177,7 @@ test("evidence gap and preserve violation rates", () => {
     record(clean, 0, { recall: 1, recallPrimary: 0.5, preserveHits: ["Q"] }),
     record(clean, 1, { recall: 1, recallPrimary: 0.5 }),
   ]);
-  assert.equal(result.evidenceGap[0]?.gap, 0.5);
+  assert.equal(result.breakdown[0]?.recallPrimary, 0.5);
   assert.equal(result.breakdown[0]?.preserveViolationRate, 0.5);
   assert.equal(result.breakdown[0]?.preserveAnchors, 2);
   const noPreserve = analyzeRecords([record(sample("n"), 0, { recall: 1 })]);
@@ -201,12 +192,10 @@ test("evidence gap and rubric rules fire exclusively", () => {
     analyzeRecords([
       record(sample("s"), 0, { recall, recallPrimary: primary }),
     ]);
-  const small = gap(0.81);
-  assert.deepEqual(signals(small), []);
-  assert.deepEqual(signals(gap(0.79)), ["evidenceGap:self"]);
+  assert.deepEqual(signals(gap(0.81)), []);
+  assert.deepEqual(signals(gap(0.79)), ["evidenceGap:self/dev"]);
   assert.deepEqual(signals(gap(0.7, 0.7)), ["recall"]);
   assert.deepEqual(signals(gap(0.8, 0.8)), []);
-  assert.match(small.diagnosisNote, /Heuristics/);
 });
 
 test("coverage rule needs five anchors per bucket and a 0.15 drop", () => {
@@ -259,12 +248,8 @@ test("renderSummary shows the key numbers", () => {
     target: { report: [anchor("A", "f.ts", 1)], preserve: [] },
   });
   const analysis = analyzeRecords([
-    record(s, 0, {
-      recall: 0.5,
-      recallPrimary: 0.25,
-      precisionProxy: 0.75,
-      hits: [],
-    }),
+    record(s, 0, { recall: 0.5, recallPrimary: 0.25, misses: ["A"] }),
+    record(s, 1, { recall: 0.5, recallPrimary: 0.25, misses: ["A"] }),
   ]);
   const text = renderSummary({
     records: 7,
@@ -276,12 +261,12 @@ test("renderSummary shows the key numbers", () => {
     "self",
     "0.50",
     "0.25",
-    "0.75",
     "1/0",
+    "s A: missed in 2 repeats",
     "Provider errors: 3",
     "Incomplete records: 2",
     "### pathCount",
-    "evidenceGap:self",
+    "evidenceGap:self/dev",
     "whole-repository",
   ])
     assert.ok(text.includes(expected), expected);

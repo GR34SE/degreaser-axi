@@ -4,7 +4,7 @@ export const text = (value) =>
   typeof value === "string" && value.trim().length > 0;
 const line = (value) => Number.isSafeInteger(value) && value > 0;
 const strings = (value) => Array.isArray(value) && value.every(text);
-export const relativePath = (value) =>
+const relativePath = (value) =>
   text(value) &&
   !value.includes("\\") &&
   !value.includes("\0") &&
@@ -43,19 +43,13 @@ export function validSample(sample) {
     (sample.review.scope === "branch" && !text(sample.review.base))
   )
     return false;
-  const { report, preserve, forbidden } = sample.target;
-  if (![report, preserve, forbidden].every(Array.isArray)) return false;
-  const ids = [...report, ...preserve, ...forbidden].map((item) => item?.id);
+  const { report, preserve } = sample.target;
+  if (![report, preserve].every(Array.isArray)) return false;
+  const ids = [...report, ...preserve].map((item) => item?.id);
   return (
     ids.every(text) &&
     new Set(ids).size === ids.length &&
-    [...report, ...preserve].every(anchor) &&
-    forbidden.every(
-      (item) =>
-        object(item) &&
-        text(item.pattern) &&
-        (item.path === undefined || relativePath(item.path)),
-    )
+    [...report, ...preserve].every(anchor)
   );
 }
 
@@ -86,13 +80,7 @@ function validMeta(meta) {
     object(meta) &&
     ["sampleHash", "productSha", "agent", "model"].every((key) =>
       text(meta[key]),
-    ) &&
-    (meta.productHash === undefined ||
-      /^[a-f0-9]{64}$/.test(meta.productHash)) &&
-    Number.isSafeInteger(meta.sessionCount) &&
-    meta.sessionCount >= 0 &&
-    Number.isFinite(meta.durationMs) &&
-    meta.durationMs >= 0
+    )
   );
 }
 

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { partialOutcome } from "../../eval/provider-outcome.mjs";
+import { partialOutcome } from "../../eval/provider.mjs";
 
 const data = {
   coverage: [

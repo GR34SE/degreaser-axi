@@ -8,6 +8,7 @@ import { setup } from "../utils/public-review-fixture.ts";
 
 const productDir = fileURLToPath(new URL("../../", import.meta.url));
 const providerUrl = new URL("../../eval/provider.mjs", import.meta.url).href;
+const { reviewSample } = await import(providerUrl);
 
 async function fixture(t: TestContext, plan: object = {}, timeoutMs = 20_000) {
   const f = setup(t);
@@ -41,19 +42,23 @@ async function fixture(t: TestContext, plan: object = {}, timeoutMs = 20_000) {
     await import(${JSON.stringify(loader)});
   `,
   );
-  const { default: Provider } = await import(providerUrl);
-  const provider = new Provider({
-    config: {
-      productDir,
-      agent: "claude",
-      model: "claude-haiku-4-5-20251001",
-      timeoutMs,
-      env: {
-        NODE_OPTIONS: `--import=${pathToFileURL(loaderPath).href}`,
-        SYNTHETIC_PLAN: planPath,
-      },
+  const options = {
+    productDir,
+    agent: "claude",
+    model: "claude-haiku-4-5-20251001",
+    timeoutMs,
+    env: {
+      NODE_OPTIONS: `--import=${pathToFileURL(loaderPath).href}`,
+      SYNTHETIC_PLAN: planPath,
     },
-  });
+  };
+  const review = async (sample: object, signal?: AbortSignal) => {
+    try {
+      return { envelope: await reviewSample(sample, { ...options, signal }) };
+    } catch (error) {
+      return { error: (error as Error).message };
+    }
+  };
   const sample = {
     id: "synthetic/source",
     aspects: ["low-value-comments"],
@@ -69,8 +74,7 @@ async function fixture(t: TestContext, plan: object = {}, timeoutMs = 20_000) {
       forbidden: [],
     },
   };
-  const invoke = () =>
-    provider.callApi("PRIVATE_PROMPT_CANARY", { vars: { sample } });
+  const invoke = () => review(sample);
   const logs = (name: string) => {
     const path = join(f.root, "ignored", name);
     return existsSync(path)
@@ -97,7 +101,7 @@ async function fixture(t: TestContext, plan: object = {}, timeoutMs = 20_000) {
       assert.ok(!p.history.includes("Private evaluation data"));
     }
   };
-  return { ...f, provider, sample, invoke, logs, cleaned };
+  return { ...f, review, sample, invoke, logs, cleaned };
 }
 
 test("provider uses the public CLI on isolated source and exports completed evidence", async (t) => {
@@ -112,7 +116,7 @@ test("provider uses the public CLI on isolated source and exports completed evid
   const before = f.git("status", "--porcelain");
   const result = await f.invoke();
   assert.equal(result.error, undefined, result.error);
-  const envelope = JSON.parse(result.output);
+  const envelope = result.envelope;
   assert.equal(envelope.sampleId, f.sample.id);
   assert.equal(envelope.export.status, "completed");
   assert.deepEqual(envelope.export.findings, []);
@@ -120,14 +124,12 @@ test("provider uses the public CLI on isolated source and exports completed evid
   assert.equal(envelope.meta.agent, "claude");
   assert.equal(envelope.meta.model, "claude-haiku-4-5-20251001");
   assert.match(envelope.meta.productSha, /^[a-f0-9]{40}$/);
-  assert.match(envelope.meta.productHash, /^[a-f0-9]{64}$/);
   assert.match(envelope.meta.sampleHash, /^[a-f0-9]{64}$/);
   assert.equal(envelope.meta.sessionCount, 1);
   assert.ok(envelope.meta.durationMs > 0);
   const prompts = f.logs("prompts.jsonl");
   assert.equal(prompts.length, 1);
   assert.ok(!JSON.stringify(prompts).includes("PRIVATE_LABEL_CANARY"));
-  assert.ok(!JSON.stringify(prompts).includes("PRIVATE_PROMPT_CANARY"));
   assert.equal(f.git("status", "--porcelain"), before);
   f.cleaned();
 });
@@ -148,7 +150,7 @@ test("provider preserves partial status rather than treating export exit zero as
   });
   const result = await f.invoke();
   assert.equal(result.error, undefined, result.error);
-  const envelope = JSON.parse(result.output);
+  const envelope = result.envelope;
   assert.equal(envelope.export.status, "partial");
   assert.equal(envelope.meta.outcome, "worker-quality-partial");
   f.cleaned();
@@ -182,13 +184,13 @@ test("only unresolved worker-quality failures make a partial review rubric evide
     await t.test(name, async (t) => {
       const f = await fixture(t, { workers: { "low-value-comments": worker } });
       const sample = { ...f.sample, aspects: peers };
-      const result = await f.provider.callApi("", { vars: { sample } });
+      const result = await f.review(sample);
       if (expected instanceof RegExp) {
-        assert.match(result.error, expected);
-        assert.equal(result.output, undefined);
+        assert.match(String(result.error), expected);
+        assert.equal(result.envelope, undefined);
       } else {
         assert.equal(result.error, undefined, result.error);
-        const envelope = JSON.parse(result.output);
+        const envelope = result.envelope;
         assert.equal(envelope.export.status, expected);
         const score = scoreSample(
           {
@@ -221,8 +223,8 @@ test("invalid worker output and metadata failure produce errors, never clean out
     await t.test(JSON.stringify(plan), async (t) => {
       const f = await fixture(t, plan);
       const result = await f.invoke();
-      assert.match(result.error, error);
-      assert.equal(result.output, undefined);
+      assert.match(String(result.error), error);
+      assert.equal(result.envelope, undefined);
       f.cleaned();
     });
   }
@@ -232,45 +234,8 @@ test("provider reattaches with wait when the public review is still running", as
   const f = await fixture(t, { delayMs: 1600 });
   const result = await f.invoke();
   assert.equal(result.error, undefined, result.error);
-  const envelope = JSON.parse(result.output);
+  const envelope = result.envelope;
   assert.equal(envelope.export.status, "completed");
-  assert.ok(envelope.meta.waitCount >= 1);
-  f.cleaned();
-});
-
-test("provider exports quote-validated source findings without clipping their evidence", async (t) => {
-  const f = await fixture(t, {
-    worker: {
-      result: {
-        aspect: "low-value-comments",
-        status: "findings",
-        limitations: [],
-        findings: [
-          {
-            location: {
-              path: "module.ts",
-              side: "new",
-              startLine: 1,
-              endLine: 1,
-            },
-            quote: "export const answer = 42;",
-            title: "Synthetic source finding",
-            evidence: "Source at module.ts:1.",
-            consequence: "Synthetic maintenance cost.",
-            countercheck: "The synthetic caller does not require it.",
-            recommendation: "Review the unnecessary constant.",
-          },
-        ],
-      },
-    },
-  });
-  const result = await f.invoke();
-  assert.equal(result.error, undefined, result.error);
-  const [finding] = JSON.parse(result.output).export.findings;
-  assert.equal(finding.id, "F1");
-  assert.equal(finding.path, "module.ts");
-  assert.equal(finding.quote, "export const answer = 42;");
-  assert.equal(finding.recommendation, "Review the unnecessary constant.");
   f.cleaned();
 });
 
@@ -287,9 +252,9 @@ test("provider runs explicit worktree and branch scopes against final source", a
         ...f.sample,
         review: { ...f.sample.review, scope, base: "given-base" },
       };
-      const result = await f.provider.callApi("", { vars: { sample } });
+      const result = await f.review(sample);
       assert.equal(result.error, undefined, result.error);
-      const envelope = JSON.parse(result.output);
+      const envelope = result.envelope;
       assert.equal(envelope.export.status, "completed");
       assert.equal(envelope.export.scope, scope);
       assert.equal(envelope.export.coverage[0].examined, "1/1");
@@ -298,27 +263,35 @@ test("provider runs explicit worktree and branch scopes against final source", a
   }
 });
 
-test("provider timeout cancels and joins the owned worker and descendant before deletion", async (t) => {
-  const f = await fixture(
-    t,
-    { worker: { hang: true, descendant: true } },
-    5000,
-  );
-  const started = Date.now();
-  const result = await f.invoke();
-  assert.match(result.error, /timeout/i);
-  assert.equal(result.output, undefined);
-  assert.ok(Date.now() - started < 40_000);
-  const life = f.logs("lifecycle.jsonl");
-  assert.ok(life.some((event) => event.type === "prompt"));
-  assert.ok(life.some((event) => event.type === "descendant"));
-  const pids = new Set<number>(
-    life.flatMap((event) => [event.pid, event.childPid].filter(Boolean)),
-  );
-  for (const pid of pids) {
-    assert.throws(() => process.kill(pid, 0), { code: "ESRCH" });
+test("provider timeout or abort cancels and joins the owned worker and descendant before deletion", async (t) => {
+  for (const [name, expected] of [
+    ["timeout", /timeout/i],
+    ["abort", /aborted/i],
+  ] as const) {
+    await t.test(name, async (t) => {
+      const f = await fixture(
+        t,
+        { worker: { hang: true, descendant: true } },
+        name === "timeout" ? 5000 : 60_000,
+      );
+      const controller = new AbortController();
+      if (name === "abort") setTimeout(() => controller.abort(), 5000);
+      const started = Date.now();
+      const result = await f.review(f.sample, controller.signal);
+      assert.match(String(result.error), expected);
+      assert.equal(result.envelope, undefined);
+      assert.ok(Date.now() - started < 40_000);
+      const life = f.logs("lifecycle.jsonl");
+      assert.ok(life.some((event) => event.type === "prompt"));
+      assert.ok(life.some((event) => event.type === "descendant"));
+      const pids = new Set<number>(
+        life.flatMap((event) => [event.pid, event.childPid].filter(Boolean)),
+      );
+      for (const pid of pids)
+        assert.throws(() => process.kill(pid, 0), { code: "ESRCH" });
+      f.cleaned();
+    });
   }
-  f.cleaned();
 });
 
 test("provider timeout during model discovery does not leave an unowned adapter", async (t) => {
@@ -326,8 +299,8 @@ test("provider timeout during model discovery does not leave an unowned adapter"
   const result = await f.invoke();
   const processes = f.logs("lifecycle.jsonl");
   const pids = new Set<number>(processes.map((event) => event.pid));
-  assert.match(result.error, /timeout/i);
-  assert.equal(result.output, undefined);
+  assert.match(String(result.error), /timeout/i);
+  assert.equal(result.envelope, undefined);
   assert.ok(processes.some((event) => event.type === "session"));
   for (const pid of pids)
     assert.throws(() => process.kill(pid, 0), { code: "ESRCH" });
@@ -340,8 +313,8 @@ test("provider does not erase the worker marker to bypass recursive-review restr
   process.env.DEGREASER_WORKER = "1";
   try {
     const result = await f.invoke();
-    assert.match(result.error, /worker-marked/);
-    assert.equal(result.output, undefined);
+    assert.match(String(result.error), /worker-marked/);
+    assert.equal(result.envelope, undefined);
     assert.deepEqual(f.logs("provider-processes.jsonl"), []);
   } finally {
     if (previous === undefined) delete process.env.DEGREASER_WORKER;

@@ -1,32 +1,33 @@
 import { existsSync } from "node:fs";
-import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { isAbsolute, join } from "node:path";
+import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { decode } from "@toon-format/toon";
-import { reserveSessions } from "./admissions.mjs";
-import { productIdentity } from "./product-identity.mjs";
-import { partialOutcome } from "./provider-outcome.mjs";
 import { environment, execute, git } from "./provider-process.mjs";
-import { materialize, validateSample } from "./provider-sample.mjs";
+import { materialize } from "./provider-sample.mjs";
 import reviewPolicy from "./review-policy.json" with { type: "json" };
 
-const codes = {
+const EXIT_CODES = {
   completed: 0,
   partial: 1,
   failed: 1,
   interrupted: 1,
   running: 3,
 };
-const json = (result) => {
-  try {
-    return JSON.parse(result.stdout.toString());
-  } catch {
-    throw new Error("Public CLI returned invalid JSON.");
-  }
-};
-function report(result) {
-  // Public commands use AXI's TOON; only export emits JSON. There is no --json flag.
+const RESOLVED = ["findings", "no-findings", "not-applicable"];
+const NETWORK_CODES = new Set([
+  "ETIMEDOUT",
+  "TIMEOUT",
+  "ECONNRESET",
+  "ECONNREFUSED",
+  "ENETUNREACH",
+  "EHOSTUNREACH",
+  "ENOTFOUND",
+  "EAI_AGAIN",
+]);
+
+function outcome(result) {
   let value;
   try {
     value = decode(result.stdout.toString());
@@ -34,254 +35,185 @@ function report(result) {
     throw new Error("Public CLI returned invalid TOON.");
   }
   if (
-    !Object.hasOwn(codes, value.status) ||
-    result.code !== codes[value.status] ||
+    result.code !== EXIT_CODES[value?.status] ||
     typeof value.run !== "string" ||
-    !/^[a-zA-Z0-9_-]+$/.test(value.run)
-  ) {
+    !/^[\w-]+$/.test(value.run)
+  )
     throw new Error("Public CLI returned an invalid review outcome.");
-  }
   return value;
 }
 
-async function savedRun(root) {
-  const state = join(root, ".degreaser/state.json");
-  if (!existsSync(state)) return null;
-  const { latestRunId } = JSON.parse(await readFile(state, "utf8"));
-  if (
-    typeof latestRunId !== "string" ||
-    !/^[a-zA-Z0-9_-]+$/.test(latestRunId)
-  ) {
-    throw new Error("Invalid saved evaluation run.");
+function workerQuality(attempt) {
+  const cause = attempt?.failure ?? null;
+  if (["invalid-output", "output-limit"].includes(cause)) return true;
+  const codes = [attempt?.diagnostic?.code, attempt?.diagnostic?.detailCode];
+  return (
+    [null, "timeout", "deadline"].includes(cause) &&
+    !!attempt?.result &&
+    !codes.some((code) => NETWORK_CODES.has(String(code).toUpperCase()))
+  );
+}
+
+export function partialOutcome(data, full) {
+  const unresolved = data.coverage.filter(
+    (row) => !RESOLVED.includes(row.status),
+  );
+  if (full.failure || full.stopReason === "cancelled" || !unresolved.length)
+    throw new Error(
+      "Partial review has no attributable worker outcome; it is not rubric quality evidence.",
+    );
+  for (const row of unresolved) {
+    const attempt = full.execution
+      .find((execution) => execution.aspect === row.aspect)
+      ?.attempts?.at(-1);
+    if (!workerQuality(attempt))
+      throw new Error(
+        `Review ended partial after ${row.aspect} ${attempt?.failure ?? "unknown"} failure (recovery: ${attempt?.diagnostic?.recovery ?? "inspect"}); it is not rubric quality evidence.`,
+      );
   }
-  return latestRunId;
+  return "worker-quality-partial";
 }
 
 async function release(root, cli, env, runId) {
-  const run = runId ?? (await savedRun(root));
+  const state = join(root, ".degreaser/state.json");
+  const run =
+    runId ??
+    (existsSync(state)
+      ? JSON.parse(await readFile(state, "utf8")).latestRunId
+      : null);
   if (!run) return;
-  const result = report(
+  const cancelled = outcome(
     await execute(process.execPath, [cli, "cancel", run], {
       cwd: root,
       env,
-      timeoutMs: 30_000,
+      deadline: Date.now() + 30_000,
     }),
   );
-  if (result.status === "running")
-    throw new Error("Evaluation cancellation did not finish.");
-  const directory = join(root, ".degreaser/runs", run);
+  const lock = join(root, ".degreaser/runs", run, "owner.lock");
   const until = Date.now() + 3000;
-  while (existsSync(join(directory, "owner.lock")) && Date.now() < until)
-    await delay(25);
-  const saved = JSON.parse(await readFile(join(directory, "run.json"), "utf8"));
-  if (
-    existsSync(join(directory, "owner.lock")) ||
-    saved.owner?.processes?.length
-  ) {
+  while (existsSync(lock) && Date.now() < until) await delay(25);
+  if (cancelled.status === "running" || existsSync(lock))
     throw new Error("Evaluation owner cleanup is unresolved.");
-  }
 }
 
-export default class DegreaserProvider {
-  constructor({ id, config } = {}) {
-    if (
-      !config ||
-      !isAbsolute(config.productDir ?? "") ||
-      !["claude", "codex", "pi", "cursor"].includes(config.agent) ||
-      typeof config.model !== "string" ||
-      !/^\S+$/.test(config.model) ||
-      !Number.isSafeInteger(config.timeoutMs ?? 900_000) ||
-      (config.timeoutMs ?? 900_000) < 1 ||
-      (config.timeoutMs ?? 900_000) > 2_147_483_647
-    ) {
-      throw new Error(
-        "Provider requires productDir, exact agent/model and a positive timeoutMs.",
-      );
-    }
-    this.config = config;
-    this.providerId = id ?? `degreaser:${config.agent}:${config.model}`;
-  }
-
-  id() {
-    return this.providerId;
-  }
-
-  async callApi(_prompt, context) {
-    const started = Date.now();
-    let root, runId, envelope, failure, cleanupFailed;
-    const { productDir, agent, model, timeoutMs = 900_000 } = this.config;
-    let env;
-    const cli = join(productDir, "dist/main.js");
-    const remaining = () => started + timeoutMs - Date.now();
-    try {
-      const sample = context?.vars?.sample;
-      validateSample(sample);
-      if (this.config.budgetFile)
-        reserveSessions(
-          this.config.budgetFile,
-          this.config.sessionBudget,
-          sample.aspects.length,
-        );
-      env = {
-        ...environment(this.config.env),
-        GIT_CONFIG_NOSYSTEM: "1",
-        GIT_CONFIG_GLOBAL: "/dev/null",
-      };
-      const product = await realpath(productDir);
-      const source = await realpath(sample.repo.directory);
-      root = await realpath(await mkdtemp(join(tmpdir(), "degreaser-eval-")));
-      if (
-        [product, source].some(
-          (directory) => root === directory || root.startsWith(`${directory}/`),
-        )
-      ) {
-        throw new Error(
-          "Evaluation temp must be outside the product and source.",
-        );
-      }
-      const schema = JSON.parse(
-        await readFile(join(product, "dist/config/config.schema.json"), "utf8"),
-      );
-      const aspects = schema.definitions.aspect.enum;
-      if (sample.aspects.some((aspect) => !aspects.includes(aspect)))
-        throw new Error("Unknown evaluation aspect.");
-      const productSha = (
-        await git(product, ["rev-parse", "HEAD"], {
-          env,
-          timeoutMs: remaining(),
-        })
-      )
-        .toString()
-        .trim();
-      const productHash = await productIdentity(product);
-      const materialized = await materialize(sample, root, {
-        env,
-        get timeoutMs() {
-          return remaining();
-        },
-      });
-      await writeFile(
-        join(root, ".degreaserrc.json"),
-        JSON.stringify({
-          ...reviewPolicy,
-          agent,
-          model,
-          aspects: Object.fromEntries(
-            aspects.map((aspect) => [aspect, sample.aspects.includes(aspect)]),
-          ),
-        }),
-      );
-      const invoke = (args) =>
-        execute(process.execPath, [cli, ...args], {
+export async function reviewSample(
+  sample,
+  { productDir, agent, model, timeoutMs = 900_000, env: overrides, signal },
+) {
+  const started = Date.now();
+  const deadline = started + timeoutMs;
+  const cli = join(productDir, "dist/main.js");
+  const env = environment(overrides);
+  const root = await mkdtemp(join(tmpdir(), "degreaser-eval-"));
+  let runId;
+  let envelope;
+  let failure;
+  try {
+    const productSha = (
+      await git(productDir, ["rev-parse", "HEAD"], { env, deadline, signal })
+    )
+      .toString()
+      .trim();
+    const materialized = await materialize(sample, root, {
+      env,
+      deadline,
+      signal,
+    });
+    await writeFile(
+      join(root, ".degreaserrc.json"),
+      JSON.stringify({ ...reviewPolicy, agent, model }),
+    );
+    const invoke = async (args) =>
+      outcome(
+        await execute(process.execPath, [cli, ...args], {
           cwd: root,
           env,
-          timeoutMs: remaining(),
-          maxBytes: 16_777_216,
-          preserveChildren: () =>
+          deadline,
+          signal,
+          keepDescendants: () =>
             existsSync(join(root, ".degreaser/state.json")),
-        });
-      const args = [
-        "review",
-        "--scope",
-        sample.review.scope,
-        "--task",
-        sample.review.task,
-        "--aspects",
-        sample.aspects.join(","),
-        "--wait",
-        "1",
-      ];
-      if (sample.review.scope === "branch")
-        args.push("--base", materialized.base);
-      for (const path of sample.review.paths ?? []) args.push("--path", path);
-      let result = report(await invoke(args));
-      runId = result.run;
-      let waitCount = 0;
-      while (result.status === "running") {
-        result = report(await invoke(["wait", runId, "--wait", "1"]));
-        if (result.run !== runId)
-          throw new Error("Public CLI changed run identity.");
-        waitCount++;
-      }
-      if (!["completed", "partial"].includes(result.status))
-        throw new Error(`Review ended ${result.status}.`);
-      const exported = await invoke(["export", runId]);
-      const data = json(exported);
-      if (
-        exported.code !== 0 ||
-        data.schemaVersion !== 1 ||
-        data.run !== runId ||
-        data.status !== result.status ||
-        !Array.isArray(data.findings) ||
-        !Array.isArray(data.coverage) ||
-        data.coverage.length !== sample.aspects.length ||
-        new Set(data.coverage.map((row) => row.aspect)).size !==
-          sample.aspects.length ||
-        data.coverage.some((row) => !sample.aspects.includes(row.aspect)) ||
-        (data.status === "completed" &&
-          data.coverage.some(
-            (row) =>
-              !["findings", "no-findings", "not-applicable"].includes(
-                row.status,
-              ),
-          ))
-      ) {
-        throw new Error("Public export does not match the terminal review.");
-      }
-      const full = report(await invoke(["report", runId, "--full"]));
-      if (
-        full.run !== runId ||
-        full.status !== result.status ||
-        !Array.isArray(full.execution) ||
-        !Array.isArray(full.configuration) ||
-        full.configuration.some(
-          (row) => row.agent !== agent || row.model !== model,
-        )
-      )
-        throw new Error("Invalid full public report.");
-      const sessionCount = full.execution.reduce(
-        (sum, row) =>
-          sum +
-          row.attempts.filter(
-            (attempt) => typeof attempt.sessionId === "string",
-          ).length,
-        0,
+        }),
       );
-      envelope = {
-        sampleId: sample.id,
-        export: data,
-        meta: {
-          productSha,
-          productHash,
-          agent,
-          model,
-          sampleHash: materialized.sampleHash,
-          sessionCount,
-          waitCount,
-          ...(data.status === "partial"
-            ? { outcome: partialOutcome(data, full) }
-            : {}),
-        },
-      };
-      if (productHash !== (await productIdentity(product)))
-        throw new Error("Built product changed during evaluation.");
-    } catch (error) {
-      failure = error instanceof Error ? error.message : "Evaluation failed.";
-      cleanupFailed = error?.cleanupFailed;
+    const args = [
+      "review",
+      "--scope",
+      sample.review.scope,
+      "--task",
+      sample.review.task,
+      "--aspects",
+      sample.aspects.join(","),
+      "--wait",
+      "1",
+    ];
+    if (sample.review.scope === "branch")
+      args.push("--base", materialized.base);
+    for (const path of sample.review.paths) args.push("--path", path);
+    let result = await invoke(args);
+    runId = result.run;
+    while (result.status === "running")
+      result = await invoke(["wait", runId, "--wait", "1"]);
+    if (!["completed", "partial"].includes(result.status))
+      throw new Error(`Review ended ${result.status}.`);
+    const exported = await execute(process.execPath, [cli, "export", runId], {
+      cwd: root,
+      env,
+      deadline,
+      signal,
+    });
+    let data;
+    try {
+      data = JSON.parse(exported.stdout.toString());
+    } catch {
+      throw new Error("Public CLI returned invalid JSON.");
     }
-    if (root) {
-      try {
-        if (env) await release(root, cli, env, runId);
-        if (!cleanupFailed) await rm(root, { recursive: true, force: true });
-      } catch {
-        cleanupFailed = true;
-      }
-      if (cleanupFailed) {
-        failure = `Evaluation cleanup failed; source and ownership state retained at ${root}. Run the public cancel command there before removing it.`;
-      }
-    }
-    if (failure) return { error: failure };
-    envelope.meta.durationMs = Date.now() - started;
-    return { output: JSON.stringify(envelope) };
+    if (
+      exported.code !== 0 ||
+      data.run !== runId ||
+      data.status !== result.status
+    )
+      throw new Error("Public export does not match the terminal review.");
+    const full = await invoke(["report", runId, "--full"]);
+    if (
+      !Array.isArray(full.execution) ||
+      !Array.isArray(full.configuration) ||
+      !full.configuration.length ||
+      full.configuration.some(
+        (row) => row.agent !== agent || row.model !== model,
+      )
+    )
+      throw new Error("Review did not use the requested agent/model.");
+    const sessionCount = full.execution
+      .flatMap((row) => row.attempts)
+      .filter((attempt) => typeof attempt.sessionId === "string").length;
+    envelope = {
+      sampleId: sample.id,
+      export: data,
+      meta: {
+        productSha,
+        agent,
+        model,
+        sampleHash: materialized.sampleHash,
+        sessionCount,
+        ...(data.status === "partial"
+          ? { outcome: partialOutcome(data, full) }
+          : {}),
+      },
+    };
+  } catch (error) {
+    failure = error;
   }
+  try {
+    await release(root, cli, env, runId);
+    if (!failure?.cleanupFailed)
+      await rm(root, { recursive: true, force: true });
+  } catch {
+    failure = { cleanupFailed: true };
+  }
+  if (failure?.cleanupFailed)
+    throw new Error(
+      `Evaluation cleanup failed; source and ownership state retained at ${root}. Run the public cancel command there before removing it.`,
+    );
+  if (failure) throw failure;
+  envelope.meta.durationMs = Date.now() - started;
+  return envelope;
 }

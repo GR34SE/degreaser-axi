@@ -1,35 +1,9 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { fileURLToPath } from "node:url";
 import { runEvaluation } from "../../eval/runner.mjs";
-
-const gepa = fileURLToPath(new URL("../../eval/gepa/", import.meta.url));
-
-function adapterRecords(exitCode: number, output: string) {
-  const script = [
-    "import json, sys",
-    "from pathlib import Path",
-    "sys.path.insert(0, sys.argv[1])",
-    "from adapter import batch_records",
-    "try:",
-    "    rows = batch_records(int(sys.argv[2]), Path(sys.argv[3]))",
-    "except RuntimeError:",
-    "    print(json.dumps('stopped'))",
-    "else:",
-    "    print(json.dumps([row['metrics'].get('reason') for row in rows]))",
-  ].join("\n");
-  const result = spawnSync(
-    "python3",
-    ["-I", "-c", script, gepa, String(exitCode), output],
-    { encoding: "utf8", env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" } },
-  );
-  assert.equal(result.status, 0, result.stderr);
-  return JSON.parse(result.stdout);
-}
 
 function sample() {
   return {
@@ -100,142 +74,104 @@ function envelope(input: ReturnType<typeof sample>) {
   };
 }
 
-test("real promptfoo runs file assertions, repeats without cache and journals scored records", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "eval-promptfoo-"));
-  process.env.PROMPTFOO_CONFIG_DIR = join(directory, "state");
+async function run(name: string, directory: string, outputs: unknown[]) {
   const input = sample();
   let calls = 0;
+  const report = await runEvaluation({
+    samples: [input],
+    outputDir: join(directory, name),
+    model: "claude-haiku-4-5-20251001",
+    repeat: outputs.length,
+    budget: 2 * outputs.length,
+    concurrency: 2,
+    allowModels: true,
+    review: async () => {
+      const output = outputs[calls++];
+      if (output instanceof Error) throw output;
+      return output;
+    },
+  });
+  const records = readFileSync(join(directory, name, "records.jsonl"), "utf8")
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line));
+  return { report, records, calls };
+}
+
+test("each repeat is reviewed once and scored into records and summaries", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "eval-runner-"));
+  const input = sample();
   try {
-    const report = await runEvaluation({
-      samples: [input],
-      outputDir: join(directory, "results"),
-      model: "claude-haiku-4-5-20251001",
-      repeat: 2,
-      budget: 4,
-      allowModels: true,
-      provider: {
-        id: () => "offline",
-        callApi: async () => {
-          calls++;
-          return { output: JSON.stringify(envelope(input)) };
-        },
-      },
-    });
-    assert.equal(calls, 2);
-    assert.equal(report.providerErrors, 0);
-    assert.equal(report.assertionFailures, 0);
-    const records = readFileSync(
-      join(directory, "results/records.jsonl"),
-      "utf8",
-    )
-      .trim()
-      .split("\n")
-      .map((line) => JSON.parse(line));
-    assert.deepEqual(records.map((r) => r.repeat).sort(), [0, 1]);
-    assert.ok(
-      records.every((row) => row.metrics.recall === 1 && row.metrics.complete),
-    );
-    assert.equal(report.breakdown[0]?.recall, 1);
-    assert.equal(report.breakdown[0]?.preserveRate, 1);
     const missed = envelope(input);
     missed.export.findings = [];
-    const [coverage] = missed.export.coverage;
-    assert.ok(coverage);
-    coverage.status = "no-findings";
-    const failedAssertions = await runEvaluation({
-      samples: [input],
-      outputDir: join(directory, "misses"),
-      model: "claude-haiku-4-5-20251001",
-      repeat: 1,
-      budget: 2,
-      allowModels: true,
-      provider: {
-        id: () => "offline-miss",
-        callApi: async () => ({ output: JSON.stringify(missed) }),
-      },
-    });
-    assert.equal(failedAssertions.assertionFailures, 1);
-    assert.equal(failedAssertions.providerErrors, 0);
-    assert.equal(failedAssertions.incompleteRecords, 0);
-    assert.equal(failedAssertions.breakdown[0]?.recall, 0);
-    const recovered = envelope(input);
-    const partial = envelope(input);
-    for (const row of recovered.export.coverage) row.rejected = 1;
-    partial.export.status = "partial";
-    Object.assign(partial.meta, { outcome: "worker-quality-partial" });
-    for (const row of partial.export.coverage)
-      Object.assign(row, { status: "incomplete", examined: "0/1" });
-    const unattributed = structuredClone(partial);
-    delete (unattributed.meta as { outcome?: string }).outcome;
-    for (const [name, output, incomplete] of [
-      ["recovered", recovered, 0],
-      ["partial", partial, 1],
-      ["unattributed", unattributed, 1],
-    ] as const) {
-      const report = await runEvaluation({
-        samples: [input],
-        outputDir: join(directory, name),
-        model: "claude-haiku-4-5-20251001",
-        repeat: 1,
-        budget: 2,
-        allowModels: true,
-        provider: {
-          id: () => `offline-${name}`,
-          callApi: async () => ({ output: JSON.stringify(output) }),
-        },
-      });
-      assert.equal(report.providerErrors, 0, name);
-      assert.equal(report.incompleteRecords, incomplete, name);
-      assert.equal(report.breakdown[0]?.completeness, 1 - incomplete, name);
-    }
-    // Product exit codes: completed 0, partial 1 (docs/result-contract.md).
-    assert.deepEqual(adapterRecords(0, join(directory, "recovered")), [
-      "source-anchor proxy; unlabelled code is unknown",
+    Object.assign(missed.export.coverage[0] ?? {}, { status: "no-findings" });
+    const { report, records, calls } = await run("results", directory, [
+      envelope(input),
+      missed,
     ]);
-    assert.deepEqual(adapterRecords(1, join(directory, "partial")), [
-      "incomplete-review",
-    ]);
-    assert.deepEqual(adapterRecords(1, join(directory, "unattributed")), [
-      "unattributed-partial",
-    ]);
-    assert.equal(adapterRecords(0, join(directory, "partial")), "stopped");
-    assert.equal(adapterRecords(2, join(directory, "partial")), "stopped");
-    const failed = await runEvaluation({
-      samples: [input],
-      outputDir: join(directory, "provider-error"),
-      model: "claude-haiku-4-5-20251001",
-      repeat: 1,
-      budget: 2,
-      allowModels: true,
-      provider: {
-        id: () => "offline-auth",
-        callApi: async () => ({ error: "Authentication required." }),
-      },
-    });
-    assert.equal(failed.providerErrors, 1);
-    assert.equal(
-      adapterRecords(1, join(directory, "provider-error")),
-      "stopped",
+    assert.equal(calls, 2);
+    assert.deepEqual(
+      records.map((row) => [row.repeat, row.metrics.recall]),
+      [
+        [0, 1],
+        [1, 0],
+      ],
     );
-    assert.equal(adapterRecords(1, join(directory, "missing")), "stopped");
+    assert.equal(report.providerErrors, 0);
+    assert.equal(report.incompleteRecords, 0);
+    assert.equal(report.breakdown[0]?.recall, 0.5);
+    assert.equal(report.breakdown[0]?.preserveRate, 1);
+    const summary = JSON.parse(
+      readFileSync(join(directory, "results/summary.json"), "utf8"),
+    );
+    assert.deepEqual(summary, report);
+    assert.ok(readFileSync(join(directory, "results/summary.md"), "utf8"));
+    const manifest = JSON.parse(
+      readFileSync(join(directory, "results/manifest.json"), "utf8"),
+    );
+    assert.equal(manifest.model, "claude-haiku-4-5-20251001");
   } finally {
     rmSync(directory, { recursive: true });
   }
 });
 
-test("model execution and empty budgets fail before provider admission", async () => {
+test("partial reviews and provider failures never become clean records", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "eval-runner-"));
+  const input = sample();
+  const partial = envelope(input);
+  partial.export.status = "partial";
+  Object.assign(partial.meta, { outcome: "worker-quality-partial" });
+  for (const row of partial.export.coverage)
+    Object.assign(row, { status: "incomplete", examined: "0/1" });
+  const unattributed = structuredClone(partial);
+  delete (unattributed.meta as { outcome?: string }).outcome;
+  try {
+    const { report, records } = await run("mixed", directory, [
+      partial,
+      unattributed,
+      new Error("Authentication required."),
+    ]);
+    assert.deepEqual(
+      records.map((row) => row.metrics?.reason ?? row.error),
+      ["incomplete-review", "unattributed-partial", "Authentication required."],
+    );
+    assert.ok(records.every((row) => !row.metrics?.complete));
+    assert.equal(report.providerErrors, 1);
+    assert.equal(report.incompleteRecords, 3);
+  } finally {
+    rmSync(directory, { recursive: true });
+  }
+});
+
+test("model execution and over-budget plans fail before any review", async () => {
   let calls = 0;
-  const provider = {
-    id: () => "offline",
-    callApi: async () => {
-      calls++;
-      return { output: "" };
-    },
-  };
   const options = {
     samples: [sample()],
     model: "claude-haiku-4-5-20251001",
-    provider,
+    review: async () => {
+      calls++;
+      return {};
+    },
     outputDir: "/not-created-by-rejected-plan",
   };
   await assert.rejects(runEvaluation(options), /allow-models/);
@@ -249,8 +185,8 @@ test("model execution and empty budgets fail before provider admission", async (
       /claude-haiku-4-5-20251001/,
     );
   await assert.rejects(
-    runEvaluation({ ...options, allowModels: true, budget: 0 }),
-    /positive integer/,
+    runEvaluation({ ...options, allowModels: true, budget: 5 }),
+    /exceed budget/,
   );
   await assert.rejects(
     runEvaluation({

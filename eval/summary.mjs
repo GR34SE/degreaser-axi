@@ -1,5 +1,4 @@
-const fixed = (value, digits = 2) =>
-  Number.isFinite(value) ? value.toFixed(digits) : "n/a";
+const fixed = (value) => (Number.isFinite(value) ? value.toFixed(2) : "n/a");
 
 const table = (header, rows) =>
   [header, header.map(() => "---"), ...rows]
@@ -16,7 +15,6 @@ export function renderSummary(report) {
       "REPORT/PRESERVE anchors",
       "Recall",
       "Recall primary",
-      "Precision proxy",
       "Preserve violation",
       "Complete",
     ],
@@ -28,11 +26,18 @@ export function renderSummary(report) {
       `${row.reportAnchors}/${row.preserveAnchors}`,
       fixed(row.recall),
       fixed(row.recallPrimary),
-      fixed(row.precisionProxy),
       fixed(row.preserveViolationRate),
       fixed(row.completeness),
     ]),
   );
+  const misses = report.systematicMisses.length
+    ? report.systematicMisses
+        .map(
+          (miss) =>
+            `- ${miss.sampleId} ${miss.anchorId}: missed in ${miss.missedRepeats} repeats`,
+        )
+        .join("\n")
+    : "- None missed in two or more repeats.";
   const factors = Object.entries(report.missFactors).map(
     ([name, buckets]) =>
       `### ${name}\n\n${table(
@@ -55,7 +60,8 @@ export function renderSummary(report) {
     "# Evaluation summary",
     `Records: ${report.records}. Provider errors: ${report.providerErrors}. Incomplete records: ${report.incompleteRecords}.`,
     `## Families\n\n${families}`,
+    `## Systematic misses\n\n${misses}`,
     `## Miss factors\n\nHit rate over REPORT anchors of complete records.\n\n${factors.join("\n\n")}`,
-    `## Diagnosis\n\n${report.diagnosisNote}\n\n${diagnosis}`,
+    `## Diagnosis\n\nHeuristics for choosing where to look next, not proof of cause.\n\n${diagnosis}`,
   ].join("\n\n")}\n`;
 }

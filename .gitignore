@@ -13,5 +13,3 @@ coverage/
 .claude/worktrees/
 /.evals-local/
 /eval/.generated/
-/eval/gepa/.venv/
-/eval/gepa/__pycache__/

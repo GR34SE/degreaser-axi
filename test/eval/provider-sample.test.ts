@@ -20,7 +20,7 @@ async function setup(t: TestContext) {
   f.write("module.ts", "export const before = 1;\n");
   f.git("add", "module.ts");
   f.git("commit", "--no-gpg-sign", "-m", "Source base");
-  const { materialize, validateSample } = await import(moduleUrl);
+  const { materialize } = await import(moduleUrl);
   const sample = {
     id: "source/snapshot",
     aspects: ["low-value-comments"],
@@ -36,7 +36,7 @@ async function setup(t: TestContext) {
         GIT_CONFIG_NOSYSTEM: "1",
         GIT_CONFIG_GLOBAL: "/dev/null",
       },
-      timeoutMs: 10_000,
+      deadline: Date.now() + 10_000,
     });
     const git = (...args: string[]) => {
       const result = spawnSync("git", args, { cwd: root, encoding: "utf8" });
@@ -45,7 +45,7 @@ async function setup(t: TestContext) {
     };
     return { root, git, ...output };
   };
-  return { ...f, sample, copy, validateSample };
+  return { ...f, sample, copy };
 }
 
 test("materialization preserves final staged, unstaged and new source without copying private history or config", async (t) => {
@@ -135,20 +135,4 @@ test("external symlinks are rejected rather than exposing the source host", asyn
   const f = await setup(t);
   symlinkSync("/etc/passwd", join(f.root, "outside.txt"));
   await assert.rejects(f.copy(), /symlinks and gitlinks are unsupported/);
-  assert.throws(
-    () =>
-      f.validateSample({
-        ...f.sample,
-        aspects: ["low-value-comments", "low-value-comments"],
-      }),
-    /Invalid evaluation sample/,
-  );
-  assert.throws(
-    () =>
-      f.validateSample({
-        ...f.sample,
-        review: { ...f.sample.review, scope: "branch" },
-      }),
-    /explicit base/,
-  );
 });

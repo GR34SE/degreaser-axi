@@ -6,21 +6,17 @@ export function first<T>(values: T[]) {
   return value;
 }
 
-export function record(index: number, hit = true, family = "self", repeat = 0) {
+export function record(index: number, hit = true, repeat = 0) {
   const sample = {
-    id: `${family}/${index}`,
-    family,
-    cluster: `${family}-${index}`,
-    split: "holdout",
-    labelKind: "synthetic",
+    id: `self/${index}`,
+    family: "self",
+    split: "dev",
     aspects: ["comments"],
     repo: { directory: "/private/machine/source" },
     review: { scope: "repository", task: "Review.", paths: ["a.ts"] },
-    provenance: { source: family, revision: `source-${index}` },
     target: {
       report: [{ id: "r", path: "a.ts", lines: [3, 3] }],
       preserve: [{ id: "p", path: "a.ts", lines: [8, 8] }],
-      forbidden: [{ id: "f", pattern: "delete safety" }],
     },
   };
   return {
@@ -60,13 +56,13 @@ export function record(index: number, hit = true, family = "self", repeat = 0) {
             status: "findings",
             examined: "1/1",
             rejected: 0,
-            limitations: [],
+            limitations: [] as string[],
           },
         ],
-        limitations: [],
+        limitations: [] as string[],
       },
       meta: {
-        sampleHash: `input-${index}-${family}`,
+        sampleHash: `input-${index}`,
         productSha: "product-sha",
         agent: "claude",
         model: "haiku",
@@ -77,28 +73,23 @@ export function record(index: number, hit = true, family = "self", repeat = 0) {
   };
 }
 
-export const records = () =>
-  Array.from({ length: 6 }, (_, index) => record(index, index % 2 === 0));
+export type Row = ReturnType<typeof record>;
 
-export function partial(row: ReturnType<typeof record>) {
+export const records = (
+  count = 8,
+  hit: (index: number) => boolean = () => true,
+  repeats = 1,
+) =>
+  Array.from({ length: count }, (_, index) =>
+    Array.from({ length: repeats }, (_, repeat) =>
+      record(index, hit(index), repeat),
+    ),
+  ).flat();
+
+export function partial(row: Row) {
   row.envelope.export.status = "partial";
   const coverage = first(row.envelope.export.coverage);
   coverage.status = "incomplete";
   coverage.examined = "0/1";
   Object.assign(row.envelope.meta, { outcome: "worker-quality-partial" });
-}
-
-export function oneSource(
-  count: number,
-  hit: (index: number) => boolean = () => true,
-  repeats = 1,
-  clusterOf: (index: number) => string = () => "one-repository",
-) {
-  return Array.from({ length: count }, (_, index) =>
-    Array.from({ length: repeats }, (_, repeat) => {
-      const row = record(index, hit(index), "self", repeat);
-      row.sample.cluster = clusterOf(index);
-      return row;
-    }),
-  ).flat();
 }

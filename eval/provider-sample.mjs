@@ -29,35 +29,6 @@ const OMIT = new Set([
 ]);
 const included = (path) =>
   !OMIT.has(path.split("/")[0]) && !path.startsWith("test/eval/");
-const strings = (values) =>
-  Array.isArray(values) &&
-  values.every((v) => typeof v === "string" && v.length);
-
-export function validateSample(sample) {
-  if (
-    !sample ||
-    typeof sample.id !== "string" ||
-    !sample.id ||
-    !strings(sample.aspects) ||
-    !sample.aspects.length ||
-    new Set(sample.aspects).size !== sample.aspects.length ||
-    !isAbsolute(sample.repo?.directory ?? "") ||
-    !["repository", "worktree", "branch"].includes(sample.review?.scope) ||
-    typeof sample.review.task !== "string" ||
-    !sample.review.task.trim() ||
-    !strings(sample.review.paths ?? [])
-  ) {
-    throw new Error("Invalid evaluation sample.");
-  }
-  if (
-    sample.review.scope === "branch" &&
-    (typeof sample.review.base !== "string" ||
-      !sample.review.base ||
-      sample.review.base.startsWith("-"))
-  ) {
-    throw new Error("Branch samples require an explicit base.");
-  }
-}
 
 function safePath(root, path) {
   const destination = join(root, path);

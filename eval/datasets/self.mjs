@@ -1,73 +1,104 @@
-import { join } from "node:path";
-import { commentLabels, oldDiffRanges } from "./anchors.mjs";
-import { git, gitTree, materialize, ordered, sha256 } from "./io.mjs";
+import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { commentLabels, oldDiffRanges } from "./comments.mjs";
 
-export const SELF_FIXTURE_FILES = new Set([
-  "test/live/support/comment-fixtures.ts",
-]);
+const SELF_BEFORE = "b4a1edec03d31b01145b923dc5b4dc0d944de0c9";
+const SELF_AFTER = "d232af804ae532c4bd4bf79f56d4d854d7ef2715";
+const CHECKOUT = fileURLToPath(new URL("../../", import.meta.url));
+const FIXTURES = "test/live/support/comment-fixtures.ts";
 const TASK =
   "Audit the selected source for low-value comments. Preserve comments that explain non-obvious constraints, invariants, security boundaries or tradeoffs.";
 
-export function hashBucket(key) {
-  return (
-    Number.parseInt(sha256(`degreaser-eval-v1:${key}`).slice(0, 8), 16) % 10
-  );
+const sha256 = (value) => createHash("sha256").update(value).digest("hex");
+
+function git(directory, args, input) {
+  const env = { ...process.env, GIT_TERMINAL_PROMPT: "0" };
+  // Set by Git hooks; inherited, they would redirect commands to the caller's repository.
+  for (const key of [
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_COMMON_DIR",
+    "GIT_INDEX_FILE",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+  ])
+    delete env[key];
+  env.GIT_AUTHOR_DATE = "2000-01-01T00:00:00Z";
+  env.GIT_COMMITTER_DATE = env.GIT_AUTHOR_DATE;
+  return execFileSync("git", ["-C", directory, ...args], {
+    input,
+    env,
+    maxBuffer: 128 * 1024 * 1024,
+    stdio: ["pipe", "pipe", "pipe"],
+  });
 }
 
-export const SELF_BEFORE = "b4a1edec03d31b01145b923dc5b4dc0d944de0c9";
-export const SELF_AFTER = "d232af804ae532c4bd4bf79f56d4d854d7ef2715";
-
-function pinned(directory, revision) {
-  try {
-    return git(directory, [
-      "rev-parse",
-      "--verify",
-      "--quiet",
-      `${revision}^{commit}`,
-    ])
-      .toString("utf8")
-      .trim();
-  } catch {
-    throw new Error(
-      `Pinned self revision ${revision} is missing from ${directory}. Fetch the main branch there or pass --self-repo with a checkout that contains it.`,
-    );
-  }
-}
-
-export function loadSelf(
-  directory,
-  outputDir,
-  accept,
-  skip,
-  counts,
-  contrasts,
-  revisions = {},
-) {
-  const before = pinned(directory, revisions.before ?? SELF_BEFORE);
-  const after = pinned(directory, revisions.after ?? SELF_AFTER);
-  const parent = git(directory, ["rev-parse", `${before}^`])
+const text = (...args) =>
+  git(...args)
     .toString("utf8")
     .trim();
-  const files = gitTree(directory, before);
-  const afterFiles = gitTree(directory, after);
-  const parentFiles = contrasts ? gitTree(directory, parent) : undefined;
-  const digest = (tree) =>
-    sha256(
-      [...tree]
-        .map(([path, content]) => `${path}\0${sha256(content)}`)
-        .join("\n"),
-    );
-  const sourceTreeSha256 = digest(files);
+
+function gitTree(directory, revision) {
+  const files = new Map();
+  for (const entry of text(directory, ["ls-tree", "-rz", revision])
+    .split("\0")
+    .filter(Boolean)) {
+    const [header, path] = entry.split("\t");
+    if (/^(?:src|test|tools|scripts|bin)\//u.test(path) || path === "AGENTS.md")
+      files.set(
+        path,
+        git(directory, ["cat-file", "blob", header.split(" ")[2]]),
+      );
+  }
+  return files;
+}
+
+function materialize(directory, files) {
+  mkdirSync(directory, { recursive: true });
+  git(directory, [
+    "init",
+    "--quiet",
+    "--template=",
+    "--initial-branch=dataset",
+  ]);
+  const paths = [...files.keys()];
+  for (const [path, content] of files) {
+    mkdirSync(dirname(join(directory, path)), { recursive: true });
+    writeFileSync(join(directory, path), content, { flag: "wx", mode: 0o600 });
+  }
+  const oids = text(
+    directory,
+    ["hash-object", "-w", "--no-filters", "--stdin-paths"],
+    paths.join("\n"),
+  ).split("\n");
+  git(
+    directory,
+    ["update-index", "--add", "--index-info"],
+    paths.map((path, i) => `100644 ${oids[i]}\t${path}\n`).join(""),
+  );
+  const head = text(
+    directory,
+    ["commit-tree", text(directory, ["write-tree"])],
+    "Source-only evaluation snapshot\n",
+  );
+  git(directory, ["update-ref", "refs/heads/dataset", head]);
+  return { directory, head };
+}
+
+function labelsByGroup(repo, before, after, files) {
+  const afterFiles = gitTree(repo, after);
   const groups = new Map();
-  counts.self = 0;
-  for (const [path, bytes] of files) {
-    if (!/\.[cm]?tsx?$/u.test(path) || !afterFiles.has(path)) continue;
-    if (SELF_FIXTURE_FILES.has(path)) {
-      skip("self-file", path, "deliberate-low-value-comment-fixtures");
+  for (const [path, content] of files) {
+    if (
+      !/\.[cm]?tsx?$/u.test(path) ||
+      !afterFiles.has(path) ||
+      path === FIXTURES
+    )
       continue;
-    }
-    counts.self++;
-    const patch = git(directory, [
+    const patch = text(repo, [
       "diff",
       "--no-ext-diff",
       "--no-textconv",
@@ -76,125 +107,118 @@ export function loadSelf(
       after,
       "--",
       path,
-    ]).toString("utf8");
-    const target = commentLabels(
-      bytes.toString("utf8"),
+    ]);
+    const { report, preserve } = commentLabels(
+      content.toString("utf8"),
       afterFiles.get(path).toString("utf8"),
       oldDiffRanges(patch),
       path,
     );
-    if (!target.report.length && !target.preserve.length) {
-      skip("self-file", path, "no-comment-labels");
-      continue;
-    }
+    if (!report.length && !preserve.length) continue;
     const group = path.split("/").slice(0, 3).join("/");
-    if (!groups.has(group))
-      groups.set(group, { report: [], preserve: [], forbidden: [] });
-    const labels = groups.get(group);
-    labels.report.push(...target.report);
-    labels.preserve.push(...target.preserve);
+    const labels = groups.get(group) ?? { report: [], preserve: [] };
+    labels.report.push(...report);
+    labels.preserve.push(...preserve);
+    groups.set(group, labels);
   }
-  const all = { report: [], preserve: [], forbidden: [] };
-  for (const group of groups.values()) {
-    all.report.push(...group.report);
-    all.preserve.push(...group.preserve);
-  }
-  counts["self-comment-issues"] = all.report.length;
-  counts["self-preserve-comments"] = all.preserve.length;
-  const overlays = contrasts
-    ? ["source-instructions", "no-instructions"]
-    : ["source-instructions"];
-  for (const overlay of overlays) {
-    const contents = new Map(files);
-    const previous = parentFiles ? new Map(parentFiles) : undefined;
-    if (overlay === "no-instructions") {
-      contents.delete("AGENTS.md");
-      previous?.delete("AGENTS.md");
+  return groups;
+}
+
+export function deriveDatasets({
+  outputDir,
+  repo = CHECKOUT,
+  before = SELF_BEFORE,
+  after = SELF_AFTER,
+}) {
+  for (const revision of [before, after]) {
+    try {
+      git(repo, ["cat-file", "-e", `${revision}^{commit}`]);
+    } catch {
+      throw new Error(
+        `Pinned self revision ${revision} is missing from ${repo}. Fetch the main branch there.`,
+      );
     }
-    const repo = materialize(
-      join(outputDir, "repos", `self-${overlay}`),
-      contents,
-      previous,
+  }
+  const output = resolve(outputDir);
+  mkdirSync(output);
+  const files = gitTree(repo, before);
+  const groups = labelsByGroup(repo, before, after, files);
+  const provenance = {
+    source: "self",
+    revision: before,
+    ownerRevision: after,
+    parentRevision: text(repo, ["rev-parse", `${before}^`]),
+    sourceTreeSha256: sha256(
+      [...files]
+        .map(([path, content]) => `${path}\0${sha256(content)}`)
+        .join("\n"),
+    ),
+  };
+  const sample = (id, family, split, snapshot, paths, target, details) => ({
+    id,
+    family,
+    cluster: "repository:degreaser-axi",
+    split,
+    labelKind: "owner-diff",
+    aspects: ["low-value-comments"],
+    repo: { directory: snapshot.directory },
+    review: { scope: "repository", task: TASK, paths },
+    target: { ...target, forbidden: [] },
+    provenance: { ...provenance, ...details, materializedHead: snapshot.head },
+  });
+  const grouped = materialize(
+    join(output, "repos", "self-source-instructions"),
+    files,
+  );
+  const samples = [...groups].map(([group, target]) => {
+    const bucket = Number.parseInt(
+      sha256(`degreaser-eval-v1:self-group:${group}`).slice(0, 8),
+      16,
     );
-    for (const [group, target] of groups) {
-      for (const scope of contrasts
-        ? ["repository", "branch"]
-        : ["repository"]) {
-        accept({
-          id: `self/comments/${group}/${overlay}/${scope}`,
-          family: "self",
-          cluster: "repository:degreaser-axi",
-          labelKind: "owner-diff",
-          aspects: ["low-value-comments"],
-          repo,
-          split: hashBucket(`self-group:${group}`) < 7 ? "dev" : "regression",
-          paths: ordered(
-            new Set([...target.report, ...target.preserve].map((l) => l.path)),
-          ),
-          review: {
-            scope,
-            ...(scope === "branch" ? { base: repo.base } : {}),
-            task: TASK,
-          },
-          target,
-          ...(contrasts
-            ? { contrast: { group: `self/comments/${group}`, overlay, scope } }
-            : {}),
-          provenance: {
-            source: "self",
-            revision: before,
-            ownerRevision: after,
-            parentRevision: parent,
-            sourceTreeSha256,
-            comparison:
-              "actual owner deletion of complete lexical comments; grouped multiline issues",
-            unlabelledSource:
-              "PRESERVE: comment blocks outside every owner diff range and unchanged in the owner revision, in files present in both revisions; other surviving comments and code remain unknown; test/live/support/comment-fixtures.ts is excluded in both directions",
-            context:
-              "original source, tests and tooling plus optional original AGENTS.md; no dependencies or skills",
-            ...(contrasts
-              ? {
-                  branchBase:
-                    "original before-revision parent, projected to same source-only context",
-                }
-              : {}),
-          },
-        });
-      }
-    }
-  }
-  if (all.report.length + all.preserve.length)
-    accept({
-      id: "self-whole/comments/whole-repository",
-      family: "self-whole",
-      cluster: "repository:degreaser-axi",
-      split: "regression",
-      labelKind: "owner-diff",
-      aspects: ["low-value-comments"],
-      repo: materialize(join(outputDir, "repos", "self-whole"), files),
-      paths: [],
-      review: { scope: "repository", task: TASK },
-      target: all,
-      provenance: {
-        source: "self",
-        revision: before,
-        ownerRevision: after,
-        parentRevision: parent,
-        sourceTreeSha256,
+    return sample(
+      `self/comments/${group}/source-instructions/repository`,
+      "self",
+      bucket % 10 < 7 ? "dev" : "regression",
+      grouped,
+      [
+        ...new Set([...target.report, ...target.preserve].map((l) => l.path)),
+      ].sort(),
+      target,
+      {
+        comparison:
+          "actual owner deletion of complete lexical comments; grouped multiline issues",
+        unlabelledSource: `PRESERVE: comment blocks outside every owner diff range and unchanged in the owner revision, in files present in both revisions; other surviving comments and code remain unknown; ${FIXTURES} is excluded in both directions`,
+        context:
+          "original source, tests and tooling plus optional original AGENTS.md; no dependencies or skills",
+      },
+    );
+  });
+  const all = [...groups.values()];
+  samples.push(
+    sample(
+      "self-whole/comments/whole-repository",
+      "self-whole",
+      "regression",
+      materialize(join(output, "repos", "self-whole"), files),
+      [],
+      {
+        report: all.flatMap((target) => target.report),
+        preserve: all.flatMap((target) => target.preserve),
+      },
+      {
         comparison:
           "union of all self REPORT and PRESERVE anchors; empty paths audit the whole repository",
         unlabelledSource:
           "surviving comments and untouched code remain unknown outside the PRESERVE rule",
         context: "original source, tests, tooling and AGENTS.md",
       },
-    });
-  return {
-    source: "self",
-    revision: before,
-    ownerRevision: after,
-    parentRevision: parent,
-    sourceTreeSha256,
-    ownerTreeSha256: digest(afterFiles),
-    ...(parentFiles ? { parentTreeSha256: digest(parentFiles) } : {}),
-  };
+    ),
+  );
+  samples.sort((a, b) => (a.id < b.id ? -1 : 1));
+  writeFileSync(
+    join(output, "samples.jsonl"),
+    samples.map((sample) => `${JSON.stringify(sample)}\n`).join(""),
+    { flag: "wx" },
+  );
+  return samples;
 }

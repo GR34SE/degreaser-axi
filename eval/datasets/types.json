@@ -1,4 +1,0 @@
-{
-  "Extract Method": ["missed-reuse", "unnecessary-complexity"],
-  "Inline Method": ["unnecessary-layers", "unnecessary-complexity"]
-}

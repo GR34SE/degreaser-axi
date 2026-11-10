@@ -19,5 +19,5 @@
     "noEmit": true
   },
   "include": ["src/**/*.ts", "tools/**/*.ts", "test/**/*.ts", "eval/**/*.mjs"],
-  "exclude": ["eval/.generated", "eval/gepa/.venv"]
+  "exclude": ["eval/.generated"]
 }

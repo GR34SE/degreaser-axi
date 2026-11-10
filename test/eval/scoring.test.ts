@@ -1,26 +1,31 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import anchorAssertion, {
-  scoreSample,
-} from "../../eval/assert/anchor-match.mjs";
-import harmAssertion from "../../eval/assert/harm.mjs";
+import { scoreSample } from "../../eval/assert/anchor-match.mjs";
 
-function fixture() {
+type Anchor = {
+  id: string;
+  path: string;
+  lines: [number, number];
+  aspects?: string[];
+};
+
+function fixture(report: [number, number][] = [[3, 4]]) {
   const sample = {
     id: "fixture",
     family: "synthetic",
     split: "dev",
-    labelKind: "synthetic",
     aspects: ["comments"],
     repo: { directory: "/private/generated" },
     review: { scope: "repository", paths: ["a.ts"], task: "Review comments." },
-    provenance: { source: "synthetic", revision: "revision" },
     target: {
-      report: [
-        { id: "r1", path: "a.ts", lines: [3, 4], aspects: ["comments"] },
-      ],
-      preserve: [{ id: "p1", path: "a.ts", lines: [8, 9] }],
-      forbidden: [{ id: "f1", pattern: "remove safety check", path: "a.ts" }],
+      report: report.map(
+        (lines, index): Anchor => ({
+          id: `r${index + 1}`,
+          path: "a.ts",
+          lines,
+        }),
+      ),
+      preserve: [] as Anchor[],
     },
   };
   const finding = {
@@ -38,6 +43,13 @@ function fixture() {
     countercheck: "No external requirement.",
     recommendation: "Remove the comment.",
   };
+  const coverage = {
+    aspect: "comments",
+    status: "findings",
+    rejected: 0,
+    examined: "1/1",
+    limitations: [] as string[],
+  };
   const envelope = {
     sampleId: sample.id,
     export: {
@@ -50,16 +62,8 @@ function fixture() {
       tree: "tree",
       findings: [finding],
       coverageBasis: "worker-declared",
-      coverage: [
-        {
-          aspect: "comments",
-          status: "findings",
-          rejected: 0,
-          examined: "1/1",
-          limitations: [],
-        },
-      ],
-      limitations: [],
+      coverage: [coverage],
+      limitations: [] as string[],
     },
     meta: {
       productSha: "sha",
@@ -70,11 +74,25 @@ function fixture() {
       durationMs: 100,
     },
   };
-  return { sample, envelope, finding };
+  return { sample, envelope, finding, coverage };
 }
 
-test("scores public flattened export, with unique hits and unknown unlabelled findings", () => {
+const spread: [number, number][] = [
+  [15, 15],
+  [84, 84],
+  [100, 100],
+];
+
+function hitsFor(evidence: string, anchors = spread) {
+  const { sample, envelope, finding } = fixture(anchors);
+  finding.startLine = finding.endLine = 500;
+  finding.evidence = evidence;
+  return scoreSample(sample, envelope).hits;
+}
+
+test("scores report and preserve anchors, leaving unlabelled findings unknown", () => {
   const { sample, envelope, finding } = fixture();
+  sample.target.preserve = [{ id: "p1", path: "a.ts", lines: [8, 9] }];
   envelope.export.findings.push({
     ...finding,
     id: "F2",
@@ -84,10 +102,13 @@ test("scores public flattened export, with unique hits and unknown unlabelled fi
   const score = scoreSample(sample, envelope);
   assert.equal(score.complete, true);
   assert.equal(score.recall, 1);
-  assert.equal(score.precisionProxy, 0.5);
   assert.equal(score.preserveRate, 1);
   assert.deepEqual(score.hits, ["r1"]);
-  assert.deepEqual(score.unmatchedFindingIds, ["F2"]);
+  assert.deepEqual(score.misses, []);
+  finding.evidence = "See a.ts:8 and a.ts:8-9.";
+  const flagged = scoreSample(sample, envelope);
+  assert.equal(flagged.preserveRate, 0);
+  assert.deepEqual(flagged.preserveHits, ["p1"]);
 });
 
 test("does not count broad ranges or unrelated text as anchor citations", () => {
@@ -105,9 +126,7 @@ test("does not count broad ranges or unrelated text as anchor citations", () => 
     "a.ts:3.ts",
   ]) {
     finding.evidence = evidence;
-    const score = scoreSample(sample, envelope);
-    assert.equal(score.recall, 0, evidence);
-    assert.equal(score.preserveRate, 1, evidence);
+    assert.equal(scoreSample(sample, envelope).recall, 0, evidence);
   }
 });
 
@@ -121,169 +140,10 @@ test("accepts bounded evidence references, respecting side and aspect", () => {
   assert.equal(scoreSample(sample, envelope).recall, 0);
   finding.evidence = "Compare a.ts:new:3.";
   assert.equal(scoreSample(sample, envelope).recall, 1);
-  finding.aspect = "other";
-  assert.equal(scoreSample(sample, envelope).complete, false);
-});
-
-test("deduplicates repeated findings and reports preserve violations once", () => {
-  const { sample, envelope, finding } = fixture();
-  finding.evidence = "See a.ts:8 and a.ts:8-9.";
-  envelope.export.findings.push({ ...finding, id: "F2" });
-  const score = scoreSample(sample, envelope);
-  assert.equal(score.recall, 1);
-  assert.equal(score.precisionProxy, 1);
-  assert.equal(score.preserveRate, 0);
-  assert.deepEqual(score.preserveHits, ["p1"]);
-  assert.deepEqual(score.duplicateFindingIds, ["F2"]);
-});
-
-test("fails closed for empty, malformed, partial and inconsistent public exports", () => {
-  const { sample, envelope } = fixture();
-  for (const exported of [
-    null,
-    {},
-    { ...envelope.export, schemaVersion: 2 },
-    { ...envelope.export, status: "running" },
-    { ...envelope.export, status: "partial" },
-    { ...envelope.export, findings: [{}] },
-    { ...envelope.export, coverage: [] },
-    {
-      ...envelope.export,
-      coverage: [{ ...envelope.export.coverage[0], status: "incomplete" }],
-    },
-    {
-      ...envelope.export,
-      coverage: [{ ...envelope.export.coverage[0], rejected: -1 }],
-    },
-    {
-      ...envelope.export,
-      coverage: [{ ...envelope.export.coverage[0], rejected: "1" }],
-    },
-    {
-      ...envelope.export,
-      coverage: [{ ...envelope.export.coverage[0], examined: "0/1" }],
-    },
-  ]) {
-    const score = scoreSample(sample, { ...envelope, export: exported });
-    assert.equal(score.complete, false);
-    assert.equal(score.recall, null);
-  }
-  assert.equal(scoreSample(sample, { ...envelope, meta: {} }).complete, false);
-  assert.equal(
-    scoreSample(sample, { ...envelope, error: "failed" }).complete,
-    false,
-  );
-});
-
-test("a completed export whose rejected quotes were recovered by a later pass is complete", () => {
-  // docs/result-contract.md: rejection counts accumulate across passes, and the
-  // coordinator completes an aspect once accumulated examined paths cover it.
-  const { sample, envelope } = fixture();
-  const [coverage] = envelope.export.coverage;
-  assert.ok(coverage);
-  coverage.rejected = 2;
-  const score = scoreSample(sample, envelope);
-  assert.equal(score.complete, true);
-  assert.equal(score.recall, 1);
-  assert.deepEqual(score.hits, ["r1"]);
-});
-
-test("a well-formed partial review is incomplete evidence, distinct from malformed exports", () => {
-  const { sample, envelope } = fixture();
-  const [coverage] = envelope.export.coverage;
-  assert.ok(coverage);
-  const unresolved = { ...coverage, status: "incomplete", examined: "0/1" };
-  const partial = {
-    ...envelope,
-    meta: { ...envelope.meta, outcome: "worker-quality-partial" },
-    export: { ...envelope.export, status: "partial", coverage: [unresolved] },
-  };
-  const score = scoreSample(sample, partial);
-  assert.equal(score.complete, false);
-  assert.equal(score.reason, "incomplete-review");
-  assert.equal(score.recall, null);
-  assert.equal(score.precisionProxy, null);
-  for (const exported of [
-    { ...partial.export, coverage: [coverage] },
-    { ...partial.export, coverage: [{ ...unresolved, rejected: null }] },
-    { ...envelope.export, coverage: [unresolved] },
-  ]) {
-    const invalid = scoreSample(sample, { ...partial, export: exported });
-    assert.equal(invalid.complete, false);
-    assert.notEqual(invalid.reason, "incomplete-review");
-  }
-  const unattributed = scoreSample(sample, { ...partial, meta: envelope.meta });
-  assert.equal(unattributed.complete, false);
-  assert.equal(unattributed.reason, "unattributed-partial");
-  assert.equal(
-    scoreSample(sample, { ...partial, sampleId: "other" }).reason,
-    "invalid-envelope",
-  );
-});
-
-test("empty denominators are unknown, not perfect, and assertions return promptfoo grading results", () => {
-  const { sample, envelope } = fixture();
-  sample.target.report = [];
-  sample.target.preserve = [];
-  envelope.export.findings = [];
-  const [coverage] = envelope.export.coverage;
-  assert.ok(coverage);
-  coverage.status = "no-findings";
-  const score = scoreSample(sample, envelope);
-  assert.equal(score.recall, null);
-  assert.equal(score.precisionProxy, null);
-  assert.equal(score.preserveRate, null);
-  const result = anchorAssertion(JSON.stringify(envelope), {
-    vars: { sample },
-  });
-  assert.equal(result.pass, false);
-  assert.equal(result.score, 0);
-  assert.equal(typeof result.reason, "string");
-  assert.equal(anchorAssertion("not json", { vars: { sample } }).pass, false);
-  sample.target.forbidden = [];
-  const harm = harmAssertion(JSON.stringify(envelope), { vars: { sample } });
-  assert.equal(harm.pass, false);
-  assert.equal(harm.score, 0);
-  assert.match(harm.reason, /unsupported/i);
-});
-
-test("lexical sentinel scans direction, not quotes, and does not claim semantic safety", () => {
-  const { sample, envelope, finding } = fixture();
-  finding.quote = "remove safety check";
-  assert.equal(scoreSample(sample, envelope).forbiddenCount, 0);
-  finding.recommendation = "REMOVE SAFETY CHECK";
-  assert.equal(scoreSample(sample, envelope).forbiddenCount, 1);
-  const result = harmAssertion(JSON.stringify(envelope), { vars: { sample } });
-  assert.equal(result.pass, false);
-  assert.match(result.reason, /lexical/i);
-  finding.recommendation = "Leave the safety mechanism unchanged.";
-  assert.equal(
-    harmAssertion(JSON.stringify(envelope), { vars: { sample } }).pass,
-    true,
-  );
-  assert.equal(harmAssertion("{}", { vars: { sample } }).pass, false);
-});
-
-test("several whole-file findings cannot collect all report anchors", () => {
-  const { sample, envelope, finding } = fixture();
-  sample.target.report.push({
-    id: "r2",
-    path: "a.ts",
-    lines: [6, 6],
-    aspects: ["comments"],
-  });
-  envelope.export.findings = [1, 2, 3].map((id) => ({
-    ...finding,
-    id: `F${id}`,
-    startLine: 1,
-    endLine: 100,
-    title: `Broad ${id}`,
-  }));
-  assert.deepEqual(scoreSample(sample, envelope).hits, []);
 });
 
 test("valid findings of an unaccepted aspect do not hit anchors", () => {
-  const { sample, envelope, finding } = fixture();
+  const { sample, envelope } = fixture();
   sample.aspects.push("other");
   envelope.export.coverage.push({
     aspect: "other",
@@ -298,7 +158,180 @@ test("valid findings of an unaccepted aspect do not hit anchors", () => {
   const score = scoreSample(sample, envelope);
   assert.equal(score.complete, true);
   assert.equal(score.recall, 0);
-  anchor.aspects = ["comments"];
+});
+
+test("prose line references credit the finding's own path", () => {
+  assert.deepEqual(hitsFor("It recurs at line 15."), ["r1"]);
+  assert.deepEqual(hitsFor("Comments at lines 15 and 84 repeat it."), [
+    "r1",
+    "r2",
+  ]);
+  assert.deepEqual(hitsFor("Also at LINES 15 & 100."), ["r1", "r3"]);
+  assert.deepEqual(hitsFor("Seen at lines 15, 84, and 100 too."), [
+    "r1",
+    "r2",
+    "r3",
+  ]);
+  assert.deepEqual(hitsFor("At lines 15 and then 84."), ["r1"]);
+});
+
+test("prose ranges accept hyphen, en dash, em dash and to", () => {
+  const anchors: [number, number][] = [
+    [40, 40],
+    [84, 84],
+    [202, 202],
+    [120, 120],
+  ];
+  assert.deepEqual(hitsFor("At lines 38, 82–85, and 201–204.", anchors), [
+    "r2",
+    "r3",
+  ]);
+  assert.deepEqual(hitsFor("At lines 82-85 and 118 to 122.", anchors), [
+    "r2",
+    "r4",
+  ]);
+  assert.deepEqual(hitsFor("At lines 114—122 shows it.", anchors), ["r4"]);
+});
+
+test("numbers not introduced by line or lines are ignored", () => {
+  const anchors: [number, number][] = [
+    [64, 64],
+    [1000, 1000],
+    [24, 24],
+  ];
+  assert.deepEqual(
+    hitsFor(
+      "Reads 64 MiB, waits 1000 ms, needs Node 24, see 15 and 24.",
+      anchors,
+    ),
+    [],
+  );
+  assert.deepEqual(hitsFor("Reads at line 64 only, then 1000 ms.", anchors), [
+    "r1",
+  ]);
+});
+
+test("prose lines never credit a different path or side", () => {
+  const { sample, envelope, finding } = fixture(spread);
+  finding.startLine = finding.endLine = 500;
+  finding.path = "b.ts";
+  finding.evidence = "It recurs at lines 15 and 84.";
+  assert.deepEqual(scoreSample(sample, envelope).hits, []);
+  finding.path = "a.ts";
   finding.side = "old";
-  assert.equal(scoreSample(sample, envelope).recall, 0);
+  assert.deepEqual(scoreSample(sample, envelope).hits, []);
+});
+
+test("location spans above 30 lines hit nothing; 30 lines and partial overlap still hit", () => {
+  const { sample, envelope, finding } = fixture([[10, 12]]);
+  finding.startLine = 1;
+  finding.endLine = 31;
+  assert.deepEqual(scoreSample(sample, envelope).hits, []);
+  envelope.export.findings = [1, 2, 3].map((n) => ({
+    ...finding,
+    id: `F${n}`,
+  }));
+  assert.deepEqual(scoreSample(sample, envelope).hits, []);
+  envelope.export.findings = [finding];
+  finding.endLine = 30;
+  assert.deepEqual(scoreSample(sample, envelope).hits, ["r1"]);
+  finding.startLine = 12;
+  finding.endLine = 20;
+  assert.deepEqual(scoreSample(sample, envelope).hits, ["r1"]);
+  finding.startLine = 13;
+  assert.deepEqual(scoreSample(sample, envelope).hits, []);
+  finding.startLine = finding.endLine = 500;
+  finding.evidence = "See lines 1-31.";
+  assert.deepEqual(scoreSample(sample, envelope).hits, []);
+});
+
+test("recallPrimary counts only primary locations while recall includes evidence", () => {
+  const { sample, envelope, finding } = fixture(spread);
+  finding.startLine = finding.endLine = 15;
+  finding.evidence = "Similar at lines 84 and 100.";
+  const score = scoreSample(sample, envelope);
+  assert.equal(score.recall, 1);
+  assert.equal(score.recallPrimary, 1 / 3);
+  assert.deepEqual(score.hits, ["r1", "r2", "r3"]);
+});
+
+test("empty denominators are unknown, not perfect", () => {
+  const { sample, envelope, coverage } = fixture([]);
+  envelope.export.findings = [];
+  coverage.status = "no-findings";
+  const score = scoreSample(sample, envelope);
+  assert.equal(score.complete, true);
+  assert.equal(score.recall, null);
+  assert.equal(score.recallPrimary, null);
+  assert.equal(score.preserveRate, null);
+});
+
+test("fails closed for malformed and inconsistent public exports", () => {
+  const { sample, envelope, coverage } = fixture();
+  for (const exported of [
+    null,
+    {},
+    { ...envelope.export, schemaVersion: 2 },
+    { ...envelope.export, status: "running" },
+    { ...envelope.export, status: "partial" },
+    { ...envelope.export, findings: [{}] },
+    {
+      ...envelope.export,
+      findings: [{ ...envelope.export.findings[0], aspect: "other" }],
+    },
+    { ...envelope.export, coverage: [] },
+    { ...envelope.export, coverage: [{ ...coverage, status: "incomplete" }] },
+    { ...envelope.export, coverage: [{ ...coverage, rejected: -1 }] },
+    { ...envelope.export, coverage: [{ ...coverage, rejected: "1" }] },
+    { ...envelope.export, coverage: [{ ...coverage, examined: "0/1" }] },
+  ]) {
+    const score = scoreSample(sample, { ...envelope, export: exported });
+    assert.equal(score.complete, false);
+    assert.equal(score.recall, null);
+    assert.equal(score.recallPrimary, null);
+    assert.deepEqual(score.hits, []);
+  }
+  assert.equal(scoreSample(sample, { ...envelope, meta: {} }).complete, false);
+  assert.equal(
+    scoreSample(sample, { ...envelope, error: "failed" }).complete,
+    false,
+  );
+  assert.equal(scoreSample(sample, "not json").reason, "invalid-json");
+});
+
+test("a completed export whose rejected quotes were recovered by a later pass is complete", () => {
+  const { sample, envelope, coverage } = fixture();
+  coverage.rejected = 2;
+  const score = scoreSample(sample, envelope);
+  assert.equal(score.complete, true);
+  assert.deepEqual(score.hits, ["r1"]);
+});
+
+test("a well-formed partial review is incomplete evidence, distinct from malformed exports", () => {
+  const { sample, envelope, coverage } = fixture();
+  const unresolved = { ...coverage, status: "incomplete", examined: "0/1" };
+  const partial = {
+    ...envelope,
+    meta: { ...envelope.meta, outcome: "worker-quality-partial" },
+    export: { ...envelope.export, status: "partial", coverage: [unresolved] },
+  };
+  const score = scoreSample(sample, partial);
+  assert.equal(score.complete, false);
+  assert.equal(score.reason, "incomplete-review");
+  assert.equal(score.recall, null);
+  for (const exported of [
+    { ...partial.export, coverage: [coverage] },
+    { ...partial.export, coverage: [{ ...unresolved, rejected: null }] },
+    { ...envelope.export, coverage: [unresolved] },
+  ]) {
+    const invalid = scoreSample(sample, { ...partial, export: exported });
+    assert.equal(invalid.complete, false);
+    assert.notEqual(invalid.reason, "incomplete-review");
+  }
+  const unattributed = scoreSample(sample, { ...partial, meta: envelope.meta });
+  assert.equal(unattributed.reason, "unattributed-partial");
+  assert.equal(
+    scoreSample(sample, { ...partial, sampleId: "other" }).reason,
+    "invalid-envelope",
+  );
 });

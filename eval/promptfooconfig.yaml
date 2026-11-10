@@ -1,8 +1,0 @@
-description: Source-backed Degreaser evaluation (no LLM grader)
-prompts:
-  - "{{sample.id}}"
-sharing: false
-writeLatestResults: true
-evaluateOptions:
-  maxConcurrency: 1
-  cache: false

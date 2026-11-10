@@ -189,8 +189,7 @@ test("source and test size limits and tool dependency boundaries remain bounded"
   const problems: string[] = [];
   const tests = sourceFiles(join(root, "test"));
   const evaluations = sourceFiles(join(root, "eval")).filter(
-    (path) =>
-      !/^eval\/(?:\.generated\/|gepa\/\.venv\/)/.test(relative(root, path)),
+    (path) => !/^eval\/\.generated\//.test(relative(root, path)),
   );
   for (const path of [
     ...paths,

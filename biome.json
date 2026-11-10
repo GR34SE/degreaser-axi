@@ -7,8 +7,6 @@
       "test/**",
       "eval/**",
       "!!eval/.generated",
-      "!!eval/gepa/.venv",
-      "!!eval/gepa/__pycache__",
       "*.json",
       "!skills-lock.json",
       "!!**/.claude/worktrees"
