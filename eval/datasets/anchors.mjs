@@ -147,24 +147,23 @@ export function comments(source) {
 export function commentLabels(before, after, changedRanges, path) {
   const remaining = new Set(comments(after).map((comment) => comment.text));
   const report = [];
+  const preserve = [];
   for (const comment of comments(before)) {
-    if (remaining.has(comment.text)) continue;
-    const label = {
-      id: `${path}:${comment.start}-${comment.end}`,
+    const touched = (line) =>
+      changedRanges.some(([start, end]) => line >= start && line <= end);
+    const lines = Array.from(
+      { length: comment.end - comment.start + 1 },
+      (_, i) => comment.start + i,
+    );
+    const label = (kind) => ({
+      id: `${path}:${kind}${comment.start}-${comment.end}`,
       path,
       lines: [comment.start, comment.end],
       aspects: ["low-value-comments"],
-    };
-    if (
-      Array.from(
-        { length: comment.end - comment.start + 1 },
-        (_, i) => comment.start + i,
-      ).every((line) =>
-        changedRanges.some(([start, end]) => line >= start && line <= end),
-      )
-    ) {
-      report.push(label);
-    }
+    });
+    if (!remaining.has(comment.text)) {
+      if (lines.every(touched)) report.push(label(""));
+    } else if (!lines.some(touched)) preserve.push(label("keep:"));
   }
-  return { report, preserve: [], forbidden: [] };
+  return { report, preserve, forbidden: [] };
 }

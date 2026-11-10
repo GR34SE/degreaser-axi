@@ -118,11 +118,12 @@ test("no records, errors, incomplete outputs and unsupported denominators fail c
   const empty = records();
   for (const row of empty) row.sample.target.preserve = [];
   const result = compareRuns(empty, structuredClone(empty));
-  assert.equal(result.pass, false);
+  assert.equal(result.pass, true);
   assert.equal(
     first(result.families).metrics.preserveRate?.status,
     "unsupported",
   );
+  assert.deepEqual(first(result.families).unsupportedMetrics, ["preserveRate"]);
   assert.equal(
     compareRuns(baseline, baseline, { metrics: ["semanticPrecision"] }).pass,
     false,

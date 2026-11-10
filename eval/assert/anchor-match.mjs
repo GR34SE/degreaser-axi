@@ -12,11 +12,13 @@ export function scoreSample(sample, envelope) {
   if (problem)
     return {
       recall: null,
+      recallPrimary: null,
       precisionProxy: null,
       preserveRate: null,
       forbiddenCount: null,
       complete: false,
       hits: [],
+      primaryHits: [],
       misses: [],
       preserveHits: [],
       forbiddenHits: [],
@@ -29,6 +31,13 @@ export function scoreSample(sample, envelope) {
   const hits = report
     .filter((anchor) =>
       unique.some((finding) => matchesAnchor(finding, anchor, sample.aspects)),
+    )
+    .map((anchor) => anchor.id);
+  const primaryHits = report
+    .filter((anchor) =>
+      unique.some((finding) =>
+        matchesAnchor(finding, anchor, sample.aspects, false),
+      ),
     )
     .map((anchor) => anchor.id);
   const unmatched = unique
@@ -48,6 +57,7 @@ export function scoreSample(sample, envelope) {
   const forbidden = forbiddenHits(sample, unique);
   return {
     recall: report.length ? hits.length / report.length : null,
+    recallPrimary: report.length ? primaryHits.length / report.length : null,
     precisionProxy: unique.length
       ? (unique.length - unmatched.length) / unique.length
       : null,
@@ -57,6 +67,7 @@ export function scoreSample(sample, envelope) {
     forbiddenCount: forbidden.length,
     complete: true,
     hits,
+    primaryHits,
     misses: report
       .filter((anchor) => !hits.includes(anchor.id))
       .map((anchor) => anchor.id),
@@ -78,6 +89,6 @@ export default function anchorAssertion(output, context) {
       ? score.reason
       : score.recall === null
         ? "Recall unsupported: no report anchors; not a perfect score."
-        : `Source-anchor recall ${score.recall}; misses=${JSON.stringify(score.misses)}; unmatched=${JSON.stringify(score.unmatchedFindingIds)}; preserveHits=${JSON.stringify(score.preserveHits)}. Precision proxy is not semantic precision.`,
+        : `Source-anchor recall ${score.recall}; recallPrimary ${score.recallPrimary}; misses=${JSON.stringify(score.misses)}; unmatched=${JSON.stringify(score.unmatchedFindingIds)}; preserveHits=${JSON.stringify(score.preserveHits)}. Precision proxy is not semantic precision.`,
   };
 }

@@ -48,7 +48,9 @@ matches, only an explicit lexical sentinel, not a semantic harm judge.
 Dataset derivatives must identify weak labels honestly: accepted refactorings
 are change proxies, not verified slop labels. Untouched source is not guaranteed
 clean and must not be converted to hard negatives. Only explicit source-backed
-negative cases enter `preserve`. Unmatched findings remain proxy measurements.
+negative cases enter `preserve`: for `self`, comments the owner kept unchanged
+through the cleanup. The `self-whole` family holds one whole-repository review
+(`review.paths: []`) over the same labels. Unmatched findings remain proxy measurements.
 Splits group all records from the same repository/commit/template family.
 `cluster` names that independent source group; the gate rejects records
 without it rather than treating each revision as independent evidence.
@@ -76,8 +78,12 @@ promptfoo assertion `(output, context)`, reading `context.vars.sample`.
 `eval/assert/harm.mjs` exports its default promptfoo assertion.
 `scoreSample` returns at least `{recall, precisionProxy, preserveRate,
 forbiddenCount, complete, hits, misses, unmatchedFindingIds}`.
-Match only cited locations in the correct file and aspect; include valid
-`path:line[-line]` references in finding `evidence`, deduplicate repeated hits.
+A location hits a label when file, side and aspect match, the line ranges
+intersect and the location spans at most 30 lines. Locations are the finding's
+primary range, `path:line[-line]` references in `evidence`, and prose line
+lists there (`lines 15, 82–85 and 201`) for the finding's own file. `recall`
+uses all of them; `recallPrimary` and `primaryHits` use the primary range only.
+Repeated hits are deduplicated.
 Invalid exports fail closed. A completed export is complete under the
 product's contract even when rejected quotes were later recovered; a well-formed
 `partial` export is incomplete (`reason: "incomplete-review"`), never clean,
@@ -89,7 +95,10 @@ PRESERVE anchors were hit, 0 means all were hit.
 `eval/gate.mjs` consumes paired JSON run records with
 `{sample, envelope, repeat}`. Pair exact sample/input, repetition, agent/model;
 require same evaluated sample manifest and report per-family metrics, excluded
-or missing rows and paired recall deltas. Worker-quality partial reviews count
+or missing rows and paired recall deltas. Two or more source clusters are
+resampled as clusters; one cluster is resampled over its samples (minimum 8)
+and marked `single-source`. Symmetrically unlabelled metrics do not block a
+family; missing recall evidence does. Worker-quality partial reviews count
 as completeness 0 and leave anchor metrics inconclusive; unattributed partials
 are invalid evidence. It must not pass
 absent/incomplete data, compare an absolute confidence bound to a point

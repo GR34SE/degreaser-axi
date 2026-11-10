@@ -33,14 +33,26 @@ export function compareRuns(baseline, candidate, options = {}) {
           .filter((id) => !pair.baseline.score.forbiddenHits.includes(id))
           .map(() => ({ sampleKey: pair.sampleKey, repeat: pair.repeat })),
       );
+      const unsupportedMetrics = Object.entries(metrics)
+        .filter(([, m]) => m.status === "unsupported" && m.notApplicable)
+        .map(([name]) => name);
+      const singleSource = Object.values(metrics).some(
+        (m) => m.unit === "sample" && m.interval95 !== null,
+      );
       return {
         family,
         pairs: rows.length,
+        evidenceScope: singleSource ? "single-source" : "multi-source",
+        unsupportedMetrics,
         metrics,
         newForbiddenSentinels: newForbidden.length,
         forbiddenRows: newForbidden,
         pass:
-          !newForbidden.length && Object.values(metrics).every((m) => m.pass),
+          !newForbidden.length &&
+          metrics.recall?.status !== "unsupported" &&
+          Object.values(metrics).every(
+            (m) => m.pass || (m.status === "unsupported" && m.notApplicable),
+          ),
       };
     });
   const improved = families.some((family) =>
@@ -87,6 +99,9 @@ export function compareRuns(baseline, candidate, options = {}) {
             : "inconclusive",
     mode,
     improved: !issues.length && nonRegression && improved,
+    evidenceScope: families.some((f) => f.evidenceScope === "single-source")
+      ? "single-source"
+      : "multi-source",
     pairedRows: pairs.length,
     excludedRows,
     issues,
@@ -105,15 +120,19 @@ export function compareRuns(baseline, candidate, options = {}) {
           : pair.candidate.score.recall - pair.baseline.score.recall,
     })),
     method: {
-      name: "paired-source-cluster-percentile-bootstrap",
+      name: "paired-percentile-bootstrap",
       resamples: 10000,
       interval: 0.95,
       minimumClusters: 2,
-      aggregation: "repeat -> sample -> source cluster -> family",
+      minimumSamplesSingleCluster: 8,
+      aggregation:
+        "repeat -> sample -> source cluster -> family; one source cluster resamples samples",
       notes: [
         "Intervals bound paired differences, never absolute candidate scores.",
         "Precision proxy and lexical sentinels do not establish semantic correctness or harm.",
-        "Unsupported denominators and insufficient independent source clusters fail inconclusive.",
+        "A family spanning two or more source clusters resamples cluster means; a family from exactly one source cluster resamples samples (each the mean of its repeats) when it has at least 8, otherwise it is inconclusive.",
+        "A single-source verdict supports a claim about that source repository only, not about other codebases.",
+        "A metric with no defined value on either side in any pair is unsupported and not applicable to the family verdict; unsupported recall, one-sided absence and incomplete reviews never pass.",
         "A partial review counts as completeness 0 and leaves its anchor metrics inconclusive.",
         "Preserve-rate margin -0.03 is equivalent to preserve-violation margin +0.03.",
       ],

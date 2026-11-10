@@ -123,5 +123,40 @@ class OptimizerIntegrationTests(unittest.TestCase):
                     optimize(failure)
 
 
+    def test_flagging_kept_code_lowers_the_score_instead_of_winning(self):
+        with tempfile.TemporaryDirectory() as temp:
+            product = Path(temp)
+            surface = "src/modules/aspect/low-value-comments/rubric.md"
+            (product / surface).parent.mkdir(parents=True)
+            (product / surface).write_text("seed")
+            sample = {"id": "dev/1", "split": "dev", "review": {"task": "Audit"},
+                      "repo": {"directory": temp}, "aspects": ["low-value-comments"],
+                      "target": {"report": [{"id": "R1", "path": "a.ts", "lines": [1, 1]}],
+                                 "preserve": [{"id": "K1", "path": "a.ts", "lines": [9, 9]}]}}
+            cases = {
+                "precise": (0.5, 1, 0, 0.5),
+                "flags-everything": (1, 0.25, 0, 0.25),
+                "no-negative-labels": (1, None, 0, 1),
+                "forbidden-direction": (1, 1, 1, 0),
+            }
+
+            def run_batch(batch, candidate):
+                recall, retention, forbidden, _ = cases[candidate]
+                return [{"metrics": {
+                    "complete": True, "recall": recall, "precisionProxy": 1,
+                    "preserveRate": retention, "preserveHits": [],
+                    "forbiddenCount": forbidden, "misses": [], "unmatchedFindingIds": [],
+                }} for _ in batch]
+
+            adapter = DegreaserAdapter({
+                "productDir": str(product), "surface": surface,
+                "maxMetricCalls": 100, "maxSessions": 100,
+            }, run_batch=run_batch)
+            for candidate, expected in cases.items():
+                with self.subTest(candidate=candidate):
+                    result = adapter.evaluate([sample], {"text": candidate})
+                    self.assertEqual(result.scores, [expected[3]])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -8,6 +8,7 @@ export const METRICS = {
   sessions: { margin: 0.15, direction: "lower", relative: true },
   duration: { margin: 0.15, direction: "lower", relative: true },
 };
+export const MIN_SAMPLES = 8;
 const mean = (values) =>
   values.reduce((sum, value) => sum + value, 0) / values.length;
 
@@ -40,16 +41,25 @@ function clusterValues(pairs, metric) {
     if (!samples.has(pair.sampleKey)) samples.set(pair.sampleKey, []);
     samples.get(pair.sampleKey).push([baseline, candidate]);
   }
+  const perCluster = [...clusters.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([, samples]) =>
+      [...samples.values()].map((repeats) => [
+        mean(repeats.map((r) => r[0])),
+        mean(repeats.map((r) => r[1])),
+      ]),
+    );
+  const sampleUnits = perCluster.length === 1 ? perCluster[0] : null;
+  const useSamples = sampleUnits !== null && sampleUnits.length >= MIN_SAMPLES;
   return {
-    values: [...clusters.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([, samples]) => {
-        const values = [...samples.values()].map((repeats) => [
-          mean(repeats.map((r) => r[0])),
-          mean(repeats.map((r) => r[1])),
-        ]);
-        return [mean(values.map((v) => v[0])), mean(values.map((v) => v[1]))];
-      }),
+    values: useSamples
+      ? sampleUnits
+      : perCluster.map((values) => [
+          mean(values.map((v) => v[0])),
+          mean(values.map((v) => v[1])),
+        ]),
+    clusters: perCluster.length,
+    unit: useSamples ? "sample" : "cluster",
     excluded,
   };
 }
@@ -96,7 +106,7 @@ function bootstrap(values, relative, seed) {
 
 export function compareMetric(pairs, metric, family) {
   const policy = METRICS[metric];
-  const { values, excluded } = clusterValues(pairs, metric);
+  const { values, clusters, unit, excluded } = clusterValues(pairs, metric);
   const baseline = values.length ? mean(values.map((v) => v[0])) : null;
   const candidate = values.length ? mean(values.map((v) => v[1])) : null;
   const delta = values.length
@@ -110,7 +120,14 @@ export function compareMetric(pairs, metric, family) {
     margin: policy.margin,
     direction: policy.direction,
     relative: policy.relative ?? false,
-    clusters: values.length,
+    clusters,
+    unit,
+    units: values.length,
+    notApplicable:
+      !values.length &&
+      excluded.every(
+        (row) => !row.asymmetric && row.reason === "undefined-denominator",
+      ),
     excludedRows: excluded,
     pass: false,
     status: "unsupported",
@@ -119,7 +136,7 @@ export function compareMetric(pairs, metric, family) {
   if (!values.length || delta === null) return result;
   result.status = "inconclusive";
   if (
-    values.length < 2 ||
+    (unit === "cluster" && values.length < 2) ||
     excluded.some((row) => row.asymmetric || row.reason === "incomplete-review")
   )
     return result;

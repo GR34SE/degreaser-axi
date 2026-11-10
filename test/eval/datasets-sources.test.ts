@@ -182,7 +182,7 @@ test("snapshot Git internals are rejected before materialization, and snapshot S
   );
 });
 
-test("self localization counts deleted comment blocks and leaves surviving comments unknown", () => {
+test("self localization counts deleted comment blocks and keeps untouched surviving comments as PRESERVE", () => {
   const before = [
     'const url = "https://example.invalid";',
     "/**",
@@ -211,7 +211,10 @@ test("self localization counts deleted comment blocks and leaves surviving comme
       [6, 7],
     ],
   );
-  assert.deepEqual(labels.preserve, []);
+  assert.deepEqual(
+    labels.preserve.map((label) => label.id),
+    ["src/a.ts:keep:9-9"],
+  );
   assert.deepEqual(labels.forbidden, []);
   assert.deepEqual(commentLabels(after, after, [[1, 5]], "src/a.ts"), {
     report: [],

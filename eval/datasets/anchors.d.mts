@@ -19,6 +19,6 @@ export function commentLabels(
   path: string,
 ): {
   report: import("./derive.mjs").Label[];
-  preserve: [];
+  preserve: import("./derive.mjs").Label[];
   forbidden: [];
 };

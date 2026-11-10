@@ -2,6 +2,18 @@ import { join } from "node:path";
 import { commentLabels, oldDiffRanges } from "./anchors.mjs";
 import { git, gitTree, materialize, ordered, sha256 } from "./io.mjs";
 
+export const SELF_FIXTURE_FILES = new Set([
+  "test/live/support/comment-fixtures.ts",
+]);
+const TASK =
+  "Audit the selected source for low-value comments. Preserve comments that explain non-obvious constraints, invariants, security boundaries or tradeoffs.";
+
+export function hashBucket(key) {
+  return (
+    Number.parseInt(sha256(`degreaser-eval-v1:${key}`).slice(0, 8), 16) % 10
+  );
+}
+
 export const SELF_BEFORE = "b4a1edec03d31b01145b923dc5b4dc0d944de0c9";
 export const SELF_AFTER = "d232af804ae532c4bd4bf79f56d4d854d7ef2715";
 
@@ -29,9 +41,10 @@ export function loadSelf(
   skip,
   counts,
   contrasts,
+  revisions = {},
 ) {
-  const before = pinned(directory, SELF_BEFORE);
-  const after = pinned(directory, SELF_AFTER);
+  const before = pinned(directory, revisions.before ?? SELF_BEFORE);
+  const after = pinned(directory, revisions.after ?? SELF_AFTER);
   const parent = git(directory, ["rev-parse", `${before}^`])
     .toString("utf8")
     .trim();
@@ -49,6 +62,11 @@ export function loadSelf(
   counts.self = 0;
   for (const [path, bytes] of files) {
     if (!/\.[cm]?tsx?$/u.test(path) || !afterFiles.has(path)) continue;
+    if (SELF_FIXTURE_FILES.has(path)) {
+      skip("self-file", path, "deliberate-low-value-comment-fixtures");
+      continue;
+    }
+    counts.self++;
     const patch = git(directory, [
       "diff",
       "--no-ext-diff",
@@ -59,16 +77,14 @@ export function loadSelf(
       "--",
       path,
     ]).toString("utf8");
-    if (!patch) continue;
-    counts.self++;
     const target = commentLabels(
       bytes.toString("utf8"),
       afterFiles.get(path).toString("utf8"),
       oldDiffRanges(patch),
       path,
     );
-    if (!target.report.length) {
-      skip("self-file", path, "no-fully-deleted-comment-issue");
+    if (!target.report.length && !target.preserve.length) {
+      skip("self-file", path, "no-comment-labels");
       continue;
     }
     const group = path.split("/").slice(0, 3).join("/");
@@ -76,11 +92,15 @@ export function loadSelf(
       groups.set(group, { report: [], preserve: [], forbidden: [] });
     const labels = groups.get(group);
     labels.report.push(...target.report);
+    labels.preserve.push(...target.preserve);
   }
-  counts["self-comment-issues"] = [...groups.values()].reduce(
-    (sum, group) => sum + group.report.length,
-    0,
-  );
+  const all = { report: [], preserve: [], forbidden: [] };
+  for (const group of groups.values()) {
+    all.report.push(...group.report);
+    all.preserve.push(...group.preserve);
+  }
+  counts["self-comment-issues"] = all.report.length;
+  counts["self-preserve-comments"] = all.preserve.length;
   const overlays = contrasts
     ? ["source-instructions", "no-instructions"]
     : ["source-instructions"];
@@ -107,11 +127,14 @@ export function loadSelf(
           labelKind: "owner-diff",
           aspects: ["low-value-comments"],
           repo,
-          paths: ordered(new Set(target.report.map((label) => label.path))),
+          split: hashBucket(`self-group:${group}`) < 7 ? "dev" : "regression",
+          paths: ordered(
+            new Set([...target.report, ...target.preserve].map((l) => l.path)),
+          ),
           review: {
             scope,
             ...(scope === "branch" ? { base: repo.base } : {}),
-            task: "Audit the selected source for low-value comments. Preserve comments that explain non-obvious constraints, invariants, security boundaries or tradeoffs.",
+            task: TASK,
           },
           target,
           ...(contrasts
@@ -126,7 +149,7 @@ export function loadSelf(
             comparison:
               "actual owner deletion of complete lexical comments; grouped multiline issues",
             unlabelledSource:
-              "surviving comments and untouched code remain unknown; no PRESERVE labels",
+              "PRESERVE: comment blocks outside every owner diff range and unchanged in the owner revision, in files present in both revisions; other surviving comments and code remain unknown; test/live/support/comment-fixtures.ts is excluded in both directions",
             context:
               "original source, tests and tooling plus optional original AGENTS.md; no dependencies or skills",
             ...(contrasts
@@ -140,6 +163,31 @@ export function loadSelf(
       }
     }
   }
+  if (all.report.length + all.preserve.length)
+    accept({
+      id: "self-whole/comments/whole-repository",
+      family: "self-whole",
+      cluster: "repository:degreaser-axi",
+      split: "regression",
+      labelKind: "owner-diff",
+      aspects: ["low-value-comments"],
+      repo: materialize(join(outputDir, "repos", "self-whole"), files),
+      paths: [],
+      review: { scope: "repository", task: TASK },
+      target: all,
+      provenance: {
+        source: "self",
+        revision: before,
+        ownerRevision: after,
+        parentRevision: parent,
+        sourceTreeSha256,
+        comparison:
+          "union of all self REPORT and PRESERVE anchors; empty paths audit the whole repository",
+        unlabelledSource:
+          "surviving comments and untouched code remain unknown outside the PRESERVE rule",
+        context: "original source, tests, tooling and AGENTS.md",
+      },
+    });
   return {
     source: "self",
     revision: before,

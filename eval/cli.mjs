@@ -13,16 +13,17 @@ import {
 const help = `Evaluation development tools (no inference in CI)
   run --samples <jsonl> --model <exact-haiku-id> --output <new-directory>
       [--product <checkout>] [--repeat 3] [--budget 600] [--concurrency 1]
-      [--family <name>] [--split dev] [--limit <sample-count>]
+      [--family <name>] [--split dev|regression|holdout|all|a,b] [--limit <sample-count>]
       [--allow-models] (without this flag, print a plan only)
-  derive --source-root <collection> --output <new-directory>
+  derive --output <new-directory> [--source-root <collection>]
+      (default source: self; --source-root is required for any other source)
       [--source self|swe-refactor|simplibench|cleanup-pr]... [--self-repo <checkout>]
       [--contrasts] (opt-in self instruction/scope variants in the same cluster)
   gate --baseline <records.jsonl> --candidate <records.jsonl> [--output <json>]
   campaign --config <campaign.json> --allow-models
 Examples:
   pnpm eval -- --samples <samples.jsonl> --model <haiku-id> --output <new-directory>
-  pnpm eval:derive -- --source-root <collection> --output eval/.generated/datasets
+  pnpm eval:derive -- --output eval/.generated/datasets
   pnpm eval:gate -- --baseline <base.jsonl> --candidate <candidate.jsonl>`;
 
 function flags(args, options) {
@@ -96,7 +97,9 @@ async function derive(args) {
     "self-repo": { type: "string" },
     contrasts: { type: "boolean", default: false },
   });
-  required(values, ["source-root", "output"]);
+  required(values, ["output"]);
+  if (values.source?.some((source) => source !== "self"))
+    required(values, ["source-root"]);
   const { deriveDatasets } = await import("./datasets/derive.mjs");
   const result = await deriveDatasets({
     sourceRoot: values["source-root"],

@@ -87,3 +87,18 @@ export function partial(row: ReturnType<typeof record>) {
   coverage.examined = "0/1";
   Object.assign(row.envelope.meta, { outcome: "worker-quality-partial" });
 }
+
+export function oneSource(
+  count: number,
+  hit: (index: number) => boolean = () => true,
+  repeats = 1,
+  clusterOf: (index: number) => string = () => "one-repository",
+) {
+  return Array.from({ length: count }, (_, index) =>
+    Array.from({ length: repeats }, (_, repeat) => {
+      const row = record(index, hit(index), "self", repeat);
+      row.sample.cluster = clusterOf(index);
+      return row;
+    }),
+  ).flat();
+}

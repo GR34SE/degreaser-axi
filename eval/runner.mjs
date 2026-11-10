@@ -7,6 +7,7 @@ import { analyzeRecords } from "./analysis.mjs";
 import { scoreSample } from "./assert/anchor-match.mjs";
 import { validSample } from "./assert/validation.mjs";
 import reviewPolicy from "./review-policy.json" with { type: "json" };
+import { renderSummary } from "./summary.mjs";
 
 export const HAIKU_MODEL = "claude-haiku-4-5-20251001";
 const root = fileURLToPath(new URL("../", import.meta.url));
@@ -63,8 +64,11 @@ export function planEvaluation(samples, { repeat = 3, budget = 600 } = {}) {
 }
 
 export function selectSamples(samples, { family, split = "dev", limit } = {}) {
+  const splits = split === "all" ? null : split.split(",");
   const selected = samples.filter(
-    (sample) => sample.split === split && (!family || sample.family === family),
+    (sample) =>
+      (!splits || splits.includes(sample.split)) &&
+      (!family || sample.family === family),
   );
   if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1))
     throw new Error("limit must be a positive integer.");
@@ -231,5 +235,6 @@ export async function runEvaluation(options) {
     resolve(outputDir, "summary.json"),
     `${JSON.stringify(report, null, 2)}\n`,
   );
+  writeFileSync(resolve(outputDir, "summary.md"), renderSummary(report));
   return report;
 }

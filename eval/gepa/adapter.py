@@ -105,12 +105,13 @@ class DegreaserAdapter:
             recall = metrics.get("recall")
             if recall is None:
                 raise ValueError("Optimization requires REPORT anchors.")
-            safe = not metrics["forbiddenCount"] and not metrics["preserveHits"]
-            scores.append(recall if safe else 0.0)
+            retention = metrics.get("preserveRate")
+            retention = 1.0 if retention is None else retention
+            scores.append(0.0 if metrics["forbiddenCount"] else recall * retention)
             objectives.append({
                 "recall": recall,
                 "precisionProxy": metrics.get("precisionProxy") or 0.0,
-                "preserve": metrics.get("preserveRate") or 0.0,
+                "preserve": retention,
             })
             traces.append({
                 "sampleId": sample["id"], "task": sample["review"]["task"],

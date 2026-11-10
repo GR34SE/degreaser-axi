@@ -28,10 +28,11 @@ export interface Sample {
   contrast?: { group: string; overlay: string; scope: string };
 }
 export function deriveDatasets(options: {
-  sourceRoot: string;
+  sourceRoot?: string;
   outputDir: string;
   selfRepo?: string;
   sources?: string[];
   contrasts?: boolean;
+  selfRevisions?: { before: string; after: string };
 }): Promise<{ samples: Sample[]; receipt: Record<string, unknown> }>;
 export function splitForCluster(cluster: string): Sample["split"];

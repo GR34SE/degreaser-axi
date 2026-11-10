@@ -10,7 +10,7 @@ import {
   sha256,
 } from "./io.mjs";
 import { loadPairs, REFACTOR_TYPES } from "./pairs.mjs";
-import { loadSelf } from "./self.mjs";
+import { hashBucket, loadSelf } from "./self.mjs";
 
 const CHECKOUT = fileURLToPath(new URL("../../", import.meta.url));
 const SOURCES = ["self", "swe-refactor", "simplibench", "cleanup-pr"];
@@ -18,9 +18,7 @@ const SOURCES = ["self", "swe-refactor", "simplibench", "cleanup-pr"];
 export function splitForCluster(cluster) {
   if (cluster === "repository:degreaser-axi") return "dev";
   if (cluster === "population:simplibench-small-test") return "holdout";
-  const bucket =
-    Number.parseInt(sha256(`degreaser-eval-v1:${cluster}`).slice(0, 8), 16) %
-    10;
+  const bucket = hashBucket(cluster);
   return bucket < 6 ? "dev" : bucket < 8 ? "regression" : "holdout";
 }
 
@@ -28,12 +26,11 @@ export async function deriveDatasets({
   sourceRoot,
   outputDir,
   selfRepo = CHECKOUT,
-  sources = SOURCES,
+  sources = ["self"],
   contrasts = false,
+  selfRevisions,
 } = {}) {
-  if (typeof sourceRoot !== "string" || typeof outputDir !== "string") {
-    throw new Error("sourceRoot and outputDir are required");
-  }
+  if (typeof outputDir !== "string") throw new Error("outputDir is required");
   if (
     !Array.isArray(sources) ||
     !sources.length ||
@@ -41,15 +38,19 @@ export async function deriveDatasets({
     sources.some((source) => !SOURCES.includes(source))
   )
     throw new Error("Invalid dataset sources");
-  const reader = new SourceReader(sourceRoot);
+  const needsCollection = sources.some((source) => source !== "self");
+  if (needsCollection && typeof sourceRoot !== "string")
+    throw new Error("sourceRoot is required for non-self sources");
+  const reader =
+    typeof sourceRoot === "string" ? new SourceReader(sourceRoot) : null;
   const destination = resolve(outputDir);
   assertRealPath(dirname(destination));
   if (existsSync(destination))
     throw new Error("outputDir must be a new directory");
   // Never write a generated derivative underneath downloaded evidence.
   if (
-    destination === reader.root ||
-    destination.startsWith(`${reader.root}/`)
+    reader &&
+    (destination === reader.root || destination.startsWith(`${reader.root}/`))
   ) {
     throw new Error("outputDir must be outside sourceRoot");
   }
@@ -70,6 +71,7 @@ export async function deriveDatasets({
           skip,
           counts,
           contrasts,
+          selfRevisions,
         ),
       ]
     : [];
@@ -91,7 +93,7 @@ export async function deriveDatasets({
         id: record.id,
         family: record.family,
         cluster: record.cluster,
-        split: splitForCluster(record.cluster),
+        split: record.split ?? splitForCluster(record.cluster),
         labelKind: record.labelKind,
         aspects: record.aspects,
         repo: { directory: repo.directory },
@@ -121,7 +123,7 @@ export async function deriveDatasets({
     samples.map((sample) => JSON.stringify(sample)).join("\n") +
     (samples.length ? "\n" : "");
   writeFileSync(join(destination, "samples.jsonl"), jsonl, { flag: "wx" });
-  const inputs = [...reader.files.values()].sort((a, b) =>
+  const inputs = [...(reader?.files.values() ?? [])].sort((a, b) =>
     a.path < b.path ? -1 : 1,
   );
   const byReason = {};
@@ -162,8 +164,8 @@ export async function deriveDatasets({
     skipped,
     limitations: [
       "Change proxies are accepted transformations, not verified defects; unmatched findings are proxy measurements.",
-      "Surviving comments and untouched code remain unknown; these derivatives supply no PRESERVE labels.",
-      "SimpliBench has no repository identity here: its entire population is holdout; raw one-line anchors are coarse.",
+      "Only self supplies PRESERVE labels (kept comments outside owner diffs); SWE, SimpliBench and PR derivatives supply none, and other untouched source remains unknown.",
+      "SimpliBench has no repository identity here: its entire population is holdout; anchors are file-level on single-line files.",
       "Source-only snapshots omit runtime context; no third-party code, models, tests or build commands were executed.",
       "PR comparisons are API base/head snapshot proxies, not verified merge-base comparisons.",
     ],

@@ -15,13 +15,37 @@ function citations(finding, path) {
   }));
 }
 
-export function matchesAnchor(finding, anchor, aspects) {
+const RANGE = "(\\d+)(?:\\s*(?:-|\u2013|\u2014|to)\\s*(\\d+))?(?!\\d)";
+const SEPARATOR = "(?:\\s*,\\s*and\\s+|\\s*,\\s*|\\s+and\\s+|\\s*&\\s*)";
+const PROSE_LIST = new RegExp(
+  `\\blines?\\s+${RANGE}(?:${SEPARATOR}${RANGE})*`,
+  "gi",
+);
+
+function proseLocations(finding) {
+  const spans = [];
+  for (const list of finding.evidence.matchAll(PROSE_LIST))
+    for (const range of list[0].matchAll(new RegExp(RANGE, "g")))
+      spans.push({
+        path: finding.path,
+        side: finding.side,
+        startLine: Number(range[1]),
+        endLine: Number(range[2] ?? range[1]),
+      });
+  return spans;
+}
+
+export const MAX_LOCATION_SPAN = 30;
+
+export function matchesAnchor(finding, anchor, aspects, evidence = true) {
   const accepted = anchor.aspects ?? aspects;
   if (!accepted.includes(finding.aspect)) return false;
   const side = anchor.side ?? "new";
-  const locations = [finding, ...citations(finding, anchor.path)];
-  // A citation must be localized inside the labelled span. Mere overlap lets
-  // one whole-file finding collect every label in that file.
+  const locations = evidence
+    ? [finding, ...citations(finding, anchor.path), ...proseLocations(finding)]
+    : [finding];
+  // A location must intersect the labelled span and stay short; an uncapped
+  // whole-file finding would otherwise collect every label in that file.
   return locations.some(
     (location) =>
       location.path === anchor.path &&
@@ -29,8 +53,9 @@ export function matchesAnchor(finding, anchor, aspects) {
       Number.isSafeInteger(location.startLine) &&
       Number.isSafeInteger(location.endLine) &&
       location.startLine <= location.endLine &&
-      location.startLine >= anchor.lines[0] &&
-      location.endLine <= anchor.lines[1],
+      location.endLine - location.startLine + 1 <= MAX_LOCATION_SPAN &&
+      location.startLine <= anchor.lines[1] &&
+      location.endLine >= anchor.lines[0],
   );
 }
 

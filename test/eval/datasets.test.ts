@@ -274,7 +274,7 @@ test("derive CLI rejects unknown and missing flags before reading source data", 
     });
     assert.notEqual(result.status, 0, result.stdout + result.stderr);
     assert.match(result.stdout, /invalid-argument/);
-    assert.match(result.stdout, /--source-root/);
+    assert.match(result.stdout, /--output/);
   }
 });
 
@@ -335,17 +335,20 @@ test("derive CLI keeps self contrasts opt-in and inside the one self cluster", (
     assert.equal(sample.cluster, "repository:degreaser-axi");
     assert.equal(sample.review.scope, "repository");
     assert.equal(sample.contrast, undefined);
-    assert.ok(sample.target.report.length > 0);
-    assert.deepEqual(sample.target.preserve, []);
+    assert.ok(sample.target.report.length + sample.target.preserve.length > 0);
   }
   const contrasted = derive("contrasted", "--contrasts");
-  assert.equal(contrasted.samples.length, plain.samples.length * 4);
+  const grouped = (samples: { family: string }[]) =>
+    samples.filter((sample) => sample.family === "self").length;
+  assert.equal(grouped(contrasted.samples), grouped(plain.samples) * 4);
   assert.deepEqual(
     new Set(contrasted.samples.map((sample) => sample.cluster)),
     new Set(["repository:degreaser-axi"]),
   );
   const overlays = new Map<string, string>();
-  for (const sample of contrasted.samples) {
+  for (const sample of contrasted.samples.filter(
+    (sample) => sample.family === "self",
+  )) {
     assert.ok(sample.contrast);
     overlays.set(sample.contrast.overlay, sample.repo.directory);
     if (sample.review.scope === "branch") assert.ok(sample.review.base);

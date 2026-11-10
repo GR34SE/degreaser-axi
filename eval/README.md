@@ -4,30 +4,76 @@ Development-only, source-backed evaluation through promptfoo 0.125.1 and GEPA
 0.1.4. Claude Haiku remains the owner's fixed worker recommendation. No manual
 grading, model judge, production dependency, or model inference in CI.
 
+## The improvement loop
+
+One pass through the loop, with `self` as the measured source:
+
+```sh
+pnpm build
+pnpm eval:derive -- --output eval/.generated/datasets                    # 1. labels
+pnpm eval -- --samples eval/.generated/datasets/samples.jsonl --split all \
+  --model <exact-haiku-id> --repeat 1 --output eval/.generated/baseline \
+  --allow-models                                                         # 2. baseline
+# 3. read eval/.generated/baseline/summary.md and pick ONE surface
+pnpm eval:campaign -- --config <campaign.json> --allow-models            # 4. candidate text
+# 5. apply candidate.md to the surface in a branch, pnpm build, then:
+pnpm eval -- --samples eval/.generated/baseline/samples.jsonl --split all \
+  --model <exact-haiku-id> --repeat 1 --output eval/.generated/candidate \
+  --allow-models
+pnpm eval:gate -- --baseline eval/.generated/baseline/records.jsonl \
+  --candidate eval/.generated/candidate/records.jsonl --mode improvement \
+  --output eval/results/<date>-<surface>.json                            # 6. verdict
+```
+
+Steps 2, 4 and 5 spend Haiku sessions; without `--allow-models` step 2 prints
+the plan only. `--split all` on the default dataset is 72 reviews (at most 144
+sessions with the fixed retry).
+
+Step 3 decides what to change. `summary.md` reports recall with and without
+evidence locations, how often kept comments were flagged, and the hit rate by
+review size, file length, position and label length. Its diagnosis section
+names the likely surface:
+
+| Signal                                             | Change                                         |
+| -------------------------------------------------- | ---------------------------------------------- |
+| recall far above `recallPrimary`                   | nothing: the worker groups findings            |
+| hit rate falls with paths, file length, whole repo | coverage or budget in the product, not wording |
+| low recall without those drops                     | the aspect rubric (campaign surface)           |
+| kept comments flagged                              | the rubric over-reports (campaign surface)     |
+
+The diagnosis is a heuristic for where to look, not proof of cause.
+
+Step 4 trains only on `dev` samples; a candidate's score is recall multiplied
+by the share of kept comments it left alone, so reporting everything does not
+win. Step 6 compares the same frozen samples, including the `regression`
+split the campaign never saw. `passed` with `--mode improvement` means the
+candidate is measurably better and no metric regressed beyond its margin. A
+rubric change still merges through ordinary code review. Commit the redacted
+receipt. Corrected misses become permanent regression evidence by staying in
+the dataset; a new owner cleanup commit for another aspect extends the labels
+by adding its pinned revisions to `eval/datasets/self.mjs`.
+
 ## Prepare source data
 
-Keep the downloaded corpus outside Git. `pnpm eval:derive -- --source-root
-<collection> --output eval/.generated/datasets` reads it without installing or
-executing third-party code. The output contains disposable Git repositories,
-a JSONL sample manifest and derivation receipts. Do not commit that output.
-`--source` (repeatable) selects sources, `--self-repo` names a checkout that
-contains the pinned self revisions, and `--contrasts` opts into the self
-instruction/scope variants described in [datasets](datasets/README.md).
+`pnpm eval:derive -- --output eval/.generated/datasets` derives the default
+`self` source from this checkout's pinned Git history. It needs no downloaded
+data, runs no third-party code and writes disposable Git repositories, a JSONL
+sample manifest and a receipt. Do not commit that output. `--self-repo` names
+another checkout that contains the pinned revisions, and `--contrasts` opts
+into the instruction/scope variants described in [datasets](datasets/README.md).
 
-Sources:
+| Source                                              | Default | Labels                                                                |
+| --------------------------------------------------- | ------- | --------------------------------------------------------------------- |
+| Degreaser self-cleanup `b4a1ede` → `d232af8`        | yes     | REPORT: comments the owner removed. PRESERVE: comments the owner kept |
+| [SWE-Refactor](https://zenodo.org/records/17196850) | no      | refactored method as a change proxy; Move refactorings excluded       |
+| [SimpliBench](https://zenodo.org/records/12176049)  | no      | one-line files, so any finding counts: a smoke signal, not recall     |
+| Cleanup PR corpus                                   | no      | accepted change regions of merged PRs                                 |
 
-| Source                                              | Pinned input                                      | Meaning                                                   |
-| --------------------------------------------------- | ------------------------------------------------- | --------------------------------------------------------- |
-| Degreaser self-cleanup                              | `b4a1ede` → `d232af8`                             | owner removal of comment blocks                           |
-| [SWE-Refactor](https://zenodo.org/records/17196850) | `pure_refactoring_data.json` from record 17196850 | accepted refactoring regions, mapped by operation type    |
-| [SimpliBench](https://zenodo.org/records/12176049)  | paired tagged/untagged `small/test.jsonl`         | source simplification regions; tags removed before review |
-| Cleanup PR corpus                                   | pinned raw PR metadata and base/head snapshots    | accepted change regions; closed/unmerged PRs excluded     |
-
-These are **change proxies**, not comprehensive slop annotations. An accepted
-refactoring is not necessarily required. Untouched code is not a known negative.
-Unmatched findings contribute only to `precisionProxy`, never a claim of
-semantic precision. Unsupported aspects have no recall measurement. Larger
-datasets do not remove systematic label bias.
+The opt-in sources need `--source <name> --source-root <collection>`. They are
+**change proxies**: an accepted refactoring is not necessarily required and
+untouched code is not a known negative. Only `self` carries PRESERVE labels.
+Only `low-value-comments` has recall evidence today; other aspects gain it
+when an owner cleanup commit for them is pinned.
 
 ## Run a baseline
 
@@ -36,7 +82,7 @@ Build the product, then plan a bounded selection:
 ```sh
 pnpm build
 pnpm eval -- --samples eval/.generated/datasets/samples.jsonl \
-  --family self --limit 30 --model <exact-haiku-id> --repeat 3 \
+  --family self --split dev --limit 30 --model <exact-haiku-id> --repeat 3 \
   --output eval/.generated/baseline
 ```
 
@@ -53,7 +99,7 @@ outside the worker repository. Raw exports and traces stay local. Telemetry
 and provider-response caching are disabled.
 
 The run directory contains the frozen selected `samples.jsonl`, native
-`promptfooconfig.json`, `records.jsonl` and `summary.json`. Promptfoo owns repeat
+`promptfooconfig.json`, `records.jsonl`, `summary.json` and `summary.md`. Promptfoo owns repeat
 execution and recovery. For a failed
 native evaluation use its saved config and local state:
 
@@ -115,21 +161,17 @@ pnpm eval:gate -- --baseline <baseline>/records.jsonl \
   --candidate <candidate>/records.jsonl --output <receipt.json>
 ```
 
-The gate checks paired data, per-family recall uncertainty, proxy precision,
-explicit PRESERVE/forbidden sentinels, completeness and resource margins.
+The gate checks paired data, recall uncertainty, proxy precision, PRESERVE and
+forbidden sentinels, completeness and resource margins per family. Evidence
+from one source repository is resampled over its samples (at least 8) and the
+receipt is marked `single-source`: the verdict holds for that repository, not
+for other codebases. A metric with no labels on either side is reported as
+unsupported and does not block; a family without recall evidence never passes.
 A worker-quality `partial` review pairs as completeness 0 and its missing
-anchor metrics stay inconclusive rather than pass; an unattributed `partial`
-record is invalid evidence. A completed review with
-rejected quotes whose coverage a later pass recovered is complete.
-Insufficient evidence is not a pass. A non-regression pass alone does not prove
-improvement. Only a separate ordinary code review can merge a rubric change;
-no human labels or per-finding decisions are required.
-
-The imported corpus currently lacks explicit source-backed PRESERVE labels,
-and self has only one independent source cluster. The strict gate therefore
-returns **inconclusive**, not a release clearance. Source-backed negative cases
-and independent comment sources are still needed; unchanged code is not a
-substitute. No baseline or model-quality improvement is claimed in this change.
+anchor metrics stay inconclusive; an unattributed `partial` record is invalid
+evidence. A completed review with rejected quotes whose coverage a later pass
+recovered is complete. No baseline or model-quality result is claimed in this
+change.
 
 ## Deterministic regression checks
 

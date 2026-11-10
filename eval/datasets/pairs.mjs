@@ -9,9 +9,18 @@ export const SWE_PATH =
   "extracted/swe-refactor-v1/SWE-Refactor/pure_refactoring_data.json";
 export const SIMPLI_ROOT = "extracted/simplibench-dataset/remove_duplication";
 
+const CROSS_FILE_TYPES = new Set([
+  "Move Method",
+  "Move And Rename Method",
+  "Extract And Move Method",
+  "Move And Inline Method",
+]);
+
 export function deriveRefactoring(record, index) {
   // diffLocations interleaves old/new ranges without a side discriminator.
   // Locate the explicitly before-side method in the before-side whole file instead.
+  if (CROSS_FILE_TYPES.has(record.type))
+    return { reason: "needs-cross-file-context" };
   const path = safePath(record.filePathBefore);
   if (!Object.hasOwn(REFACTOR_TYPES, record.type))
     return { reason: "unsupported-refactoring-type" };

@@ -1,12 +1,4 @@
 {
   "Extract Method": ["missed-reuse", "unnecessary-complexity"],
-  "Move Method": ["structural-erosion", "wrong-abstraction"],
-  "Extract And Move Method": [
-    "missed-reuse",
-    "structural-erosion",
-    "wrong-abstraction"
-  ],
-  "Inline Method": ["unnecessary-layers", "unnecessary-complexity"],
-  "Move And Rename Method": ["structural-erosion", "wrong-abstraction"],
-  "Move And Inline Method": ["unnecessary-layers", "wrong-abstraction"]
+  "Inline Method": ["unnecessary-layers", "unnecessary-complexity"]
 }
