@@ -35,10 +35,7 @@
   "scripts": {
     "test": "pnpm build && node test/run.ts --test-concurrency=2",
     "test:tooling": "node --test --test-concurrency=2 'test/live/**/*.test.ts'",
-    "test:eval": "pnpm build && node --test --test-concurrency=2 'test/eval/**/*.test.ts'",
-    "eval": "node eval/cli.mjs run",
-    "eval:derive": "node eval/cli.mjs derive",
-    "eval:gate": "node eval/cli.mjs gate",
+    "eval": "node test/eval/run.ts",
     "typecheck": "tsc --noEmit",
     "lint": "biome ci",
     "format": "biome check --write",

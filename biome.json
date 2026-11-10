@@ -5,8 +5,6 @@
       "src/**",
       "tools/**",
       "test/**",
-      "eval/**",
-      "!!eval/.generated",
       "*.json",
       "!skills-lock.json",
       "!!**/.claude/worktrees"

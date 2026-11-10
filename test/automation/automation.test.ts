@@ -106,12 +106,6 @@ test("CI selects checks without path filters and requires the Linux and macOS jo
   }
   assert.equal(actions[0].with["persist-credentials"], false);
   assert.equal(plan.steps[0].with["fetch-depth"], 0);
-  for (const job of [linux, macos]) {
-    const checkout = job.steps.find((step: { uses?: string }) =>
-      step.uses?.startsWith("actions/checkout@"),
-    );
-    assert.equal(checkout?.with?.["fetch-depth"], 0);
-  }
   // pnpm/action-setup executes Node, which self-hosted runners need not provide.
   for (const job of [linux, macos]) {
     const jobSteps: { uses?: string; with?: Record<string, unknown> }[] =

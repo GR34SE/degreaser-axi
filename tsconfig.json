@@ -15,9 +15,7 @@
     "rewriteRelativeImportExtensions": true,
     "types": ["node"],
     "skipLibCheck": false,
-    "allowJs": true,
     "noEmit": true
   },
-  "include": ["src/**/*.ts", "tools/**/*.ts", "test/**/*.ts", "eval/**/*.mjs"],
-  "exclude": ["eval/.generated"]
+  "include": ["src/**/*.ts", "tools/**/*.ts", "test/**/*.ts"]
 }
