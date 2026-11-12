@@ -11,6 +11,43 @@ import { assemblePrompt } from "../attempt/prompt/assemble.ts";
 import { parseResult } from "./parse.ts";
 import { ingestResult } from "./verify-quotes.ts";
 
+test("a unique whole-line quote corrects only an omitted final line", (t) => {
+  const f = fixture(t);
+  const quote = "function label(value: string) {\n  return value.trim();\n}";
+  f.write("unique.ts", `export {};\n${quote}\n`);
+  f.write("repeated.ts", `export {};\n${quote}\n${quote}\n`);
+  const input = prepareReview(
+    ["--scope", "repository", "--task", "Review", "--aspects", "missed-reuse"],
+    f.root,
+  );
+  const original = finding("unique.ts", "new", quote, 2, 3);
+  const proposed = [
+    original,
+    finding("repeated.ts", "new", quote, 2, 3),
+    finding("unique.ts", "new", quote, 3, 4),
+    finding("unique.ts", "new", quote, 2, 2),
+    finding("unique.ts", "new", quote.slice(1), 2, 3),
+  ];
+  const result = ingestResult(
+    runtime(),
+    block({
+      ...clean,
+      aspect: "missed-reuse",
+      status: "findings",
+      findings: proposed,
+    }),
+    "missed-reuse",
+    input,
+  );
+  assert.deepEqual(result.result.findings, [
+    { ...original, location: { ...original.location, endLine: 4 } },
+  ]);
+  assert.deepEqual(
+    result.rejections.map((r) => r.reason),
+    Array(4).fill("quote-mismatch"),
+  );
+});
+
 test("literal persisted old/new quotes survive mixed rejection, with zero neighborhood tolerance", (t) => {
   const f = fixture(t);
   f.write("removed.ts", "// removed explanation\nexport const old = 1;\n");

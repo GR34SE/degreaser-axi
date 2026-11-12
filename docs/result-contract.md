@@ -7,6 +7,13 @@ An unclosed or malformed last block does not fall back to an earlier block.
 
 Quotes must occur literally within the inclusive `startLine`–`endLine` range
 of the selected old/new Git blob. **Neighborhood tolerance is zero lines.**
+An end line that omits exactly the quote's final line is corrected only when
+the cited start line is already exact and the complete quote matches whole
+source lines uniquely in that same blob. Correction requires at least two
+nonempty lines and three non-whitespace characters; it does not strip diff
+markers or trailing whitespace. Only CRLF line endings and one terminal newline
+are normalized for this correction. The saved finding reports the verified end
+line. Ambiguous quotes, shifted starts and larger range errors remain rejected.
 Only CRLF line endings and trailing whitespace per line are normalized. A quote
 copied from the patch is accepted when every non-empty line carries one diff
 marker consistent with the cited side (`+`/space for new, `-`/space for old);
@@ -19,7 +26,8 @@ binaries and gitlinks cannot supply source quotes. Missing Git objects are
 unavailable evidence, never an empty source file. A symbolic link (mode `120000`) is cited at its own path as line 1 of its target text; quotes validate against that blob, not the target.
 
 Wire forms: the final block must be one well-formed JSON object whose schema
-fields are exactly the documented ones. The only canonicalization is omitting a
+fields are exactly the documented ones. Before source validation, the only
+canonicalization is omitting a
 top-level `reason` that is null, empty or whitespace-only when the status does
 not require one; the persisted result is the strictly validated canonical form.
 A missing or empty `reason` for `not-applicable`, malformed JSON, a different

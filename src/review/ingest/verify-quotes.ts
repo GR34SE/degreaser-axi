@@ -45,6 +45,24 @@ function quoteMatches(
   return found(stripped);
 }
 
+function omittedFinalLine(source: string, finding: Finding): boolean {
+  const quote = lineEndings(finding.quote).replace(/\n$/, "").split("\n");
+  const { startLine, endLine } = finding.location;
+  if (
+    quote.filter((line) => line.trim() !== "").length < 2 ||
+    finding.quote.replace(/\s/g, "").length < 3 ||
+    startLine + quote.length - 1 !== endLine + 1
+  )
+    return false;
+  const lines = lineEndings(source).replace(/\n$/, "").split("\n");
+  const matches = (at: number) =>
+    quote.every((line, offset) => lines[at + offset] === line);
+  return (
+    matches(startLine - 1) &&
+    !lines.some((_, at) => at !== startLine - 1 && matches(at))
+  );
+}
+
 export function ingestResult(
   runtime: Runtime,
   text: string,
@@ -96,15 +114,17 @@ export function ingestResult(
             finding.quote,
             side,
           )
-        )
-          reason = "quote-mismatch";
+        ) {
+          if (omittedFinalLine(source, finding)) finding.location.endLine++;
+          else reason = "quote-mismatch";
+        }
       }
     }
     if (reason) {
       rejections.push({ index: index + 1, reason });
       if (entry) unjudged.push(entry.path, entry.oldPath ?? entry.path);
     }
-    return !reason;
+    return !reason && !known.has(JSON.stringify(finding));
   });
   if (
     result.status === "findings" &&
