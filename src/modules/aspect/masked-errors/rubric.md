@@ -6,7 +6,7 @@
 
 **Applies when:** The change catches, ignores or translates errors and unsuccessful results: try/catch, .catch, err/status checks or fallbacks after failure. Otherwise return not-applicable.
 
-**Evidence:** Trace the original error through the fallback, public status or return value and the consumer's branch. Show the observable result that contradicts the caller's contract. Check whether cancellation, timeout, unavailable evidence or corrupt state has been reclassified as expected absence or success.
+**Evidence:** Trace the original error through the fallback, public status or return value and the consumer's branch. Establish the failing situation from the actual entrypoint, including earlier operations or guards that could stop it before the claimed response. Show the observable result that contradicts the caller's contract. Check whether cancellation, timeout, unavailable evidence or corrupt state has been reclassified as expected absence or success.
 
 **Boundaries:** Expected absence, optional degradation and best-effort cleanup are distinct from failed required work. Sanitized diagnostics do not mask an error when failure remains explicit; do not require sensitive raw messages. Retry that eventually propagates the error does not conceal it.
 

@@ -6,7 +6,7 @@
 
 **Applies when:** The change adds responsibilities, branches or state to an existing function, class or module. Otherwise return not-applicable.
 
-**Evidence:** Base the review on changed hunks and the affected unit, or the assessed unit in a repository audit. Name the responsibilities coupled and the resulting cost, such as tests needing another mocked layer. Show the boundary a correction restores without merely distributing the same complexity across files. Length and complexity metrics are only clues.
+**Evidence:** Base the review on changed hunks and the affected unit, or the assessed unit in a repository audit. Trace shared flags and error state from their writers to every phase they gate; check whether failure in one responsibility disables another. Name the responsibilities coupled and the resulting cost, such as tests needing another mocked layer. Show the boundary a correction restores without merely distributing the same complexity across files. Length and complexity metrics are only clues.
 
 **Boundaries:** In a change review, a finding must arise from the change, not the file's general condition. In a repository audit, assess existing coupling against current product boundaries. Lifecycle orchestration can legitimately coordinate several phases of one responsibility. Do not propose broad refactoring unrelated to the assessed scope.
 
