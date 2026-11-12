@@ -6,14 +6,8 @@ assistant result block is accepted. Tool output and thoughts are not result text
 An unclosed or malformed last block does not fall back to an earlier block.
 
 Quotes must occur literally within the inclusive `startLine`–`endLine` range
-of the selected old/new Git blob. **Neighborhood tolerance is zero lines.**
-An end line that omits exactly the quote's final line is corrected only when
-the cited start line is already exact and the complete quote matches whole
-source lines uniquely in that same blob. Correction requires at least two
-nonempty lines and three non-whitespace characters; it does not strip diff
-markers or trailing whitespace. Only CRLF line endings and one terminal newline
-are normalized for this correction. The saved finding reports the verified end
-line. Ambiguous quotes, shifted starts and larger range errors remain rejected.
+of the selected old/new Git blob. **Neighborhood tolerance is zero lines**,
+apart from the single end-line correction in the next paragraph.
 Only CRLF line endings and trailing whitespace per line are normalized. A quote
 copied from the patch is accepted when every non-empty line carries one diff
 marker consistent with the cited side (`+`/space for new, `-`/space for old);
@@ -24,6 +18,15 @@ before schema validation; other paths remain invalid. Old evidence uses the old 
 (including rename sources); new evidence uses the new path. Excluded paths,
 binaries and gitlinks cannot supply source quotes. Missing Git objects are
 unavailable evidence, never an empty source file. A symbolic link (mode `120000`) is cited at its own path as line 1 of its target text; quotes validate against that blob, not the target.
+
+The one exception to the cited range is an end line that omits exactly the
+quote's final line. It is corrected only when the cited start line is already
+exact and the complete quote matches whole source lines uniquely in that same
+blob. This correction is stricter than the matching above: it requires at
+least two nonempty lines and three non-whitespace characters, does not strip
+diff markers or trailing whitespace, and normalizes only CRLF line endings and
+one terminal newline. The saved finding reports the verified end line.
+Ambiguous quotes, shifted starts and larger range errors remain rejected.
 
 Wire forms: the final block must be one well-formed JSON object whose schema
 fields are exactly the documented ones. Before source validation, the only
@@ -85,7 +88,8 @@ evidence digest, so embedded text cannot close the block. On the first pass, pat
 bytes are inline in a separate digest-tagged block. Focused passes list only
 remaining paths and use the file-backed patch even when it is small. New
 findings outside that pass are rejected; verbatim repeats of accepted findings
-are ignored. Larger patches are written
+are ignored, also when they repeat the end line that was corrected on
+acceptance. Larger patches are written
 as a raw unified diff to `input/patch.diff`, and each assessed path carries
 `patchLines`, its section's line range there, so workers read the change in
 slices instead of one oversized read. `input/patch.json` keeps the exact patch

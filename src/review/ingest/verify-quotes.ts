@@ -63,6 +63,11 @@ function omittedFinalLine(source: string, finding: Finding): boolean {
   );
 }
 
+const beforeEndLineCorrection = (finding: Finding): Finding => ({
+  ...finding,
+  location: { ...finding.location, endLine: finding.location.endLine - 1 },
+});
+
 export function ingestResult(
   runtime: Runtime,
   text: string,
@@ -71,7 +76,11 @@ export function ingestResult(
   established: readonly Finding[] = [],
 ) {
   const result = parseResult(text, aspect, input.repository);
-  const known = new Set(established.map((f) => JSON.stringify(f)));
+  const known = new Set(
+    established
+      .flatMap((f) => [f, beforeEndLineCorrection(f)])
+      .map((f) => JSON.stringify(f)),
+  );
   const rejections: Rejection[] = [];
   const blobs = new Map<string, string | null>();
   const unjudged: string[] = [];
@@ -124,7 +133,7 @@ export function ingestResult(
       rejections.push({ index: index + 1, reason });
       if (entry) unjudged.push(entry.path, entry.oldPath ?? entry.path);
     }
-    return !reason && !known.has(JSON.stringify(finding));
+    return !reason;
   });
   if (
     result.status === "findings" &&
