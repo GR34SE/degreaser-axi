@@ -33,15 +33,18 @@ export async function cleanupRuns({
         row.command.includes(ownerMarker) &&
         row.command.includes(` ${canonicalRepo} `),
     );
-    const recorded = existsSync(lifecycleLog)
-      ? new Set(
-          readFileSync(lifecycleLog, "utf8")
-            .trim()
-            .split("\n")
-            .filter(Boolean)
-            .map((line) => JSON.parse(line).pid),
-        )
-      : new Set();
+    // On Linux a concurrent reader can see an adapter's append half-written;
+    // only newline-terminated records are complete.
+    const logged = existsSync(lifecycleLog)
+      ? readFileSync(lifecycleLog, "utf8")
+      : "";
+    const recorded = new Set(
+      logged
+        .slice(0, logged.lastIndexOf("\n") + 1)
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => JSON.parse(line).pid),
+    );
     const adapters = rows.filter(
       (row) =>
         row.command.includes(adapter) &&

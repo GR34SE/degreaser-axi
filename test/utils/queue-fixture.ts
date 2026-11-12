@@ -126,14 +126,16 @@ export function queueFixture(
     child.once("exit", () => callers.delete(child));
     return child;
   };
-  const events = (path: string): Event[] =>
-    existsSync(path)
-      ? readFileSync(path, "utf8")
-          .trim()
-          .split("\n")
-          .filter(Boolean)
-          .map((line) => JSON.parse(line))
-      : [];
+  // On Linux a concurrent reader can see a worker's append half-written;
+  // only newline-terminated records are complete.
+  const events = (path: string): Event[] => {
+    const logged = existsSync(path) ? readFileSync(path, "utf8") : "";
+    return logged
+      .slice(0, logged.lastIndexOf("\n") + 1)
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => JSON.parse(line));
+  };
   const state = (id?: string): Run => {
     const { latestRunId } = JSON.parse(
       readFileSync(join(f.root, ".degreaser/state.json"), "utf8"),

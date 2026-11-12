@@ -127,13 +127,14 @@ const connection = new AgentSideConnection(
         .map((c) => c.text)
         .join("");
       const aspect = /Assigned aspect: ([a-z-]+)/.exec(text)?.[1];
-      const previous = existsSync(plan.log)
-        ? readFileSync(plan.log, "utf8")
-            .trim()
-            .split("\n")
-            .filter(Boolean)
-            .map(JSON.parse)
-        : [];
+      // On Linux a concurrent reader can see another worker's append
+      // half-written; only newline-terminated records are complete.
+      const logged = existsSync(plan.log) ? readFileSync(plan.log, "utf8") : "";
+      const previous = logged
+        .slice(0, logged.lastIndexOf("\n") + 1)
+        .split("\n")
+        .filter(Boolean)
+        .map(JSON.parse);
       const attempt = previous.filter(
         (event) => event.aspect === aspect,
       ).length;
