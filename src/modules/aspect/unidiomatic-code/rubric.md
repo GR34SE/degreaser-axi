@@ -6,7 +6,7 @@
 
 **Applies when:** The change adds expression-level manual logic: loops, accumulators, collection or string operations with a direct language or standard-library equivalent. Otherwise return not-applicable.
 
-**Evidence:** Establish equivalence in ordering, equality, sparse collections, exceptions, mutation, asynchronous behavior and early termination. Follow intermediate values to their consumers: a transformation used only as a predicate may have a native predicate that avoids constructing the discarded value. Verify that the native API exists at the project's minimum supported runtime. Check repository conventions and idioms of the language under review; shorter syntax is not proof of equal behavior.
+**Evidence:** Establish equivalence in ordering, equality, sparse collections, exceptions, mutation, asynchronous behavior and early termination. Verify that the native API exists at the project's minimum supported runtime. Check repository conventions and idioms of the language under review; shorter syntax is not proof of equal behavior.
 
 **Boundaries:** A loop alone is not evidence of slop. Idioms do not transfer automatically between languages; for example, for loops are idiomatic Go. Stylistic preferences without concrete cost are not findings.
 
