@@ -201,9 +201,11 @@ tasks with actual attempt records). Repository scope-creep stays configured but 
 as coordinator-owned not-applicable, never a phantom worker.
 
 A large aspect review runs as several portions, each a pass over a subset of
-the assessed paths. Every attempt record carries `portion: {index, paths}`:
-retries of one pass share its index, a new portion (including a resumed pass)
-takes the next index, and `paths` counts the paths given to that pass. Attempts
+the assessed paths. An attempt record carries `portion: {index, paths}` only
+when its pass covers a subset of the assessed paths or continues an earlier
+pass; a single pass over the whole scope, including a resumed one, has no
+portion. Retries of one pass share its index, the next recorded portion takes
+the next index, and `paths` counts the paths given to that pass. Attempts
 saved before this field existed have no portion and still load. A coverage row
 of an aspect reviewed in more than one portion shows `portions`, such as
 `3 (20/20/2)` (count, then paths per portion). Worker limitations from every
