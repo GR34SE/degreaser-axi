@@ -71,11 +71,11 @@ test("non-TTY agent-only flags prefill that agent's best-ranked model", (t) => {
   assert.equal(result.status, 2, result.stdout);
   assert.match(
     result.stdout,
-    /prefill:\n {2}agent: codex\n {2}model: gpt-6-luna/,
+    /prefill:\n {2}agent: codex\n {2}model: "latest:luna"/,
   );
   assert.match(
     result.stdout,
-    /degreaser-axi init --agent codex --model 'gpt-6-luna'/,
+    /degreaser-axi init --agent codex --model 'latest:luna'/,
   );
 });
 

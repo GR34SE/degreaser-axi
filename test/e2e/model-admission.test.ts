@@ -96,7 +96,10 @@ for (const override of [false, true]) {
     const result = f.run();
     assert.equal(result.status, 2, result.stdout);
     assert.match(result.stdout, /code: invalid-input/);
-    assert.match(result.stdout, /low-value-comments.*claude.*exact model list/);
+    assert.match(
+      result.stdout,
+      /low-value-comments.*claude.*neither an advertised model ID/,
+    );
     assert.ok(!existsSync(join(f.root, ".degreaser")));
     assert.deepEqual(readFileSync(join(f.root, ".degreaserrc.json")), rc);
     assert.deepEqual(

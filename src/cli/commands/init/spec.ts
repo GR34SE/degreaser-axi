@@ -11,7 +11,8 @@ export const spec: CommandSpec = {
     },
     model: {
       type: "string",
-      description: "Confirmed exact model ID; required on every init",
+      description:
+        "Confirmed model ID or listed latest selector; required on every init",
     },
     harnesses: {
       type: "string",

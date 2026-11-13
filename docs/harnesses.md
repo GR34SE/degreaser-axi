@@ -14,6 +14,14 @@ No adapter is downloaded at review time. Each attempt creates a fresh session,
 checks that the exact selected model is advertised and selected before sending
 a prompt, and shuts down and joins the runtime's owned process tree.
 
+Init lists `(latest)` choices before version pins. Claude's native family aliases
+stay unversioned in the RC and are resolved by Claude Code. Codex `latest:<family>`
+selectors resolve to the highest numeric version advertised for that family
+before each new review; that run's attempts and resumes retain the exact resolved
+model. The RC is unchanged. Catalog freshness and native alias updates depend on
+the installed harness, not release announcements. Full versioned IDs remain
+available for explicit pins. See [latest models and version pins](https://github.com/GR34SE/degreaser-axi/blob/main/docs/input-contract.md).
+
 Before run admission, metadata-only sessions discover the catalogs needed for
 the selected identities. They use the same isolation and environment, never
 send prompts, and await owned transport cleanup. Claude discovery omits the

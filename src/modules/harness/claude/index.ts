@@ -1,6 +1,8 @@
 import { defineHarness } from "../common/definition.ts";
 import { cheapModelRank } from "../common/recommend.ts";
 
+const latestAliases = new Set(["sonnet", "opus", "haiku", "fable"]);
+
 export default defineHarness({
   id: "claude",
   displayName: "Claude Code",
@@ -33,8 +35,19 @@ export default defineHarness({
   subscription: () =>
     "Claude native subscription; account identity unavailable",
   recommendationPriority: 0,
+  modelChoices: (models) =>
+    [...models]
+      .sort(
+        (a, b) => Number(latestAliases.has(b)) - Number(latestAliases.has(a)),
+      )
+      .map((model) => ({
+        model,
+        label: latestAliases.has(model) ? `${model} (latest)` : model,
+        resolvedModel: model,
+      })),
   recommendationRank: (model) =>
-    model.includes("-") && /(?:^|[-/])haiku(?:-|$)/i.test(model)
+    model === "haiku" ||
+    (model.includes("-") && /(?:^|[-/])haiku(?:-|$)/i.test(model))
       ? 0
       : cheapModelRank(model),
   modelError: () => undefined,

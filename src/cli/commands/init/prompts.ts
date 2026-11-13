@@ -205,7 +205,7 @@ export async function configureTerminal(
             .join(", ");
           return {
             value: candidate.model,
-            label: candidate.model,
+            label: candidate.label,
             ...(hint ? { hint } : {}),
           };
         }),

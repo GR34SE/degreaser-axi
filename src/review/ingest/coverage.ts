@@ -67,13 +67,19 @@ export function takePortion(
 export const nextLimit = (portionSize: number) =>
   portionSize <= 1 ? 0 : Math.floor(portionSize / 2);
 
+const UNEXAMINED = "Unexamined assessed paths (";
+
 export function mergePass(
   input: ReviewInput,
   prior: WorkerResult | null,
   pass: WorkerResult,
   earlierApplicable = false,
   resolving = false,
+  portion?: { index: number; paths: number },
 ): WorkerResult {
+  const label = portion
+    ? `Portion ${portion.index} (${portion.paths} path${portion.paths === 1 ? "" : "s"}): `
+    : "";
   const current = new Set(input.paths.map((p) => p.path));
   const renamed = new Map(
     input.paths.flatMap((p) =>
@@ -142,7 +148,14 @@ export function mergePass(
     limitations: [],
     examinedPaths: examined,
   };
-  const reason = pass.reason ?? prior?.reason;
+  const passReason = pass.reason && `${label}${pass.reason}`;
+  const reason =
+    prior?.reason &&
+    passReason &&
+    prior.reason !== pass.reason &&
+    !prior.reason.includes(`): ${pass.reason}`)
+      ? `${prior.reason} ${passReason}`
+      : (prior?.reason ?? passReason);
   if (reason && ["not-applicable", "incomplete"].includes(merged.status))
     merged.reason = reason;
   if (merged.status === "incomplete" && !missing.length && !open.size)
@@ -152,18 +165,31 @@ export function mergePass(
         "Reported incomplete without naming what remains unresolved; see limitations.",
     });
   if (open.size) merged.unresolved = [...open.values()];
+  const passLimitations = [
+    ...(outside
+      ? [
+          `Ignored ${outside} unresolved path(s) named outside the assessed set.`,
+        ]
+      : []),
+    ...pass.limitations,
+  ];
+  const kept = (prior?.limitations ?? []).filter(
+    (l) => !l.startsWith(UNEXAMINED),
+  );
   if (missing.length) {
     const shown = missing.slice(0, 20).join(", ");
     const more = missing.length > 20 ? ` and ${missing.length - 20} more` : "";
     merged.limitations.push(
-      `Unexamined assessed paths (${missing.length}): ${shown}${more}.`,
+      `${UNEXAMINED}${missing.length}): ${shown}${more}.`,
     );
   }
-  if (outside)
-    merged.limitations.push(
-      `Ignored ${outside} unresolved path(s) named outside the assessed set.`,
-    );
-  merged.limitations.push(...pass.limitations);
+  merged.limitations = [
+    ...new Set([
+      ...merged.limitations,
+      ...kept,
+      ...passLimitations.map((l) => `${label}${l}`),
+    ]),
+  ];
   return merged;
 }
 

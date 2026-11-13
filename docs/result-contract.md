@@ -200,22 +200,40 @@ Full reports distinguish `configuration` (all selected exact identities),
 tasks with actual attempt records). Repository scope-creep stays configured but appears
 as coordinator-owned not-applicable, never a phantom worker.
 
-`usageScope: latest-attempt-per-aspect` applies to summary `usage` and full
-execution-row `usage`: these are the recorded measurements for each aspect's
-latest attempt, **not task or run totals**. The summary lists per-aspect metadata
-only when every selected worker's latest attempt has nonempty metadata;
-otherwise it is `unknown`. Full execution rows still expose individually known
-latest measurements. Missing fields are not estimated or filled with zeros.
-A coordinator-only run has unknown usage, not an invented zero.
+A large aspect review runs as several portions, each a pass over a subset of
+the assessed paths. An attempt record carries `portion: {index, paths}` only
+when its pass covers a subset of the assessed paths or continues an earlier
+pass; a single pass over the whole scope, including a resumed one, has no
+portion. Retries of one pass share its index, the next recorded portion takes
+the next index, and `paths` counts the paths given to that pass. Attempts
+saved before this field existed have no portion and still load. A coverage row
+of an aspect reviewed in more than one portion shows `portions`, such as
+`3 (20/20/2)` (count, then paths per portion). Worker limitations from every
+portion are kept, and each distinct `reason` is appended to the earlier ones. A
+pass over a subset of the assessed paths, or any later pass, prefixes its
+limitations and reason with its portion, such as `Portion 3 (2 paths): `,
+because they may describe only that portion's paths. The coordinator's
+unexamined-paths limitation always reflects the merged coverage. When any
+aspect needed more than
+one portion, `help` adds one line suggesting a narrower next review with
+repeatable `--path` or `exclude` in `.degreaserrc.json`.
+
+`usageScope: all-attempts-per-aspect` means usage sums every recorded attempt of
+an aspect: all portions and all retries. The summary `usage` is the total over
+all executed aspects; `report --full` adds `aspectUsage` (one row per aspect,
+or `unknown` with the total) and each execution row's `usage`. A sum is known
+only when every attempt in it has nonempty metadata, so an attempt that failed
+before reporting usage makes its aspect and the total `unknown`, never a partial
+sum presented as a total. Only fields present in every summed attempt are added. Missing
+fields are not estimated or filled with zeros. A coordinator-only run has
+unknown usage, not an invented zero.
 
 Stored task `usage` resets to null when a new attempt is admitted, including
-retries and resume, then receives only that attempt's metadata. A failure before
-metadata returns leaves it unknown even when prior incomplete evidence survives.
-Earlier `attempts[].usage` records and successful peers remain unchanged.
-Reports use the latest attempt record, not a potentially stale task summary in
-older saved state; absent, null or empty attempt metadata means unknown.
-`report --full` preserves known usage at its original position in attempt
-history. No report sums attempts or claims complete billing coverage.
+retries and resume, then receives only that attempt's metadata. Reports use the
+attempt records, not that task summary. Earlier `attempts[].usage` records and
+successful peers remain unchanged, and `report --full` preserves known usage at
+its original position in attempt history. Usage is what workers reported, not
+complete billing coverage.
 
 No ID selects the latest run in the current repository; an explicit ID selects
 that repository's historical run without relying on the latest pointer.

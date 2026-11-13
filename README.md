@@ -81,7 +81,7 @@ degreaser-axi review --scope worktree --task "Add CSV import" --aspects missed-r
 
 ## Configuration
 
-`init` writes `.degreaserrc.json` at the Git root. Keep the exact `agent` and `model` you confirmed there; the Codex model below is an example, not a guarantee of availability.
+`init` writes `.degreaserrc.json` at the Git root. Keep the `agent` and `model` you confirmed there. `model` is a version pin, like the Codex example below, or a `(latest)` choice that tracks the newest version your installed harness offers; neither guarantees availability. See [latest models and version pins](https://github.com/GR34SE/degreaser-axi/blob/main/docs/input-contract.md).
 
 ```json
 {
@@ -105,7 +105,7 @@ degreaser-axi review --scope worktree --task "Add CSV import" --aspects missed-r
 ```
 
 - `concurrency: 4` caps simultaneous reviewers; the default `null` leaves them uncapped.
-- `aspects` accepts `true` (enabled), `false` (disabled), or `{ "model": "<exact-model-id>" }` to override the model for one aspect. Omitted aspects stay enabled. Changing its agent also requires an explicit compatible model.
+- `aspects` accepts `true` (enabled), `false` (disabled), or `{ "model": "<model>" }` to override the model for one aspect. Omitted aspects stay enabled. Changing its agent also requires an explicit compatible model.
 - `maxRetries` counts extra attempts. The limits above are defaults; `maxTurns` is enforced natively only by Claude and is advisory for other workers.
 - `exclude` adds literal repository-relative files or directory prefixes, not globs. It narrows assessed coverage, not worker read access.
 

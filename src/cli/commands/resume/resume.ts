@@ -8,7 +8,7 @@ import { completenessCode } from "../../exit-codes.ts";
 import type { Factory } from "../../factory.ts";
 import type { CommandOptions } from "../../types.ts";
 import { positiveInteger } from "../review/arguments.ts";
-import { waitFor } from "../shared/run.ts";
+import { identities, waitFor } from "../shared/run.ts";
 
 export { spec } from "./spec.ts";
 
@@ -41,7 +41,7 @@ export async function run(f: Factory, { values, positionals }: CommandOptions) {
     };
   const unresolved = prior.tasks.filter((t) => !resolved(t));
   f.io.error.write(
-    `run: ${id}; resume unresolved: ${unresolved.length}; identities: ${[...new Set(unresolved.map((t) => `${t.assignment.agent}/${t.assignment.model}`))].join(",")}; concurrency: ${resumed.executions?.at(-1)?.concurrency ?? "all"}; deadline: ${new Date(resumed.deadline).toISOString()}\n`,
+    `run: ${id}; resume unresolved: ${unresolved.length}; identities: ${identities(unresolved)}; concurrency: ${resumed.executions?.at(-1)?.concurrency ?? "all"}; deadline: ${new Date(resumed.deadline).toISOString()}\n`,
   );
   const output = await waitFor(f, resumed, controls.waitSeconds ?? 480);
   return { output, exitCode: completenessCode(output.status) };

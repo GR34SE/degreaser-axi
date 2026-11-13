@@ -145,7 +145,10 @@ test("short coverage attributes incomplete limitations and full reports separate
     attempt.usage = { inputTokens: 17, outputTokens: 3 };
   }
   saveRun(run);
-  assert.deepEqual(decode(f.run(["report"]).stdout).usage, [
+  const knownUsage = decode(f.run(["report"]).stdout);
+  assert.deepEqual(knownUsage.usage, { inputTokens: 51, outputTokens: 9 });
+  assert.equal(knownUsage.aspectUsage, undefined);
+  assert.deepEqual(decode(f.run(["report", "--full"]).stdout).aspectUsage, [
     { aspect: "masked-errors", inputTokens: 17, outputTokens: 3 },
     { aspect: "missed-reuse", inputTokens: 17, outputTokens: 3 },
     { aspect: "low-value-comments", inputTokens: 17, outputTokens: 3 },

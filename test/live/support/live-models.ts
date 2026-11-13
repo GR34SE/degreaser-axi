@@ -109,7 +109,7 @@ export async function liveModels(agent: Agent, model: string) {
           "Real incompatible pair must refuse before admission.",
         );
         assert.match(result.stdout, /code: invalid-input/);
-        assert.match(result.stdout, /exact model list/);
+        assert.match(result.stdout, /neither an advertised model ID/);
         await assert.rejects(stat(join(cwd, ".degreaser")), {
           code: "ENOENT",
         });

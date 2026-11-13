@@ -20,7 +20,7 @@ Exit codes describe completeness, not whether findings exist: **0** completed/no
 
 ### Onboarding and boundaries
 
-`init` discovers models, prefills a recommendation and requires the user to confirm or change the exact worker agent/model on every init. It also requires the installation harness selection. Without resolved choices and without a TTY, return `decision-required` without writes. Caller and worker harnesses are independent; there is no caller profile setting.
+`init` discovers models, prefills a recommendation and requires the user to confirm or change the worker agent/model choice on every init. Latest choices precede version pins: Claude retains advertised native family aliases; Codex `latest:<family>` resolves before a new run and stays pinned for its attempts/resumes. Exact model IDs never auto-migrate. Init also requires the installation harness selection. Without resolved choices and without a TTY, return `decision-required` without writes. Caller and worker harnesses are independent; there is no caller profile setting.
 
 One harness selection installs its startup hook/native equivalent and product skill together. Default installation scope is the project; user-wide installation is explicit. Init saves `.degreaserrc.json` and adds `/.degreaser/` to the root `.gitignore`, preserving unrelated content. `config sync` fills missing defaults; `setup hooks` repairs/removes owned integrations. Startup context only reads local state; it never starts models, resumes work or fetches packages.
 

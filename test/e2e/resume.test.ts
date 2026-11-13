@@ -85,7 +85,7 @@ test("resume retains successes, supersedes incomplete evidence and records only 
   assert.equal(retried[0]?.prompt, retried[1]?.prompt);
 });
 
-test("resumed pre-result failure reports unknown latest usage while retaining distinct attempt metadata and peer evidence", async (t) => {
+test("resumed pre-result failure reports unknown aspect usage while retaining distinct attempt metadata and peer evidence", async (t) => {
   const f = queueFixture(t);
   const priorUsage = { inputTokens: 17, outputTokens: 3, totalTokens: 20 };
   const peerUsage = { inputTokens: 29, outputTokens: 5, totalTokens: 34 };
@@ -161,7 +161,7 @@ test("resumed pre-result failure reports unknown latest usage while retaining di
   assert.equal(full.status, 1);
   assert.equal(full.stderr, "");
   const report = decode(full.stdout);
-  assert.equal(report.usageScope, "latest-attempt-per-aspect");
+  assert.equal(report.usageScope, "all-attempts-per-aspect");
   assert.equal(report.usage, "unknown");
   assert.deepEqual(report.execution[0].usage, peerUsage);
   assert.equal(report.execution[1].usage, "unknown");
@@ -190,11 +190,11 @@ test("resumed pre-result failure reports unknown latest usage while retaining di
   );
   assert.deepEqual(current.tasks[1]?.usage, nextUsage);
   const final = decode(f.run(["report", old.id, "--full"]).stdout);
-  assert.equal(final.usageScope, "latest-attempt-per-aspect");
-  assert.deepEqual(final.usage, [
-    { aspect: "masked-errors", ...peerUsage },
-    { aspect: "low-value-comments", ...nextUsage },
-  ]);
+  assert.equal(final.usageScope, "all-attempts-per-aspect");
+  assert.equal(final.usage, "unknown");
+  assert.equal(final.aspectUsage, "unknown");
+  assert.deepEqual(final.execution[0].usage, peerUsage);
+  assert.equal(final.execution[1].usage, "unknown");
   assert.deepEqual(
     final.execution[1].attempts.map(
       (attempt: { usage: unknown }) => attempt.usage,

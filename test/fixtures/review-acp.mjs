@@ -34,7 +34,8 @@ const fault = (error) => {
   if (error)
     throw new RequestError(error.code ?? -32000, error.message, error.data);
 };
-const models = (admitted && plan.runtimeModels) || catalog[agent];
+const models =
+  (admitted && plan.runtimeModels) || plan.models?.[agent] || catalog[agent];
 const assessedPaths = () => {
   const { latestRunId } = JSON.parse(
     readFileSync(".degreaser/state.json", "utf8"),

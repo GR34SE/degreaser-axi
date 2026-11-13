@@ -31,6 +31,7 @@ export interface RunTask {
     rejections?: Rejection[];
     limitations?: string[];
     usage?: Record<string, number> | null;
+    portion?: { index: number; paths: number };
   }[];
   limitations: string[];
   unresolved?: { cause: string; paths: string[]; stuck?: string[] };

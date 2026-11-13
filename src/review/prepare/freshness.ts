@@ -21,6 +21,19 @@ export function assertFresh(runtime: Runtime, run: Run, input: ReviewInput) {
       },
       ASPECT_IDS,
     );
+    config.assignments = config.assignments.map((assignment) => {
+      const saved = input.config.assignments.find(
+        (a) => a.aspect === assignment.aspect,
+      );
+      return saved?.requestedModel === assignment.model &&
+        saved.agent === assignment.agent
+        ? {
+            ...assignment,
+            model: saved.model,
+            requestedModel: saved.requestedModel,
+          }
+        : assignment;
+    });
     const fresh = {
       ...input,
       config,

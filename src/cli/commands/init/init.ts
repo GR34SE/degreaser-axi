@@ -67,7 +67,9 @@ export async function run(
     model !== undefined &&
     (!model || /[\s\0]/.test(model) || model.startsWith("-"))
   )
-    throw new InputError("--model must be an exact nonempty model ID.");
+    throw new InputError(
+      "--model must be a nonempty model ID or latest selector.",
+    );
   let harnesses =
     values.harnesses === undefined
       ? undefined
@@ -141,7 +143,7 @@ export async function run(
     if (discovery?.status === "unavailable")
       throw new StateError("environment-blocked", discovery.reason);
     throw new InputError(
-      "Selected agent/model is not available in the adapter's exact model list. No substitute was selected.",
+      "Selected agent/model is not a listed model or latest selector. No substitute was selected.",
     );
   }
   const config = completeConfig(

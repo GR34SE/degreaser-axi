@@ -26,6 +26,14 @@ export async function executeAttempt(
   const { abort, stopped, persist } = control;
   let merged: WorkerResult | null = null;
   const basePrompt = text;
+  const portion =
+    accumulated || passInput !== input
+      ? {
+          index:
+            Math.max(0, ...task.attempts.map((a) => a.portion?.index ?? 0)) + 1,
+          paths: passInput.paths.length,
+        }
+      : undefined;
   for (let attempt = 0; attempt <= input.config.maxRetries; attempt++) {
     if (stopped()) {
       task.status = "cancelled";
@@ -39,6 +47,7 @@ export async function executeAttempt(
       sessionId: null,
       failure: null,
       usage: null,
+      ...(portion ? { portion } : {}),
     };
     task.attempts.push(record);
     persist();
@@ -169,6 +178,7 @@ export async function executeAttempt(
             pass,
             earlierApplicable,
             resolving,
+            portion,
           );
           task.result = merged;
           task.status = merged.status;

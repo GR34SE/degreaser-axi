@@ -1,6 +1,10 @@
 import { assertSupportedModels } from "../config/resolve.ts";
+import type { Assignment } from "../config/types.ts";
 import { assertNotWorker } from "../modules/harness/common/isolation.ts";
-import { discoverModels } from "../modules/harness/common/models.ts";
+import {
+  discoverModels,
+  modelChoices,
+} from "../modules/harness/common/models.ts";
 import { assertAvailable } from "../state/ownership.ts";
 import type { Run } from "../state/run.ts";
 import { checkHistory, loadInput } from "../state/store.ts";
@@ -17,11 +21,11 @@ export async function startReview(runtime: Runtime, input: ReviewInput) {
   assertNotWorker(runtime.env, "start nested reviews or resume runs");
   checkHistory(input.repository);
   if (input.status === "no-changes") return { run: null, versionNotices: [] };
-  const checked = new Set<string>();
+  const selections = new Map<string, string>();
   const versionNotices = new Set<string>();
   for (const assignment of input.workers) {
     const key = JSON.stringify([assignment.agent, assignment.model]);
-    if (checked.has(key)) continue;
+    if (selections.has(key)) continue;
     const models = await discoverModels(
       runtime,
       assignment,
@@ -29,17 +33,35 @@ export async function startReview(runtime: Runtime, input: ReviewInput) {
       Math.min(120_000, input.config.limits.workerTimeoutSeconds * 1000),
     );
     if (models.versionNotice) versionNotices.add(models.versionNotice);
+    const selected = modelChoices(
+      assignment.agent,
+      models.availableModelIds,
+    ).find((choice) => choice.model === assignment.model);
+    const resolved = selected?.resolvedModel ?? assignment.model;
     assertSupportedModels(
-      { assignments: [assignment] },
+      { assignments: [{ ...assignment, model: resolved }] },
       models.availableModelIds.map((model) => ({
         agent: assignment.agent,
         model,
       })),
     );
-    checked.add(key);
+    selections.set(key, resolved);
   }
+  const pin = (assignment: Assignment): Assignment => {
+    const model = selections.get(
+      JSON.stringify([assignment.agent, assignment.model]),
+    );
+    return model && model !== assignment.model
+      ? { ...assignment, model, requestedModel: assignment.model }
+      : assignment;
+  };
+  const resolvedInput = {
+    ...input,
+    config: { ...input.config, assignments: input.config.assignments.map(pin) },
+    workers: input.workers.map(pin),
+  };
   return {
-    run: await startOwner(runtime, createRun(runtime, input)),
+    run: await startOwner(runtime, createRun(runtime, resolvedInput)),
     versionNotices: [...versionNotices],
   };
 }

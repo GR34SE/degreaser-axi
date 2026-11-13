@@ -33,6 +33,7 @@ export function coverage(
   const input = context.input;
   const reason = taskReason(task, interrupted);
   const harness = harnessLimitations(task, context);
+  const split = portions(task);
   return {
     aspect: task.assignment.aspect,
     status:
@@ -66,15 +67,42 @@ export function coverage(
           lastActivity: `${Math.round((context.now - (task.attempts.at(-1)?.lastActivityAt ?? 0)) / 1000)}s ago`,
         }
       : {}),
+    ...(split ? { portions: split } : {}),
     examined: task.result?.examinedPaths
       ? `${task.result.examinedPaths.length}/${input.paths.length}`
       : "unknown",
   };
 }
 
-export function latestUsage(task: RunTask) {
-  const usage = task.attempts.at(-1)?.usage;
-  return usage && Object.keys(usage).length > 0 ? usage : null;
+export function sumUsage(
+  usages: readonly (Record<string, number> | null | undefined)[],
+) {
+  const known = usages.filter(
+    (u): u is Record<string, number> => !!u && Object.keys(u).length > 0,
+  );
+  if (!usages.length || known.length !== usages.length) return null;
+  const keys = Object.keys(known[0] ?? {}).filter((key) =>
+    known.every((u) => key in u),
+  );
+  return keys.length
+    ? Object.fromEntries(
+        keys.map((key) => [key, known.reduce((n, u) => n + (u[key] ?? 0), 0)]),
+      )
+    : null;
+}
+
+export const taskUsage = (task: RunTask) =>
+  sumUsage(task.attempts.map((a) => a.usage));
+
+export function portions(task: RunTask) {
+  const sizes = new Map(
+    task.attempts.flatMap((a) =>
+      a.portion ? [[a.portion.index, a.portion.paths] as const] : [],
+    ),
+  );
+  return sizes.size > 1
+    ? `${sizes.size} (${[...sizes.values()].join("/")})`
+    : null;
 }
 
 const STANDING = new Set(["git-object-writes", "live-context", "coverage"]);

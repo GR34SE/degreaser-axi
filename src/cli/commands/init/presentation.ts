@@ -54,7 +54,7 @@ export function decisionRequired(
       installationScope: scope,
       notice: metadataNotice,
       actions:
-        "Commands below are choices to show the user, not authorization to select for them. Substitute any listed exact agent/model pair; combine confirmed harnesses with commas.",
+        "Commands below are choices to show the user, not authorization to select for them. Use a listed model ID or latest selector; combine confirmed harnesses with commas.",
       help: commands.length ? commands : ["degreaser-axi init"],
     };
   }

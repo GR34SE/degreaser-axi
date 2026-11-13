@@ -5,6 +5,12 @@ export interface Identity<Id extends string = string> {
   model: string;
 }
 
+export interface ModelChoice {
+  model: string;
+  label: string;
+  resolvedModel: string;
+}
+
 export interface NativeProfile<Id extends string = string>
   extends Identity<Id> {
   command: string[];
@@ -51,6 +57,7 @@ export interface HarnessDefinition<Id extends string = string> {
   subscription: (model: string) => string;
   recommendationPriority: number;
   recommendationRank: (model: string) => number | undefined;
+  modelChoices?: (models: readonly string[]) => ModelChoice[];
   modelError: (model: string) => string | undefined;
   session: {
     systemPrompt: boolean;

@@ -21,9 +21,11 @@ Do not include Markdown fences inside the block.
   judged for this aspect, preferably as the repository-relative paths from the
   supplied change. Always include it, also for `not-applicable`. A path whose
   change you read and found to contain nothing this aspect covers is examined:
-  list it. A path you only saw by name is not examined. Unlisted readable paths
-  count as unexamined: the coordinator reviews them in a focused follow-up pass
-  and never certifies a clean or not-applicable result without them.
+  list it. A path judged only from its name, the task or a summary, without
+  reading its patch section, is not examined: do not list it. Unlisted readable
+  paths count as unexamined: the coordinator reviews them in a focused
+  follow-up pass and never certifies a clean or not-applicable result without
+  them.
 
 Each finding contains:
 

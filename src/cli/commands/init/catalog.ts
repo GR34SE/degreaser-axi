@@ -1,12 +1,16 @@
 import type { Agent, Identity } from "../../../config/types.ts";
 import { AGENTS, HARNESSES } from "../../../modules/harness/api.ts";
-import { discoverModels } from "../../../modules/harness/common/models.ts";
+import {
+  discoverModels,
+  modelChoices,
+} from "../../../modules/harness/common/models.ts";
 import { DiagnosticError, StateError } from "../../../util/errors.ts";
 import type { Factory } from "../../factory.ts";
 import { recommend } from "./recommend.ts";
 
 export interface Candidate extends Identity {
   account: string;
+  label: string;
 }
 
 export interface Catalog {
@@ -41,11 +45,12 @@ export async function catalog(
           "environment-blocked",
           `No ${agent} models were advertised.`,
         );
-      for (const model of ids)
+      for (const { model, label } of modelChoices(agent, ids))
         candidates.push({
           agent,
           model,
           account: HARNESSES[agent].subscription(model),
+          label,
         });
       discovery.push({
         agent,
