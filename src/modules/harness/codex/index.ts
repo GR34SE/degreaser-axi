@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { defineHarness } from "../common/definition.ts";
 import { cheapModelRank } from "../common/recommend.ts";
+import { codexModelChoices } from "./models.ts";
 import { codexConfig } from "./sandbox.ts";
 
 export default defineHarness({
@@ -37,12 +38,15 @@ export default defineHarness({
   subscription: () =>
     "OpenAI native subscription; account identity unavailable",
   recommendationPriority: 1,
-  recommendationRank: (model) =>
-    model.includes("-") &&
-    /(?:^|[-/])luna(?:-|$)/i.test(model) &&
-    !/high/i.test(model)
+  modelChoices: codexModelChoices,
+  recommendationRank: (model) => {
+    const id = model.replace(/^latest:/, "gpt-");
+    return id.includes("-") &&
+      /(?:^|[-/])luna(?:-|$)/i.test(id) &&
+      !/high/i.test(id)
       ? 1
-      : cheapModelRank(model),
+      : cheapModelRank(id);
+  },
   modelError: () => undefined,
   session: { systemPrompt: false, setModel: true, nativeMaxTurns: false },
   configure: async (environment, launcher, manifestPath) => {

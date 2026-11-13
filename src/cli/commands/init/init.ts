@@ -141,7 +141,7 @@ export async function run(
     if (discovery?.status === "unavailable")
       throw new StateError("environment-blocked", discovery.reason);
     throw new InputError(
-      "Selected agent/model is not available in the adapter's exact model list. No substitute was selected.",
+      "Selected agent/model is not a listed model or latest selector. No substitute was selected.",
     );
   }
   const config = completeConfig(

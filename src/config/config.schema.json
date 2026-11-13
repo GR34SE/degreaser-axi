@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://degreaser.dev/schemas/config-v1.json",
   "title": "Degreaser project configuration v1",
-  "description": "Root .degreaserrc.json only. Omitted schemaVersion means v1. No coercion, custom aspects, global RC or automatic model selection.",
+  "description": "Root .degreaserrc.json only. Omitted schemaVersion means v1. No coercion, custom aspects, global RC or implicit model selection.",
   "type": "object",
   "additionalProperties": false,
   "required": ["agent", "model"],

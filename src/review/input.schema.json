@@ -128,7 +128,8 @@
       "properties": {
         "aspect": { "$ref": "config-v1.json#/definitions/aspect" },
         "agent": { "$ref": "config-v1.json#/definitions/agent" },
-        "model": { "$ref": "config-v1.json#/definitions/model" }
+        "model": { "$ref": "config-v1.json#/definitions/model" },
+        "requestedModel": { "type": "string", "pattern": "^latest:[a-z][a-z0-9-]*$" }
       },
       "allOf": [{ "$ref": "config-v1.json#/definitions/piIdentity" }]
     }

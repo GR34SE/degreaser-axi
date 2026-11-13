@@ -13,7 +13,7 @@ The repository root comes from Git, including nested invocations and linked work
 
 [config-v1.json](https://github.com/GR34SE/degreaser-axi/blob/main/src/config/config.schema.json) is a strict draft-07 JSON Schema. An omitted `schemaVersion` means version 1, keeping the minimal `{ "agent": "codex", "model": "<exact-id>" }` form valid. Explicit unsupported versions and unknown fields at any depth are errors. No values are coerced.
 
-- Agents: `codex`, `claude`, `pi`, `cursor`. Models are exact, whitespace-free IDs, with `provider/model` required for Pi. Syntax checks do not establish model availability. Before creating a run, owner or aspect attempt, `review` discovers the exact catalogs needed by selected workers and rejects unsupported pairs (including overrides) as `invalid-input` / 2. No prefix matching, substitution or fallback.
+- Agents: `codex`, `claude`, `pi`, `cursor`. Models are whitespace-free IDs or explicit latest selectors (below), with `provider/model` required for Pi. Syntax checks do not establish model availability. Before creating a run, owner or aspect attempt, `review` discovers the exact catalogs needed by selected workers and rejects unsupported pairs (including overrides) as `invalid-input` / 2. Exact IDs never receive prefix matching, substitution or fallback.
 - `aspects` maps each built-in ID to exactly one setting: `true` (on, configured identity), `false` (off) or an identity object (on, that identity). Omitted IDs are on. Unknown IDs, other value types or an empty effective selection are invalid.
 - `--aspects` is a comma-separated one-run subset of enabled IDs, sorted into catalog order. Explicit disabled IDs are errors, not silently re-enabled. No aliases (including former A01–A16 numbers) or custom rubrics.
 - An identity object is `{ "model": "<exact-id>" }` or `{ "agent": "...", "model": "..." }`. Model-only overrides retain the configured agent; an agent override always requires an explicit model.
@@ -28,6 +28,38 @@ These numeric defaults, retry ceiling, version-omission rule and exclusion spell
 Model discovery uses the same restricted native profiles and environment as workers, with no prompt or model-setting RPC. Each distinct selected identity is inspected once. Claude discovery omits the native model flag so an arbitrary requested ID cannot add itself to the catalog. Pi discovery omits provider/model selection so an unsupported requested pair cannot prevent its native metadata API from returning the independent configured catalog. A native default may appear in metadata, but it is never used for a review turn or saved as a new default. Metadata sessions may create native harness history, but never Degreaser run history or aspect attempts. Discovery is bounded to at most 120 seconds per identity (or the shorter worker timeout), plus native version checks and joined cleanup. Missing metadata or failed discovery, including auth or host faults, returns `environment-blocked` / 2, not automatic acceptance or an inferred invalid model.
 
 Invalid syntax fails before discovery. Empty change scopes and coordinator-only scope-creep repository audits need no catalog or reviewer. Identity objects of aspects not selected for the run are syntax-checked but do not trigger discovery. Actual review sessions retain exact argv selection and check the advertised catalog and selected identity before inference. A missing entry or selection mismatch fails as `model-unavailable`, without fallback or blind retry. These are metadata checks, not proof of provider access or future availability. In particular, Claude's review-time `--model` adds the requested ID to its advertised catalog, so that runtime check cannot independently detect provider withdrawal. Provider/auth failures can still occur when a turn starts. Pi's offline startup catalog may also be cached; no preflight predicts future provider availability.
+
+### Latest models and version pins
+
+`init` puts choices labeled `(latest)` above versioned IDs and prefers them
+when recommending the same model family. Existing configurations and explicit
+flags remain prefill; init never silently migrates a version pin.
+
+- **Claude Code:** select an advertised `sonnet`, `opus`, `haiku` or `fable`
+  alias, displayed as e.g. `sonnet (latest)`. The RC saves `sonnet`, not the
+  version it currently points to. Claude Code resolves it at launch. Its native
+  version, provider availability and managed policy determine when a new model
+  becomes available. Keep Claude Code current to pick up alias updates.
+- **Codex:** select e.g. `luna (latest)` or `sol (latest)`. The RC saves
+  `latest:luna` or `latest:sol`. Before each new review, Degreaser selects the
+  highest numeric GPT version in that exact family from the adapter's advertised
+  catalog, without changing the RC. For example `gpt-6.10-luna` wins over
+  `gpt-6.9-luna`; a newer Sol never replaces Luna. Families derive from
+  `gpt-<version>-<family>` IDs; plain `gpt-<version>` uses `latest:gpt`.
+  Variant suffixes stay separate families.
+
+Codex latest selectors work at the top level and in aspect overrides. Resolved
+assignments save the exact model plus `requestedModel` (the latest selector).
+All attempts and resumes of that run keep that exact model, even if the catalog
+later adds a newer one. A changed selector requires a new review; a withdrawn
+model fails instead of switching a resumed run. Native Claude aliases remain
+aliases within a run; Degreaser does not claim to freeze their provider-side
+resolution. Choose a full versioned ID for that guarantee.
+
+These choices follow the installed harness's catalog or alias, not all announced
+models worldwide. Cached catalogs, an older harness, access restrictions or an
+unavailable provider can delay updates. No option guarantees access on release
+day. Degreaser does not install updates, change accounts or fall back to paid APIs.
 
 ### Complete configuration example
 

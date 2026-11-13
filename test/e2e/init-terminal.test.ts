@@ -134,7 +134,7 @@ test("TTY Ctrl+C during discovery stops its adapter and leaves files untouched",
     assert.throws(() => process.kill(pid, 0), { code: "ESRCH" });
 });
 
-test("TTY falls back to Codex Luna when Claude is absent", (t) => {
+test("TTY falls back to Codex Luna latest when Claude is absent", (t) => {
   const f = setup(t);
   rmSync(join(f.bin, "claude"));
   const result = f.run(
@@ -143,7 +143,8 @@ test("TTY falls back to Codex Luna when Claude is absent", (t) => {
   );
   assert.equal(result.status, 0, result.stdout);
   assert.equal(f.config().agent, "codex");
-  assert.equal(f.config().model, "gpt-6-luna");
+  assert.equal(f.config().model, "latest:luna");
+  assert.match(result.stdout, /luna \(latest\)/);
   assert.deepEqual([...new Set(f.events().map((e) => e.agent))], ["codex"]);
 });
 

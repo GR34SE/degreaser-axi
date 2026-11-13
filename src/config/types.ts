@@ -10,6 +10,7 @@ export interface Identity {
 }
 export interface Assignment extends Identity {
   aspect: AspectId;
+  requestedModel?: string;
 }
 export interface Limits {
   workerTimeoutSeconds: number;
