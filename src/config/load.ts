@@ -29,7 +29,7 @@ export function loadConfig(repository: string): ProjectConfig {
     );
   } catch {
     throw new InputError(
-      "Root .degreaserrc.json must exist and contain readable JSON. In a new Git worktree, commit .degreaserrc.json and .gitignore where init ran, or run init here.",
+      "Root .degreaserrc.json must exist and contain readable JSON. Degreaser reads it only from this worktree's root. In a new Git worktree, commit it where init ran, copy it here, or run init here.",
       ["degreaser-axi init"],
     );
   }

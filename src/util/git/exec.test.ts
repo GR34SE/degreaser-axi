@@ -59,7 +59,8 @@ test("run creation still asks for the state ignore rule when Git reports no matc
   f.write(".gitignore", ".degreaserrc.json\n");
   assert.throws(() => createRun(runtime(), input), {
     name: "InputError",
-    message: /Add \/\.degreaser\/ to the root \.gitignore before review/,
+    message:
+      /Ignore \/\.degreaser\/ before review.*root \.gitignore.*info\/exclude/,
   });
   assert.equal(existsSync(join(f.root, ".degreaser")), false);
 });

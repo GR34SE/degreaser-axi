@@ -173,3 +173,27 @@ test("synthetic scheduling: a deadline after a recovered portion stays a deadlin
   assert.equal(after?.result?.examinedPaths?.length, names.length);
   assert.match(f.events()[before]?.prompt ?? "", /paths\[2\]:/);
 });
+
+test("synthetic scheduling: each portion's limitations persist under its portion label", (t) => {
+  const f = queueFixture(t, {
+    limits: { maxTurns: 4, workerTimeoutSeconds: 15, runTimeoutSeconds: 30 },
+  });
+  const names = writeSeries(f, 3);
+  f.setPlan({
+    workers: {
+      "low-value-comments": {
+        attempts: [
+          pass("no-findings", names, { limitations: ["First portion note."] }),
+          pass("no-findings", names, { limitations: ["Second portion note."] }),
+        ],
+      },
+    },
+  });
+  const task = run(f);
+  assert.deepEqual(portionSizes(f.events()), ["2", "2"]);
+  assert.equal(task.status, "no-findings");
+  assert.deepEqual(task.result.limitations, [
+    "Portion 1 (2 paths): First portion note.",
+    "Portion 2 (2 paths): Second portion note.",
+  ]);
+});

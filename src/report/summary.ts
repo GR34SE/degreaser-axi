@@ -2,10 +2,12 @@ import { type Run, resolved } from "../state/run.ts";
 import {
   coverage,
   harnessLimitations,
-  latestUsage,
+  portions,
   shownLimitations,
+  sumUsage,
   taskLimitations,
   taskReason,
+  taskUsage,
 } from "./details.ts";
 import { findings } from "./group.ts";
 import type { ReportContext } from "./types.ts";
@@ -23,6 +25,8 @@ export function renderReport(run: Run, context: ReportContext, full = false) {
   const all = findings(run),
     shown = full ? all : all.slice(0, 30);
   const workers = run.tasks.filter((task) => task.promptHash !== null);
+  const usage = sumUsage(workers.map(taskUsage));
+  const split = workers.some((task) => portions(task));
   const clipped =
     !full &&
     run.tasks.some((task) =>
@@ -81,19 +85,19 @@ export function renderReport(run: Run, context: ReportContext, full = false) {
               attemptStatusBasis: "last-persisted",
               attempts: t.attempts,
               rejections: t.rejections,
-              usage: latestUsage(t) ?? "unknown",
+              usage: taskUsage(t) ?? "unknown",
             })),
           controls: run.executions ?? [],
+          aspectUsage: usage
+            ? workers.map((t) => ({
+                aspect: t.assignment.aspect,
+                ...taskUsage(t),
+              }))
+            : "unknown",
         }
       : {}),
-    usageScope: "latest-attempt-per-aspect",
-    usage:
-      workers.length > 0 && workers.every((t) => latestUsage(t) !== null)
-        ? workers.map((t) => ({
-            aspect: t.assignment.aspect,
-            ...latestUsage(t),
-          }))
-        : "unknown",
+    usageScope: "all-attempts-per-aspect",
+    usage: usage ?? "unknown",
     help:
       status === "running"
         ? [
@@ -115,6 +119,11 @@ export function renderReport(run: Run, context: ReportContext, full = false) {
               : []),
             ...(all.length ? [`degreaser-axi finding F1 --run ${run.id}`] : []),
             context.reviewCommand,
+            ...(split
+              ? [
+                  "Large scopes are split into portions; narrow the next review with repeatable --path <pattern> or exclude generated files via exclude in .degreaserrc.json.",
+                ]
+              : []),
             ...(canResume &&
             run.tasks.some(
               (task) => task.attempts.at(-1)?.failure === "account-disabled",

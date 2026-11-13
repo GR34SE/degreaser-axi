@@ -89,7 +89,11 @@
                 "result": { "anyOf": [{ "type": "null" }, { "$ref": "result-v1.json" }] },
                 "rejections": { "$ref": "#/properties/tasks/items/properties/rejections" },
                 "limitations": { "$ref": "#/properties/tasks/items/properties/limitations" },
-                "usage": { "$ref": "#/properties/tasks/items/properties/usage" }
+                "usage": { "$ref": "#/properties/tasks/items/properties/usage" },
+                "portion": {
+                  "type": "object", "additionalProperties": false, "required": ["index", "paths"],
+                  "properties": { "index": { "type": "integer", "minimum": 1 }, "paths": { "type": "integer", "minimum": 0 } }
+                }
               }
             }
           },
