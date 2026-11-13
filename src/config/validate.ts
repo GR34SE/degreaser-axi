@@ -12,7 +12,7 @@ export function validateConfig(data: unknown): ProjectConfig {
     LEGACY_ASPECT_KEYS.some((key) => Object.hasOwn(aspects, key))
   )
     throw new InputError(
-      '.degreaserrc.json: aspects.enable/disable/overrides were replaced by one entry per aspect, e.g. "aspects": { "scope-creep": false, "low-value-comments": { "model": "<exact-id>" } }. Omitted aspects are on.',
+      '.degreaserrc.json: aspects.enable/disable/overrides were replaced by one entry per aspect, e.g. "aspects": { "scope-creep": false, "low-value-comments": { "model": "<model>" } }. Omitted aspects are on.',
     );
   const validate = schema<ProjectConfig>(
     new URL("./config.schema.json", import.meta.url),

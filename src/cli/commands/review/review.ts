@@ -5,7 +5,7 @@ import { prepareReview } from "../../../review/prepare/index.ts";
 import { completenessCode } from "../../exit-codes.ts";
 import type { Factory } from "../../factory.ts";
 import type { CommandOptions } from "../../types.ts";
-import { waitFor } from "../shared/run.ts";
+import { identities, waitFor } from "../shared/run.ts";
 import { parseReviewArguments } from "./arguments.ts";
 
 export { spec } from "./spec.ts";
@@ -30,8 +30,9 @@ export async function run(f: Factory, options: CommandOptions) {
           "No change was reviewed. No reviewer was started; this is not a repository audit or a model quality verdict.",
       },
     };
+  const workers = run.tasks.filter((t) => t.promptHash !== null);
   f.io.error.write(
-    `run: ${run.id}; workers: ${input.workers.length}; identities: ${[...new Set(input.workers.map((w) => `${w.agent}/${w.model}`))].join(",") || "coordinator-only"}; concurrency: ${input.config.concurrency ?? "all"}; deadline: ${new Date(run.deadline).toISOString()}\n`,
+    `run: ${run.id}; workers: ${workers.length}; identities: ${identities(workers) || "coordinator-only"}; concurrency: ${input.config.concurrency ?? "all"}; deadline: ${new Date(run.deadline).toISOString()}\n`,
   );
   const output = await waitFor(f, run, input.waitSeconds);
   return {

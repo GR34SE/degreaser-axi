@@ -8,10 +8,15 @@ import {
   ownerRecoveryGuidance,
   processAlive,
 } from "../../../state/ownership.ts";
-import type { Run } from "../../../state/run.ts";
+import type { Run, RunTask } from "../../../state/run.ts";
 import { observeRun } from "../../../state/status.ts";
 import { loadInput, loadRun } from "../../../state/store.ts";
 import type { Factory } from "../../factory.ts";
+
+export const identities = (tasks: RunTask[]) =>
+  [
+    ...new Set(tasks.map((t) => `${t.assignment.agent}/${t.assignment.model}`)),
+  ].join(",");
 
 export function reportContext(f: Factory, snapshot: Run) {
   const { run, status } = observeRun(snapshot);

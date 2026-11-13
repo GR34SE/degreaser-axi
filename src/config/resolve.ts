@@ -78,7 +78,7 @@ export function assertSupportedModels(
       )
     ) {
       throw new InputError(
-        `${aspect}: selected ${agent} model is not available in the adapter's exact model list. No substitute was selected.`,
+        `${aspect}: selected ${agent} model is not available: it is neither an advertised model ID nor a latest selector with an advertised family. No substitute was selected.`,
       );
     }
   }

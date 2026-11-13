@@ -11,12 +11,12 @@ The repository root comes from Git, including nested invocations and linked work
 
 ## Configuration
 
-[config-v1.json](https://github.com/GR34SE/degreaser-axi/blob/main/src/config/config.schema.json) is a strict draft-07 JSON Schema. An omitted `schemaVersion` means version 1, keeping the minimal `{ "agent": "codex", "model": "<exact-id>" }` form valid. Explicit unsupported versions and unknown fields at any depth are errors. No values are coerced.
+[config-v1.json](https://github.com/GR34SE/degreaser-axi/blob/main/src/config/config.schema.json) is a strict draft-07 JSON Schema. An omitted `schemaVersion` means version 1, keeping the minimal `{ "agent": "codex", "model": "<model>" }` form valid. Explicit unsupported versions and unknown fields at any depth are errors. No values are coerced.
 
 - Agents: `codex`, `claude`, `pi`, `cursor`. Models are whitespace-free IDs or explicit latest selectors (below), with `provider/model` required for Pi. Syntax checks do not establish model availability. Before creating a run, owner or aspect attempt, `review` discovers the exact catalogs needed by selected workers and rejects unsupported pairs (including overrides) as `invalid-input` / 2. Exact IDs never receive prefix matching, substitution or fallback.
 - `aspects` maps each built-in ID to exactly one setting: `true` (on, configured identity), `false` (off) or an identity object (on, that identity). Omitted IDs are on. Unknown IDs, other value types or an empty effective selection are invalid.
 - `--aspects` is a comma-separated one-run subset of enabled IDs, sorted into catalog order. Explicit disabled IDs are errors, not silently re-enabled. No aliases (including former A01–A16 numbers) or custom rubrics.
-- An identity object is `{ "model": "<exact-id>" }` or `{ "agent": "...", "model": "..." }`. Model-only overrides retain the configured agent; an agent override always requires an explicit model.
+- An identity object is `{ "model": "<model>" }` or `{ "agent": "...", "model": "..." }`. Model-only overrides retain the configured agent; an agent override always requires an explicit model.
 - `concurrency` and `limits.maxTurns` accept integers 1–9,007,199,254,740,991. An absent concurrency limit means all selected workers, not a machine-dependent cap. RC `null` explicitly represents no limit, as it does in resolved input.
 - `maxRetries`: 0–10, default 1 additional attempt. `limits.workerTimeoutSeconds`: 1–2,147,483, default 300. `limits.workerIdleSeconds`: the same range, default 120; an attempt with no adapter event for that long stops as a timeout. `limits.runTimeoutSeconds`: the same range, default 900. `limits.maxTurns` defaults to 40. `--wait` uses the seconds range, default 480. The seconds bound prevents signed 32-bit millisecond timer overflow.
 - Only `--aspects`, `--concurrency` and `--wait` control this review invocation. They never rewrite the RC.

@@ -67,7 +67,9 @@ export async function run(
     model !== undefined &&
     (!model || /[\s\0]/.test(model) || model.startsWith("-"))
   )
-    throw new InputError("--model must be an exact nonempty model ID.");
+    throw new InputError(
+      "--model must be a nonempty model ID or latest selector.",
+    );
   let harnesses =
     values.harnesses === undefined
       ? undefined

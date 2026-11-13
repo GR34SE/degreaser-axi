@@ -105,7 +105,7 @@ degreaser-axi review --scope worktree --task "Add CSV import" --aspects missed-r
 ```
 
 - `concurrency: 4` caps simultaneous reviewers; the default `null` leaves them uncapped.
-- `aspects` accepts `true` (enabled), `false` (disabled), or `{ "model": "<exact-model-id>" }` to override the model for one aspect. Omitted aspects stay enabled. Changing its agent also requires an explicit compatible model.
+- `aspects` accepts `true` (enabled), `false` (disabled), or `{ "model": "<model>" }` to override the model for one aspect. Omitted aspects stay enabled. Changing its agent also requires an explicit compatible model.
 - `maxRetries` counts extra attempts. The limits above are defaults; `maxTurns` is enforced natively only by Claude and is advisory for other workers.
 - `exclude` adds literal repository-relative files or directory prefixes, not globs. It narrows assessed coverage, not worker read access.
 

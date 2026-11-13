@@ -124,7 +124,10 @@ for (const override of [false, true]) {
     const result = f.run();
     assert.equal(result.status, 2, result.stdout);
     assert.match(result.stdout, /code: invalid-input/);
-    assert.match(result.stdout, /low-value-comments.*pi.*exact model list/);
+    assert.match(
+      result.stdout,
+      /low-value-comments.*pi.*neither an advertised model ID/,
+    );
     assert.ok(!existsSync(join(f.root, ".degreaser")));
     assert.ok(
       f.events().some((event) => event.type === "get_available_models"),

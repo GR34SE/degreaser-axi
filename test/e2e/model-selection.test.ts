@@ -142,11 +142,19 @@ test("Codex latest upgrades on new reviews, pins resume and preserves explicit p
   assert.equal(started.status, 1, started.stdout);
   const first = f.state();
   assert.equal(first.tasks[0]?.assignment.model, "gpt-6.10-luna");
+  assert.ok(
+    started.stderr.includes("identities: codex/gpt-6.10-luna;"),
+    started.stderr,
+  );
   f.setPlan({
     models: { codex: ["gpt-7-luna", "gpt-6.10-luna"] },
   });
   const resumed = f.run(["resume", first.id, "--wait", "20"]);
   assert.equal(resumed.status, 0, resumed.stdout);
+  assert.ok(
+    resumed.stderr.includes("identities: codex/gpt-6.10-luna;"),
+    resumed.stderr,
+  );
   assert.equal(f.state().tasks[0]?.assignment.model, "gpt-6.10-luna");
   const runBeforeChange = readFileSync(
     join(f.root, ".degreaser/runs", first.id, "run.json"),
@@ -212,6 +220,10 @@ test("Codex latest overrides stay in their families and missing families refuse 
   const refused = empty.start(["--aspects", "low-value-comments"]);
   assert.equal(refused.status, 2, refused.stdout);
   assert.match(refused.stdout, /invalid-input/);
+  assert.match(
+    refused.stdout,
+    /low-value-comments.*codex.*latest selector with an advertised family/,
+  );
   assert.ok(!existsSync(join(empty.root, ".degreaser/state.json")));
   assert.deepEqual(empty.events(), []);
 });
