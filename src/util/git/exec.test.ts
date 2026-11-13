@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -110,5 +110,29 @@ test("optional Git failures never swallow spawn errors or permission denial", (t
     name: "DiagnosticError",
     diagnosis: "permission",
     message: "Git rev-parse review input operation failed (permission).",
+  });
+});
+
+test("Git that exits before reading its input is judged by its exit status and stderr", (t) => {
+  const f = fixture(t, false);
+  // Larger than a pipe buffer, so the write cannot finish before Git exits.
+  const input = "0".repeat(4 * 1024 * 1024);
+  const batch = (rt = runtime()) =>
+    git(rt, f.root, ["cat-file", "--batch-check"], {
+      input,
+      allowFailure: () => true,
+    });
+  f.write(".git/config", "[private-config-sentinel\n");
+  assert.equal(batch(), null);
+  const bin = join(f.root, "bin");
+  f.write(
+    "bin/git",
+    "#!/bin/sh\necho 'fatal: unable to access .git/config: Permission denied' >&2\nexit 128\n",
+  );
+  chmodSync(join(bin, "git"), 0o755);
+  assert.throws(() => batch(runtime({ env: { ...process.env, PATH: bin } })), {
+    name: "DiagnosticError",
+    diagnosis: "permission",
+    message: "Git cat-file review input operation failed (permission).",
   });
 });

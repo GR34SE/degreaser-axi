@@ -48,14 +48,22 @@ function gitBytes(
     return result.stdout;
   }
   const stderr = result.stderr?.toString("utf8") ?? "";
-  const failure = result.error ?? new Error(stderr);
+  // spawnSync also reports EPIPE when Git exits before reading its input;
+  // that exit is still described by its status and stderr.
+  const unreadInput =
+    result.status !== null &&
+    result.error &&
+    "code" in result.error &&
+    result.error.code === "EPIPE";
+  const error = unreadInput ? undefined : result.error;
+  const failure = error ?? new Error(stderr);
   const diagnostic = diagnoseFailure(
     failure,
     `Git ${args[0]} review input operation`,
   );
   if (diagnostic.diagnosis === "permission") throw diagnostic;
   if (
-    !result.error &&
+    !error &&
     result.status !== null &&
     options.allowFailure?.(result.status, stderr)
   )

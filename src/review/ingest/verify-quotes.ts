@@ -45,6 +45,29 @@ function quoteMatches(
   return found(stripped);
 }
 
+function omittedFinalLine(source: string, finding: Finding): boolean {
+  const quote = lineEndings(finding.quote).replace(/\n$/, "").split("\n");
+  const { startLine, endLine } = finding.location;
+  if (
+    quote.filter((line) => line.trim() !== "").length < 2 ||
+    finding.quote.replace(/\s/g, "").length < 3 ||
+    startLine + quote.length - 1 !== endLine + 1
+  )
+    return false;
+  const lines = lineEndings(source).replace(/\n$/, "").split("\n");
+  const matches = (at: number) =>
+    quote.every((line, offset) => lines[at + offset] === line);
+  return (
+    matches(startLine - 1) &&
+    !lines.some((_, at) => at !== startLine - 1 && matches(at))
+  );
+}
+
+const beforeEndLineCorrection = (finding: Finding): Finding => ({
+  ...finding,
+  location: { ...finding.location, endLine: finding.location.endLine - 1 },
+});
+
 export function ingestResult(
   runtime: Runtime,
   text: string,
@@ -53,7 +76,11 @@ export function ingestResult(
   established: readonly Finding[] = [],
 ) {
   const result = parseResult(text, aspect, input.repository);
-  const known = new Set(established.map((f) => JSON.stringify(f)));
+  const known = new Set(
+    established
+      .flatMap((f) => [f, beforeEndLineCorrection(f)])
+      .map((f) => JSON.stringify(f)),
+  );
   const rejections: Rejection[] = [];
   const blobs = new Map<string, string | null>();
   const unjudged: string[] = [];
@@ -96,8 +123,10 @@ export function ingestResult(
             finding.quote,
             side,
           )
-        )
-          reason = "quote-mismatch";
+        ) {
+          if (omittedFinalLine(source, finding)) finding.location.endLine++;
+          else reason = "quote-mismatch";
+        }
       }
     }
     if (reason) {
