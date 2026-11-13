@@ -44,9 +44,13 @@ flags remain prefill; init never silently migrates a version pin.
   `latest:luna` or `latest:sol`. Before each new review, Degreaser selects the
   highest numeric GPT version in that exact family from the adapter's advertised
   catalog, without changing the RC. For example `gpt-6.10-luna` wins over
-  `gpt-6.9-luna`; a newer Sol never replaces Luna. Families derive from
+  `gpt-6.9-luna`; a newer Sol never replaces Luna. A selector whose family is
+  not advertised is rejected as `invalid-input` / 2. Families derive from
   `gpt-<version>-<family>` IDs; plain `gpt-<version>` uses `latest:gpt`.
   Variant suffixes stay separate families.
+
+Pi and Cursor have no `(latest)` choices; init lists their advertised IDs
+unchanged.
 
 Codex latest selectors work at the top level and in aspect overrides. Resolved
 assignments save the exact model plus `requestedModel` (the latest selector).

@@ -81,7 +81,7 @@ degreaser-axi review --scope worktree --task "Add CSV import" --aspects missed-r
 
 ## Configuration
 
-`init` writes `.degreaserrc.json` at the Git root. Keep the exact `agent` and `model` you confirmed there; the Codex model below is an example, not a guarantee of availability.
+`init` writes `.degreaserrc.json` at the Git root. Keep the `agent` and `model` you confirmed there. `model` is a version pin, like the Codex example below, or a `(latest)` choice that tracks the newest version your installed harness offers; neither guarantees availability. See [latest models and version pins](https://github.com/GR34SE/degreaser-axi/blob/main/docs/input-contract.md).
 
 ```json
 {
