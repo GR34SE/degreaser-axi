@@ -97,3 +97,18 @@ test("a single-portion review shows no portion line or narrowing hint", (t) => {
   assert.ok(!short.help.some((line: string) => /--path/.test(line)));
   assert.deepEqual(short.usage, { inputTokens: 5 });
 });
+
+test("resuming a failed whole-scope review is not reported as a split", (t) => {
+  const f = queueFixture(t, { maxRetries: 0 });
+  writeSeries(f, 3);
+  f.setPlan({ workers: { "low-value-comments": { result: "" } } });
+  f.start(["--aspects", "low-value-comments"]);
+  assert.equal(f.finish().status, 1);
+  f.setPlan();
+  const resumed = f.run(["resume", f.state().id, "--wait", "20"]);
+  assert.equal(resumed.status, 0, resumed.stdout);
+  assert.equal(f.state().tasks[0]?.attempts.length, 2);
+  const short = decode(f.run(["report"]).stdout);
+  assert.equal(short.coverage[0].portions, undefined);
+  assert.ok(!short.help.some((line: string) => /--path/.test(line)));
+});
