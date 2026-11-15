@@ -7,8 +7,8 @@ import { fixture } from "../../../test/utils/git-fixture.ts";
 import { prepareReview } from "../../../test/utils/input.ts";
 import { block, clean, finding } from "../../../test/utils/result-fixture.ts";
 import { runtime } from "../../../test/utils/runtime.ts";
-import { pathSizes, takePortion } from "../../review/ingest/coverage.ts";
-import { ingestResult } from "../../review/ingest/verify-quotes.ts";
+import { packShards, pathSizes } from "../../review/ingest/coverage.ts";
+import { ingestFinder } from "../../review/ingest/verify-quotes.ts";
 import { createRun } from "../../review/prepare/create.ts";
 import { git } from "./exec.ts";
 import { repositoryRoot } from "./repository.ts";
@@ -73,23 +73,22 @@ test("optional blob failures retain conservative coverage sizing and incomplete 
   f.write(".git/config", "[private-config-sentinel\n");
   const sizes = pathSizes(runtime(), input);
   assert.equal(sizes.size, 0);
-  assert.deepEqual(takePortion(["source.ts", ".gitignore"], sizes, 10, 100), [
-    "source.ts",
+  assert.deepEqual(packShards(["source.ts", ".gitignore"], sizes, 100), [
+    ["source.ts"],
+    [".gitignore"],
   ]);
-  const { result, rejections } = ingestResult(
+  const { result, rejections } = ingestFinder(
     runtime(),
     block({
       ...clean,
       status: "findings",
       findings: [finding("source.ts", "new", source)],
-      examinedPaths: ["source.ts"],
     }),
     "low-value-comments",
     input,
   );
   assert.equal(result.status, "incomplete");
   assert.deepEqual(result.findings, []);
-  assert.deepEqual(result.examinedPaths, []);
   assert.deepEqual(rejections, [{ index: 1, reason: "source-unavailable" }]);
 });
 

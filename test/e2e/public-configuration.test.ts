@@ -18,7 +18,7 @@ test("public configuration is strict, root-local and rejects finite invalid valu
   f.write("nested/.degreaserrc.json", '{"agent":"droid"}');
   f.write(
     ".degreaserrc.json",
-    '{"agent":"codex","model":"gpt-6-luna","maxRetries":0,"concurrency":null}',
+    '{"agent":"codex","model":"gpt-6-luna","verifier":{"model":"gpt-6-sol"},"maxRetries":0,"concurrency":null}',
   );
   assert.equal(
     f.run(
@@ -39,11 +39,21 @@ test("public configuration is strict, root-local and rejects finite invalid valu
   assert.equal(f.input().config.concurrency, null);
   const runs = readdirSync(join(f.root, ".degreaser/runs")),
     count = f.events().length;
-  const valid = { agent: "codex", model: "gpt-6-luna" };
+  const valid = {
+    agent: "codex",
+    model: "gpt-6-luna",
+    verifier: { model: "gpt-6-sol" },
+  };
   for (const rc of [
     {},
     { agent: "codex" },
     { model: "gpt-6-luna" },
+    { ...valid, verifier: {} },
+    { ...valid, verifier: { agent: "claude" } },
+    { ...valid, verifier: { model: "gpt-6-sol", extra: true } },
+    { ...valid, verifier: { agent: "droid", model: "x" } },
+    { ...valid, verifier: "gpt-6-sol" },
+    { ...valid, verifier: { agent: "pi", model: "unqualified" } },
     { ...valid, caller: "codex" },
     { ...valid, schemaVersion: 2 },
     ...["droid", "grok"].map((agent) => ({ ...valid, agent })),
@@ -91,6 +101,22 @@ test("public configuration is strict, root-local and rejects finite invalid valu
   assert.equal(f.events().length, count);
 });
 
+test("public review refuses an RC without a verifier and points to init without creating a run", (t) => {
+  const f = setup(t);
+  f.write("source.ts", "export const a = 1;\n");
+  f.write(
+    ".degreaserrc.json",
+    JSON.stringify({ agent: "codex", model: "gpt-6-luna" }),
+  );
+  const result = f.run(args);
+  assert.equal(result.status, 2, result.stdout);
+  assert.match(result.stdout, /code: invalid-input/);
+  assert.match(result.stdout, /verifier is required/);
+  assert.match(result.stdout, /degreaser-axi init/);
+  assert.ok(!existsSync(join(f.root, ".degreaser")));
+  assert.deepEqual(f.events(), []);
+});
+
 test("public default/narrowed/restored selections retain exact overrides and exclusions without RC writes", (t) => {
   const f = setup(t);
   f.write("source.ts", "export const a = 1;\n");
@@ -112,6 +138,7 @@ test("public default/narrowed/restored selections retain exact overrides and exc
   const rc = JSON.stringify({
     agent: "codex",
     model: "gpt-6-luna",
+    verifier: { model: "gpt-6-sol" },
     concurrency: 2,
     maxRetries: 0,
     exclude: ["package.json"],
@@ -205,6 +232,7 @@ test("public --path narrows a repository audit from the Git root and composes wi
     JSON.stringify({
       agent: "codex",
       model: "gpt-6-luna",
+      verifier: { model: "gpt-6-sol" },
       exclude: ["landing/generated"],
     }),
   );

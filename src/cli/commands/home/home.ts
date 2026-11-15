@@ -6,6 +6,7 @@ import {
   DESCRIPTION,
 } from "../../../install/skill/guidance.ts";
 import { ASPECT_IDS } from "../../../modules/aspect/api.ts";
+import { verdictCounts } from "../../../report/details.ts";
 import { observeRun } from "../../../state/status.ts";
 import { loadInput, loadRun } from "../../../state/store.ts";
 import { InputError, StateError } from "../../../util/errors.ts";
@@ -57,11 +58,12 @@ export function run(f: Factory) {
   try {
     const run = loadRun(repository);
     loadInput(run);
-    const { status } = observeRun(run);
+    const { run: observed, status } = observeRun(run);
     Object.assign(local, {
       history: "available",
       run: run.id,
       status,
+      ...verdictCounts(observed.tasks),
       next: `degreaser-axi ${status === "running" ? "wait" : "report"} ${run.id}`,
       help: [
         `degreaser-axi ${status === "running" ? "wait" : "report"} ${run.id}`,

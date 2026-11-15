@@ -121,11 +121,9 @@ test("running reports are immediate saved-result observations with same-run acti
   assert.equal(start.status, 3, start.stdout);
   await until(
     () =>
-      !!f
-        .state()
-        .tasks.find((task) => task.assignment.aspect === "missed-reuse")
-        ?.result,
-    "First useful result before read",
+      f.state().tasks.find((task) => task.assignment.aspect === "missed-reuse")
+        ?.status === "findings",
+    "First verified result before read",
   );
   const state = f.state();
   const report = f.run(["report"]);
@@ -135,14 +133,25 @@ test("running reports are immediate saved-result observations with same-run acti
   assert.equal(data.status, "running");
   assert.equal(data.aspects, "1/2");
   assert.ok(data.help.includes(`degreaser-axi wait ${state.id}`));
-  assert.equal(data.count, 35);
-  assert.equal(data.shown, 30);
-  assert.ok(data.help.includes(`degreaser-axi report ${state.id} --full`));
+  assert.equal(data.upheld, 35);
+  assert.equal(data.findings["source.ts"].length, 35);
+  assert.ok(!data.help.includes(`degreaser-axi report ${state.id} --full`));
   const full = f.run(["report", state.id, "--full"]);
   assert.equal(full.status, 3);
-  assert.equal(decode(full.stdout).shown, 35);
+  assert.equal(decode(full.stdout).findings.length, 35);
   assert.deepEqual(f.state().tasks, state.tasks);
-  assert.equal(f.events().length, 2);
+  assert.deepEqual(
+    f
+      .events()
+      .map((e) => `${e.aspect}:${e.stage}`)
+      .sort(),
+    [
+      "masked-errors:find",
+      "missed-reuse:find",
+      "missed-reuse:verify",
+      "missed-reuse:verify",
+    ],
+  );
   assert.equal(start.stderr.trim().split("\n").length, 1);
   assert.ok(start.stderr.includes(`run: ${state.id}; workers: 2;`));
   assert.ok(
@@ -209,7 +218,7 @@ test("a dismissed finding is stored per repository and passed to later reviews o
   });
   f.start(["--aspects", "low-value-comments"]);
   const first = decode(f.finish().stdout);
-  assert.equal(first.count, 1);
+  assert.equal(first.upheld, 1);
   const missing = decode(f.run(["dismiss", "F1"]).stdout);
   assert.equal(missing.code, "invalid-input");
   const dismissed = decode(
@@ -233,7 +242,7 @@ test("a dismissed finding is stored per repository and passed to later reviews o
 test("export prints the run as plain JSON with flattened, unclipped findings", (t) => {
   const f = queueFixture(t);
   f.write("source.ts", "new line 1\n");
-  const entry = { ...finding(1), evidence: "x".repeat(5_000) };
+  const entry = { ...finding(1), title: "x".repeat(5_000) };
   f.setPlan({
     results: { "low-value-comments": result("low-value-comments", [entry]) },
   });
@@ -248,9 +257,11 @@ test("export prints the run as plain JSON with flattened, unclipped findings", (
   const { location, ...fields } = entry;
   assert.deepEqual(data.findings[0], {
     id: "F1",
-    group: "G1",
     aspect: "low-value-comments",
     ...fields,
+    verdict: "upheld",
+    reason: "The source confirms the candidate.",
+    action: "Remove it.",
     ...location,
   });
   assert.equal(data.coverage[0].aspect, "low-value-comments");

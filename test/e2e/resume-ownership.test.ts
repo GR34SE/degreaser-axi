@@ -127,7 +127,7 @@ test("a reused child PID gets inspection guidance without signalling it or rewri
 });
 
 test("cancelled work resumes, while findings and their attempt evidence remain byte-for-byte stable", async (t) => {
-  const f = queueFixture(t, { concurrency: 1 });
+  const f = queueFixture(t, { concurrency: 2 });
   f.setPlan({
     workers: { "convention-drift": { resultGate: f.gate("blocked") } },
     results: {
@@ -145,10 +145,6 @@ test("cancelled work resumes, while findings and their attempt evidence remain b
             },
             quote: "// redundant",
             title: "Synthetic source finding",
-            evidence: "The source repeats its explanation.",
-            consequence: "Duplicated explanation can drift.",
-            countercheck: "No separate rationale is supplied.",
-            recommendation: "Keep only useful rationale.",
           },
         ],
       },
@@ -156,24 +152,27 @@ test("cancelled work resumes, while findings and their attempt evidence remain b
   });
   f.start(["--aspects", "masked-errors,convention-drift,low-value-comments"]);
   await until(
-    () => f.events().length === 2,
-    "Committed finding and active peer",
+    () =>
+      f.state().tasks[0]?.status === "findings" &&
+      f.state().tasks[2]?.status === "no-findings",
+    "Verified finding and clean peer committed beside the blocked aspect",
   );
   const id = f.state().id;
   assert.equal(f.run(["cancel", id]).status, 1);
   const cancelled = f.state();
   assert.deepEqual(
     cancelled.tasks.map((t) => t.status),
-    ["findings", "cancelled", "cancelled"],
+    ["findings", "cancelled", "no-findings"],
   );
   f.setPlan();
   const resumed = f.run(["resume", id, "--concurrency", "2", "--wait", "20"]);
   assert.equal(resumed.status, 0, resumed.stdout);
   const completed = f.state();
   assert.deepEqual(completed.tasks[0], cancelled.tasks[0]);
+  assert.deepEqual(completed.tasks[2], cancelled.tasks[2]);
   assert.deepEqual(
     completed.tasks.map((t) => t.attempts.length),
-    [1, 2, 1],
+    [2, 2, 1],
   );
   const path = join(f.root, ".degreaser/runs", id, "run.json");
   const bytes = readFileSync(path);
@@ -183,7 +182,7 @@ test("cancelled work resumes, while findings and their attempt evidence remain b
     assert.match(result.stdout, /already-completed/);
     assert.deepEqual(readFileSync(path), bytes);
   }
-  assert.equal(f.events().length, 4);
+  assert.equal(f.events().length, 5);
 });
 
 test("retry and resume retain production source-only profile, fresh sessions, one rubric and worker-context recursion refusals", (t) => {
@@ -227,7 +226,7 @@ test("retry and resume retain production source-only profile, fresh sessions, on
     ),
   );
   assert.ok(events[1]?.prompt?.startsWith(events[0]?.prompt ?? "\0"));
-  assert.match(events[2]?.prompt ?? "", /# Unresolved obligations/);
+  assert.equal(events[2]?.prompt, events[0]?.prompt);
   assert.equal(
     events[0]?.prompt?.match(/Assigned aspect: [a-z-]+$/gm)?.length,
     1,

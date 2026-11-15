@@ -37,6 +37,11 @@ export function run(f: Factory, { positionals, values }: CommandOptions) {
       "finding-not-found",
       `Finding not found in ${run.id}: ${id}. Use degreaser-axi report ${run.id} --full.`,
     );
+  if (finding.verdict !== "upheld")
+    throw new StateError(
+      "finding-not-upheld",
+      `${id} is ${finding.verdict}; only upheld findings can be dismissed.`,
+    );
   const stored = recordDismissal(f, repository, {
     aspect: finding.aspect,
     path: finding.location.path,

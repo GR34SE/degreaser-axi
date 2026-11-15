@@ -122,6 +122,7 @@ test("a reverted branch and excluded-only change retain explicit no-changes cove
     JSON.stringify({
       agent: "codex",
       model: "gpt-6-luna",
+      verifier: { model: "gpt-6-sol" },
       exclude: ["excluded"],
     }),
   );
@@ -141,6 +142,7 @@ test("literal exclusion directories cannot inject pathspecs and renames crossing
     JSON.stringify({
       agent: "codex",
       model: "gpt-6-luna",
+      verifier: { model: "gpt-6-sol" },
       exclude: ["hidden"],
     }),
   );

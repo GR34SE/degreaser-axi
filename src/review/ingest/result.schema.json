@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://degreaser.dev/schemas/result-v1.json",
-  "title": "Worker result v1",
+  "title": "Stored aspect result v1",
   "type": "object",
   "additionalProperties": false,
   "required": ["aspect", "status", "findings", "limitations"],
@@ -9,52 +9,46 @@
     "aspect": { "type": "string", "enum": ["unnecessary-complexity", "masked-errors", "verification-theater", "contract-bypass", "incomplete-integration", "stale-references", "low-value-tests", "scope-creep", "reinvented-infrastructure", "missed-reuse", "wrong-abstraction", "structural-erosion", "speculative-flexibility", "unnecessary-layers", "unjustified-defense", "convention-drift", "unidiomatic-code", "low-value-comments"] },
     "status": { "enum": ["findings", "no-findings", "not-applicable", "incomplete"] },
     "findings": { "type": "array", "items": { "$ref": "#/definitions/finding" } },
+    "kept": { "type": "array", "items": { "$ref": "#/definitions/quoted" } },
     "limitations": { "type": "array", "items": { "$ref": "#/definitions/text" } },
     "reason": { "$ref": "#/definitions/text" },
-    "examinedPaths": { "type": "array", "items": { "$ref": "#/definitions/text" } },
-    "unresolved": { "type": "array", "items": { "$ref": "#/definitions/unresolved" } }
+    "examinedPaths": { "type": "array", "items": { "$ref": "#/definitions/path" } }
   },
   "allOf": [
     { "if": { "properties": { "status": { "const": "findings" } } }, "then": { "properties": { "findings": { "type": "array", "minItems": 1 } } } },
-    { "if": { "properties": { "status": { "enum": ["no-findings", "not-applicable"] } } }, "then": { "properties": { "findings": { "type": "array", "maxItems": 0 } } } },
     { "if": { "properties": { "status": { "const": "not-applicable" } } }, "then": { "required": ["reason"], "properties": { "reason": {} } } },
     { "if": { "properties": { "status": { "const": "incomplete" } } }, "then": { "properties": { "limitations": { "type": "array", "minItems": 1 } } } }
   ],
   "definitions": {
     "text": { "type": "string", "pattern": "\\S" },
-    "unresolved": {
-      "type": "object", "additionalProperties": false,
-      "required": ["scope", "reason"],
-      "properties": {
-        "scope": { "enum": ["paths", "context", "evidence", "unspecified"] },
-        "reason": { "$ref": "#/definitions/text" },
-        "paths": { "type": "array", "items": { "$ref": "#/definitions/text" } }
-      }
-    },
     "path": { "type": "string", "pattern": "^(?!(?:\\.|\\.\\.)(?:/|$))[^/\\u0000]+(?:/(?!(?:\\.|\\.\\.)(?:/|$))[^/\\u0000]+)*$" },
     "line": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
-    "finding": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["location", "quote", "title", "evidence", "consequence", "countercheck", "recommendation"],
+    "location": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "side", "startLine", "endLine"],
       "properties": {
-        "location": {
-          "type": "object", "additionalProperties": false,
-          "required": ["path", "side", "startLine", "endLine"],
-          "properties": {
-            "path": { "$ref": "#/definitions/path" },
-            "side": { "enum": ["old", "new"] },
-            "startLine": { "$ref": "#/definitions/line" },
-            "endLine": { "$ref": "#/definitions/line" }
-          }
-        },
+        "path": { "$ref": "#/definitions/path" },
+        "side": { "enum": ["old", "new"] },
+        "startLine": { "$ref": "#/definitions/line" },
+        "endLine": { "$ref": "#/definitions/line" }
+      }
+    },
+    "quoted": {
+      "type": "object", "additionalProperties": false,
+      "required": ["location", "quote"],
+      "properties": { "location": { "$ref": "#/definitions/location" }, "quote": { "$ref": "#/definitions/text" } }
+    },
+    "finding": {
+      "type": "object", "additionalProperties": false,
+      "required": ["location", "quote", "title", "verdict"],
+      "properties": {
+        "location": { "$ref": "#/definitions/location" },
         "quote": { "$ref": "#/definitions/text" },
         "title": { "$ref": "#/definitions/text" },
-        "evidence": { "$ref": "#/definitions/text" },
-        "consequence": { "$ref": "#/definitions/text" },
-        "countercheck": { "$ref": "#/definitions/text" },
-        "recommendation": { "$ref": "#/definitions/text" },
-        "uncertainty": { "type": "string" }
+        "verdict": { "enum": ["upheld", "refuted", "unverified"] },
+        "action": { "$ref": "#/definitions/text" },
+        "reason": { "$ref": "#/definitions/text" },
+        "evidence": { "$ref": "#/definitions/quoted" }
       }
     }
   }

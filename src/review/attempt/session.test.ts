@@ -262,29 +262,29 @@ test("streamed output crossing the limit is discarded and the real runtime is jo
   }
 });
 
-test("the shared worker instruction travels once: as Claude's system prompt, else in the turn text", async () => {
+test("the finder and verifier instructions each travel once: as Claude's system prompt, else in the turn text", async () => {
   const { executeWorker } = await import("./session.ts");
-  const { workerInstruction } = await import("./prompt/assemble.ts");
-  const instruction = workerInstruction(2);
-  const prompt = `${instruction}\n\nAssigned aspect: scope-creep`;
-  for (const scenario of ["success", "pi"]) {
-    const f = await setup(scenario);
-    const result = await executeWorker(
-      { cwd: f.cwd, prompt, maxTurns: 2, timeoutMs: 10_000 },
-      f.profile,
-    );
-    assert.equal(result.status, "completed", JSON.stringify(result));
-    const events = await f.events();
-    const system = events.find((e) => e.method === "new").system;
-    const text = events.find((e) => e.method === "prompt").text;
-    if (scenario === "success") {
-      assert.equal(system, instruction);
-      assert.equal(text, "Assigned aspect: scope-creep");
-    } else {
-      assert.equal(system, null);
-      assert.equal(text, prompt);
+  const { instructions } = await import("./prompt/assemble.ts");
+  for (const instruction of instructions())
+    for (const scenario of ["success", "pi"]) {
+      const prompt = `${instruction}\n\nAssigned aspect: scope-creep`;
+      const f = await setup(scenario);
+      const result = await executeWorker(
+        { cwd: f.cwd, prompt, maxTurns: 2, timeoutMs: 10_000 },
+        f.profile,
+      );
+      assert.equal(result.status, "completed", JSON.stringify(result));
+      const events = await f.events();
+      const system = events.find((e) => e.method === "new").system;
+      const text = events.find((e) => e.method === "prompt").text;
+      if (scenario === "success") {
+        assert.equal(system, instruction);
+        assert.equal(text, "Assigned aspect: scope-creep");
+      } else {
+        assert.equal(system, null);
+        assert.equal(text, prompt);
+      }
     }
-  }
 });
 
 for (const [scenario, stage, failure, recovery, stopReason] of [

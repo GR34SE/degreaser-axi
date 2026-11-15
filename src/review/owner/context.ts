@@ -1,6 +1,7 @@
 import type { Runtime } from "../../util/exec/types.ts";
 import type { ReviewInput } from "../types.ts";
 import type { OwnerControl } from "./signals.ts";
+import type { Slots } from "./slots.ts";
 
 export interface OwnerContext {
   runtime: Runtime;
@@ -8,5 +9,6 @@ export interface OwnerContext {
   input: ReviewInput;
   dir: string;
   control: OwnerControl;
+  slots: Slots;
   sizesOf: () => Map<string, number>;
 }

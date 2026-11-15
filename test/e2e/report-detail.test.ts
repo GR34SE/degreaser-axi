@@ -50,19 +50,21 @@ test("short coverage attributes incomplete limitations and full reports separate
   const short = decode(reviewed.stdout);
   assert.equal(short.status, "partial");
   assert.equal(short.aspects, "3/4");
-  assert.equal(short.count, 1);
+  assert.equal(short.upheld, 1);
   assert.equal(short.rejected, 1);
   assert.equal(short.usage, "unknown");
-  assert.equal(short.coverageBasis, "worker-declared");
+  assert.equal(short.coverageBasis, "coordinator-assigned");
   assert.ok(short.help.includes(`degreaser-axi report ${short.run} --full`));
   assert.ok(!reviewed.stdout.includes(longLimitation));
   const incomplete = short.coverage.find(
     (row: { aspect: string }) => row.aspect === "masked-errors",
   );
-  assert.equal(incomplete.reason, "Could not inspect the error handler.");
-  assert.ok(incomplete.limitations.includes("Generated caller skipped."));
+  assert.equal(incomplete.stopCause, "incomplete");
+  assert.equal(incomplete.pending, 2);
   assert.ok(
-    !incomplete.limitations.includes("Could not inspect the error handler."),
+    incomplete.limitations.some((l: string) =>
+      l.endsWith(": Generated caller skipped."),
+    ),
   );
   const harness = [
     "Synthetic external adapter; not a live provider result.",
@@ -92,7 +94,7 @@ test("short coverage attributes incomplete limitations and full reports separate
   assert.ok(
     full.coverage
       .find((row: { aspect: string }) => row.aspect === "masked-errors")
-      .limitations.includes(longLimitation),
+      .limitations.some((l: string) => l.endsWith(`: ${longLimitation}`)),
   );
   assert.equal(full.pathList, `.degreaser/runs/${short.run}/input/review.json`);
   assert.equal(
@@ -116,7 +118,7 @@ test("short coverage attributes incomplete limitations and full reports separate
   assert.equal(full.coordinator[0].aspect, "scope-creep");
   assert.equal(full.coordinator[0].status, "not-applicable");
   assert.match(full.coordinator[0].reason, /no feature-change scope/);
-  assert.equal(f.events().length, 3);
+  assert.equal(f.events().length, 4);
   assert.match(reviewed.stderr, /workers: 3;/);
   assert.equal(reviewed.stderr.trim().split("\n").length, 1);
   const run = f.state();
@@ -128,29 +130,26 @@ test("short coverage attributes incomplete limitations and full reports separate
     );
   const executed = run.tasks.filter((task) => task.attempts.length);
   for (const task of executed) {
-    const attempt = task.attempts.at(-1);
-    assert.ok(attempt);
-    attempt.usage =
-      task.assignment.aspect === "missed-reuse" ? { inputTokens: 17 } : {};
+    for (const attempt of task.attempts)
+      attempt.usage =
+        task.assignment.aspect === "missed-reuse" ? { inputTokens: 17 } : {};
     task.usage = { inputTokens: 999 };
   }
   saveRun(run);
   const mixedUsage = decode(f.run(["report", "--full"]).stdout);
   assert.equal(mixedUsage.usage, "unknown");
   assert.equal(mixedUsage.execution[0].usage, "unknown");
-  assert.deepEqual(mixedUsage.execution[1].usage, { inputTokens: 17 });
-  for (const task of executed) {
-    const attempt = task.attempts.at(-1);
-    assert.ok(attempt);
-    attempt.usage = { inputTokens: 17, outputTokens: 3 };
-  }
+  assert.deepEqual(mixedUsage.execution[1].usage, { inputTokens: 34 });
+  for (const task of executed)
+    for (const attempt of task.attempts)
+      attempt.usage = { inputTokens: 17, outputTokens: 3 };
   saveRun(run);
   const knownUsage = decode(f.run(["report"]).stdout);
-  assert.deepEqual(knownUsage.usage, { inputTokens: 51, outputTokens: 9 });
+  assert.deepEqual(knownUsage.usage, { inputTokens: 68, outputTokens: 12 });
   assert.equal(knownUsage.aspectUsage, undefined);
   assert.deepEqual(decode(f.run(["report", "--full"]).stdout).aspectUsage, [
     { aspect: "masked-errors", inputTokens: 17, outputTokens: 3 },
-    { aspect: "missed-reuse", inputTokens: 17, outputTokens: 3 },
+    { aspect: "missed-reuse", inputTokens: 34, outputTokens: 6 },
     { aspect: "low-value-comments", inputTokens: 17, outputTokens: 3 },
   ]);
   const audit = f.run([
@@ -169,26 +168,19 @@ test("short coverage attributes incomplete limitations and full reports separate
     { aspect: "scope-creep", agent: "codex", model: "gpt-6-luna" },
   ]);
   assert.equal(coordinatorOnly.aspects, "1/1");
-  assert.equal(coordinatorOnly.count, 0);
+  assert.equal(coordinatorOnly.upheld, 0);
   assert.equal(coordinatorOnly.usage, "unknown");
   assert.equal(coordinatorOnly.coverage[0].status, "not-applicable");
-  assert.equal(f.events().length, 3);
+  assert.equal(f.events().length, 4);
 });
 
-test("row limits and historical detail preserve all evidence, uncertainty and aspect limitations", async (t) => {
+test("every upheld finding is listed without a cap and historical detail keeps verdicts and aspect limitations", async (t) => {
   const f = queueFixture(t);
   f.write(
     "source.ts",
     Array.from({ length: 35 }, (_, n) => `new line ${n + 1}\n`).join(""),
   );
-  const evidence = `${"Long source evidence, with commas and a newline.\n".repeat(60)}END-EVIDENCE`;
-  const entries = Array.from({ length: 35 }, (_, n) => ({
-    ...finding(n + 1),
-    evidence,
-    countercheck: `${"Checked another caller. ".repeat(60)}END-COUNTERCHECK`,
-    recommendation: `${"Keep required behavior. ".repeat(60)}END-RECOMMENDATION`,
-    uncertainty: "Runtime behavior was not measured.",
-  }));
+  const entries = Array.from({ length: 35 }, (_, n) => finding(n + 1));
   f.setPlan({
     results: {
       "low-value-comments": result("low-value-comments", entries, [
@@ -209,10 +201,11 @@ test("row limits and historical detail preserve all evidence, uncertainty and as
   ]);
   assert.equal(first.status, 1, first.stdout);
   const short = decode(first.stdout);
-  assert.equal(short.count, 35);
-  assert.equal(short.shown, 30);
-  assert.equal(short.findings.length, 30);
-  assert.ok(short.help.includes(`degreaser-axi report ${short.run} --full`));
+  assert.equal(short.upheld, 35);
+  assert.deepEqual(
+    short.findings["source.ts"].map((row: { lines: string }) => row.lines),
+    entries.map((e) => `new:${e.location.startLine}-${e.location.endLine}`),
+  );
   assert.ok(
     short.help.some(
       (command: string) =>
@@ -220,30 +213,36 @@ test("row limits and historical detail preserve all evidence, uncertainty and as
     ),
   );
   const full = decode(f.run(["report", short.run, "--full"]).stdout);
-  assert.equal(full.shown, 35);
+  assert.equal(full.findings.length, 35);
   for (let n = 0; n < entries.length; n++) {
-    const {
-      id: _id,
-      group: _group,
-      aspect: _aspect,
-      ...actual
-    } = full.findings[n];
-    assert.deepEqual(actual, entries[n]);
+    const { location, quote, title, verdict } = full.findings[n];
+    assert.deepEqual(
+      { location, quote, title, verdict },
+      {
+        location: `source.ts:new:${n + 1}-${n + 1}`,
+        quote: entries[n]?.quote,
+        title: entries[n]?.title,
+        verdict: "upheld",
+      },
+    );
   }
   const detail = decode(f.run(["finding", "F35", "--run", short.run]).stdout);
-  assert.equal(detail.evidence, evidence);
-  assert.equal(detail.countercheck, entries[34]?.countercheck);
-  assert.equal(detail.recommendation, entries[34]?.recommendation);
-  assert.equal(detail.uncertainty, entries[34]?.uncertainty);
-  assert.ok(detail.limitations.includes("Unexamined generated caller."));
+  assert.equal(detail.quote, entries[34]?.quote);
+  assert.equal(detail.verdict, "upheld");
+  assert.equal(detail.action, "Remove it.");
+  assert.ok(
+    detail.limitations.some((l: string) =>
+      l.endsWith(": Unexamined generated caller."),
+    ),
+  );
   f.setPlan();
   f.start(["--aspects", "low-value-comments"]);
   assert.equal(f.finish().status, 0);
   assert.notEqual(decode(f.run(["report"]).stdout).run, short.run);
   assert.equal(decode(f.run(["report", short.run]).stdout).run, short.run);
   assert.equal(
-    decode(f.run(["finding", "F35", "--run", short.run]).stdout).evidence,
-    evidence,
+    decode(f.run(["finding", "F35", "--run", short.run]).stdout).quote,
+    entries[34]?.quote,
   );
   assert.equal(
     decode(f.run(["finding", "F35"]).stdout).code,

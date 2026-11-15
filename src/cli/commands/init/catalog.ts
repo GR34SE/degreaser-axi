@@ -23,6 +23,21 @@ export interface Catalog {
   }[];
   recommendation: Identity | null;
 }
+export function mergeCatalogs(...catalogs: Catalog[]): Catalog {
+  const candidates = new Map<string, Candidate>();
+  const discovery = new Map<Agent, Catalog["discovery"][number]>();
+  for (const part of catalogs) {
+    for (const c of part.candidates)
+      candidates.set(JSON.stringify([c.agent, c.model]), c);
+    for (const d of part.discovery) discovery.set(d.agent, d);
+  }
+  return {
+    candidates: [...candidates.values()],
+    discovery: [...discovery.values()],
+    recommendation: catalogs[0]?.recommendation ?? null,
+  };
+}
+
 export async function catalog(
   f: Factory,
   cwd: string,

@@ -8,20 +8,62 @@ import { git } from "../../../util/git/exec.ts";
 import { shellQuote } from "../../../util/shell.ts";
 import type { Factory } from "../../factory.ts";
 import type { Catalog } from "./catalog.ts";
-import { recommend, sameIdentity } from "./recommend.ts";
+import { recommend, recommendVerifier, sameIdentity } from "./recommend.ts";
 
 const agents = AGENTS;
 const metadataNotice =
   "Native catalogs are metadata, not a guarantee of later provider availability. Account identity is not exposed by discovery; credentials remain in the harness.";
 
+export interface Requested {
+  agent?: Agent | undefined;
+  model?: string | undefined;
+  verifierAgent?: Agent | undefined;
+  verifierModel?: string | undefined;
+  harnesses?: Agent[] | undefined;
+}
+
+export function resolvedVerifier({
+  agent,
+  verifierAgent,
+  verifierModel,
+}: Requested): Identity | undefined {
+  const owner = verifierAgent ?? agent;
+  return owner && verifierModel
+    ? { agent: owner, model: verifierModel }
+    : undefined;
+}
+
+function suggestedVerifier(
+  choices: Catalog,
+  previous: ProjectConfig | undefined,
+  requested: Requested,
+  worker: Identity | null,
+) {
+  const explicit = resolvedVerifier(requested);
+  if (explicit) return explicit;
+  const owner = requested.verifierAgent ?? requested.agent ?? worker?.agent;
+  const matches = (candidate: Identity) =>
+    (!owner || candidate.agent === owner) &&
+    (!requested.verifierModel || candidate.model === requested.verifierModel);
+  const compatible = choices.candidates.filter(matches);
+  const before = previous?.verifier && {
+    agent: previous.verifier.agent ?? previous.agent,
+    model: previous.verifier.model,
+  };
+  const suggested =
+    (before && matches(before) ? before : undefined) ??
+    recommendVerifier(compatible) ??
+    compatible[0];
+  return suggested ? { agent: suggested.agent, model: suggested.model } : null;
+}
+
 export function decisionRequired(
   choices: Catalog,
   previous: ProjectConfig | undefined,
-  agent: Agent | undefined,
-  model: string | undefined,
-  harnesses: Agent[] | undefined,
+  requested: Requested,
   scope: InstallationScope,
 ) {
+  const { agent, model, harnesses } = requested;
   const identity = agent && model ? { agent, model } : undefined;
   const matchesFlags = (candidate: Identity) =>
     (!agent || candidate.agent === agent) &&
@@ -30,31 +72,55 @@ export function decisionRequired(
   const best = recommend(compatible) ?? compatible[0];
   const prefill =
     identity ?? (previous && matchesFlags(previous) ? previous : best) ?? null;
+  const verifierPrefill = suggestedVerifier(
+    choices,
+    previous,
+    requested,
+    prefill,
+  );
   const missing = [
     ...(!agent || !model ? ["model"] : []),
+    ...(!resolvedVerifier(requested) ? ["verifier-model"] : []),
     ...(!harnesses ? ["harnesses"] : []),
   ];
   if (missing.length) {
     const example =
       compatible.find((c) => prefill && sameIdentity(c, prefill)) ?? best;
+    const verifierFlags = verifierPrefill
+      ? [
+          ...(verifierPrefill.agent !== example?.agent
+            ? [`--verifier-agent ${verifierPrefill.agent}`]
+            : []),
+          `--verifier-model ${shellQuote(verifierPrefill.model)}`,
+        ].join(" ")
+      : "";
     const commands = (example ? [example] : []).flatMap((c) =>
-      (harnesses ? [harnesses.join(",")] : agents).map(
-        (target) =>
-          `degreaser-axi init --agent ${c.agent} --model ${shellQuote(c.model)} --harnesses ${target} --installation-scope ${scope}`,
+      (harnesses ? [harnesses.join(",")] : agents).map((target) =>
+        [
+          "degreaser-axi init",
+          `--agent ${c.agent}`,
+          `--model ${shellQuote(c.model)}`,
+          verifierFlags,
+          `--harnesses ${target}`,
+          `--installation-scope ${scope}`,
+        ]
+          .filter(Boolean)
+          .join(" "),
       ),
     );
     return {
       code: "decision-required",
       error:
-        "Ask the user to confirm or change the model and harness selection, then rerun with explicit flags. Existing RC and recommendations are only prefill. No product files were written.",
+        "Ask the user to confirm or change the worker model, the verifier model and the harness selection, then rerun with explicit flags. Existing RC and recommendations are only prefill. No product files were written.",
       missing,
       ...choices,
       prefill: prefill ? { agent: prefill.agent, model: prefill.model } : null,
+      verifierPrefill,
       harnesses: agents,
       installationScope: scope,
       notice: metadataNotice,
       actions:
-        "Commands below are choices to show the user, not authorization to select for them. Use a listed model ID or latest selector; combine confirmed harnesses with commas.",
+        "Commands below are choices to show the user, not authorization to select for them. Use a listed model ID or latest selector; combine confirmed harnesses with commas. The verifier defaults to the strongest listed model; it needs --verifier-agent only when it differs from --agent.",
       help: commands.length ? commands : ["degreaser-axi init"],
     };
   }
@@ -69,6 +135,7 @@ export async function installedView(
   integrations: ReturnType<typeof prepareIntegrations>,
   ignore: ReturnType<typeof ensureStateIgnored>,
   identity: Identity,
+  verifier: Identity,
   harnesses: Agent[],
   scope: InstallationScope,
   choices: Catalog,
@@ -132,6 +199,7 @@ export async function installedView(
     status: "configured",
     agent: identity.agent,
     model: identity.model,
+    verifier,
     harnesses,
     installationScope: scope,
     integrations: integrations.results,

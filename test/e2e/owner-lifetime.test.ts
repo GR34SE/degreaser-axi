@@ -261,10 +261,6 @@ test("cancel retains evidence received before a worker finishes", async (t) => {
             },
             quote: "// redundant",
             title: "Redundant explanation",
-            evidence: "Comment repeats the declaration.",
-            consequence: "Extra maintenance.",
-            countercheck: "No separate rationale.",
-            recommendation: "Remove the comment.",
           },
         ],
       },
@@ -283,6 +279,7 @@ test("cancel retains evidence received before a worker finishes", async (t) => {
   assert.equal(task?.result?.findings[0]?.quote, "// redundant");
   assert.equal(task?.attempts.length, 1);
   assert.equal(task?.attempts[0]?.failure, "cancelled");
+  assert.equal(task?.result?.findings[0]?.verdict, "unverified");
   assert.match(f.run(["report", "--full"]).stdout, /Redundant explanation/);
 });
 

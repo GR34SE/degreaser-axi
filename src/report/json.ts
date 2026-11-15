@@ -1,6 +1,6 @@
 import type { Run } from "../state/run.ts";
 import { coverage, taskLimitations } from "./details.ts";
-import { findings } from "./group.ts";
+import { findings } from "./findings.ts";
 import type { ReportContext } from "./types.ts";
 
 export function exportRun(run: Run, context: ReportContext) {
@@ -15,11 +15,19 @@ export function exportRun(run: Run, context: ReportContext) {
       task: input.task,
       base: input.base,
       tree: input.tree,
-      findings: findings(run).map(({ location, ...finding }) => ({
+      findings: findings(run).map(({ location, evidence, ...finding }) => ({
         ...finding,
         ...location,
+        ...(evidence
+          ? {
+              evidence: {
+                ...evidence.location,
+                quote: evidence.quote,
+              },
+            }
+          : {}),
       })),
-      coverageBasis: "worker-declared",
+      coverageBasis: "coordinator-assigned",
       coverage: run.tasks.map((t) =>
         coverage(t, context, status === "interrupted", true),
       ),

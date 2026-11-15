@@ -42,9 +42,16 @@ export function resolveConfig(
   ) {
     throw new InputError("concurrency must be a positive safe integer.");
   }
+  const verifier: Identity = {
+    agent: rc.verifier.agent ?? rc.agent,
+    model: rc.verifier.model,
+  };
+  const checkIdentity = schema<ProjectConfig>(
+    new URL("./config.schema.json", import.meta.url),
+  );
   for (const id of aspectIds) {
     if (
-      !schema<ProjectConfig>(new URL("./config.schema.json", import.meta.url))({
+      !checkIdentity({
         agent: override(id)?.agent ?? rc.agent,
         model: override(id)?.model ?? rc.model,
       })
@@ -52,6 +59,10 @@ export function resolveConfig(
       throw new InputError(`${id}: Pi requires a provider-qualified model ID.`);
     }
   }
+  if (!checkIdentity(verifier))
+    throw new InputError(
+      "verifier: Pi requires a provider-qualified model ID.",
+    );
   return {
     assignments: enabled
       .filter((id) => !controls.aspects || controls.aspects.includes(id))
@@ -60,6 +71,7 @@ export function resolveConfig(
         agent: override(aspect)?.agent ?? rc.agent,
         model: override(aspect)?.model ?? rc.model,
       })),
+    verifier,
     concurrency: controls.concurrency ?? rc.concurrency,
     maxRetries: rc.maxRetries,
     limits: rc.limits,

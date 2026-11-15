@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { setTimeout } from "node:timers/promises";
 import { ASPECT_IDS } from "../../src/modules/aspect/api.ts";
 import { alive, queueFixture, until } from "../utils/queue-fixture.ts";
 
 const all = [...ASPECT_IDS].sort();
 
-test("default fleet holds at session readiness, then every default worker overlaps before any result", async (t) => {
+test("default fleet holds at session readiness, then sixteen real workers overlap and the rest wait for a slot", async (t) => {
   const f = queueFixture(t);
   f.setPlan({
     worker: { invocationGate: f.gate("invoke"), resultGate: f.gate("result") },
@@ -19,8 +20,17 @@ test("default fleet holds at session readiness, then every default worker overla
   assert.equal(f.events().length, 0);
   f.release("invoke");
   await until(
+    () => f.events().length === 16,
+    "Sixteen prompts start under the default cap",
+  );
+  await setTimeout(500);
+  assert.equal(f.events().length, 16, "The default cap admits sixteen");
+  assert.equal(f.events()[0]?.aspect, "unnecessary-complexity");
+  assert.ok(f.events().every((e) => alive(e.pid)));
+  f.release("result");
+  await until(
     () => f.events().length === ASPECT_IDS.length,
-    "All default prompts must start without a hidden cap",
+    "The rest get a slot",
   );
   assert.deepEqual(
     f
@@ -29,10 +39,6 @@ test("default fleet holds at session readiness, then every default worker overla
       .sort(),
     all,
   );
-  assert.equal(f.events()[0]?.aspect, "unnecessary-complexity");
-  assert.ok(f.events().every((e) => alive(e.pid)));
-  assert.ok(f.state().tasks.every((task) => task.status === "running"));
-  f.release("result");
   const done = f.finish();
   assert.equal(done.status, 0, done.stdout);
   assert.match(

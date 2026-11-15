@@ -1,7 +1,8 @@
 import type { Run } from "../state/run.ts";
 import { StateError } from "../util/errors.ts";
 import { shownLimitations, taskLimitations } from "./details.ts";
-import { findings } from "./group.ts";
+import { findings } from "./findings.ts";
+import { present } from "./present.ts";
 import type { ReportContext } from "./types.ts";
 
 export function renderFinding(
@@ -9,7 +10,6 @@ export function renderFinding(
   context: ReportContext,
   id: string | undefined,
 ) {
-  const input = context.input;
   const finding = findings(run).find((f) => f.id === id);
   if (!finding)
     throw new StateError(
@@ -21,9 +21,12 @@ export function renderFinding(
   return {
     run: run.id,
     evidenceLevel: "source-only",
-    ...finding,
+    ...present(finding),
     aspectStatus: task.status,
-    limitations: [...shownLimitations(input, false), ...taskLimitations(task)],
+    limitations: [
+      ...shownLimitations(context.input, false),
+      ...taskLimitations(task),
+    ],
     rejections: task.rejections,
   };
 }

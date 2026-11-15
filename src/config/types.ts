@@ -8,9 +8,11 @@ export interface Identity {
   agent: Agent;
   model: string;
 }
-export interface Assignment extends Identity {
-  aspect: AspectId;
+export interface PinnedIdentity extends Identity {
   requestedModel?: string;
+}
+export interface Assignment extends PinnedIdentity {
+  aspect: AspectId;
 }
 export interface Limits {
   workerTimeoutSeconds: number;
@@ -26,9 +28,11 @@ export interface ProjectConfig extends Identity {
   limits?: Partial<Limits>;
   aspects?: Partial<Record<AspectId, AspectSetting>>;
   exclude?: string[];
+  verifier?: { agent?: Agent; model: string };
 }
 export interface EffectiveConfig {
   assignments: Assignment[];
+  verifier: PinnedIdentity;
   concurrency: number | null;
   maxRetries: number;
   limits: Limits;

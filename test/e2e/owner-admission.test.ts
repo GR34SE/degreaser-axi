@@ -128,8 +128,10 @@ for (const [mode, code] of [
   test(`detached ${mode} remains distinguishable in saved reports after the caller exits`, async (t) => {
     const f = queueFixture(t, { concurrency: 1 });
     const fault = f.gate("fault.json");
-    writeFileSync(fault, JSON.stringify({ mode, afterAdmission: true }));
-    f.setPlan({ workers: { "masked-errors": { resultGate: f.gate("peer") } } });
+    writeFileSync(
+      fault,
+      JSON.stringify({ mode, afterAdmission: true, release: f.gate("fault") }),
+    );
     const caller = await capture(
       f.launch(
         [
@@ -149,11 +151,10 @@ for (const [mode, code] of [
     assert.equal(caller.code, 3, caller.stdout + caller.stderr);
     const owner = f.state().owner;
     assert.ok(owner && alive(owner.pid));
-    f.release("peer");
+    f.release("fault");
     await until(() => !alive(owner.pid), "Detached failing owner exits");
     const failed = f.state();
-    assert.equal(f.events().length, 1);
-    assert.equal(failed.tasks[0]?.status, "no-findings");
+    assert.equal(f.events().length, 0);
     assert.deepEqual(failed.tasks[1]?.attempts, []);
     assert.equal(failed.executions?.at(-1)?.failure?.code, code);
     const report = f.run(["report", failed.id]);
@@ -163,11 +164,10 @@ for (const [mode, code] of [
       assert.ok(!report.stdout.includes(`degreaser-axi resume ${failed.id}`));
     assert.doesNotMatch(report.stdout, /heartbeat|SECRET-canary/i);
     assert.doesNotMatch(JSON.stringify(failed), /SECRET-canary/);
-    assert.equal(failed.status, "partial");
+    assert.equal(failed.status, "failed");
     f.setPlan();
     const resumed = f.run(["resume", failed.id, "--wait", "20"]);
     assert.equal(resumed.status, 0, resumed.stdout);
-    assert.deepEqual(f.state().tasks[0], failed.tasks[0]);
     assert.deepEqual(f.state().executions?.[0], failed.executions?.[0]);
     assert.match(
       f.run(["report", failed.id, "--full"]).stdout,

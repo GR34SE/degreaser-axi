@@ -52,6 +52,15 @@ export function scenarioFixture({
     dirname(dirname(require.resolve("acpx/runtime"))),
     join(external, "node_modules/acpx"),
   );
+  mkdirSync(join(external, "node_modules/@toon-format"));
+  symlinkSync(
+    dirname(
+      dirname(
+        createRequire(realpathSync(axiPath)).resolve("@toon-format/toon"),
+      ),
+    ),
+    join(external, "node_modules/@toon-format/toon"),
+  );
   const git = (...args) => {
     const result = spawnSync("git", args, {
       cwd: repo,
@@ -88,10 +97,6 @@ export function scenarioFixture({
     location: { path: "source.ts", side: "new", startLine: 1, endLine: 1 },
     quote: "// redundant",
     title: "Redundant comment",
-    evidence: "The comment repeats the declaration.",
-    consequence: "Extra text to maintain.",
-    countercheck: "No constraint is explained.",
-    recommendation: "Remove the comment.",
   };
 
   return { git, run, setPlan, state, currentRun, finding, decode };

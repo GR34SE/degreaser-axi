@@ -174,6 +174,7 @@ for (const [name, worker, status, failure] of [
     const f = queueFixture(t, {
       agent: "pi",
       model: "openai/gpt-6-luna",
+      verifier: { model: "openai/gpt-6-sol" },
       maxRetries: 2,
       limits: { workerTimeoutSeconds: 3, runTimeoutSeconds: 12 },
     });
@@ -189,8 +190,9 @@ for (const [name, worker, status, failure] of [
     assert.equal(f.state().status, status);
     const task = f.state().tasks[0];
     assert.ok(task);
-    assert.equal(task.attempts.length, 1);
-    assert.equal(task.attempts[0]?.failure, failure);
+    const finders = task.attempts.filter((a) => a.stage === "find");
+    assert.equal(finders.length, 1);
+    assert.equal(finders[0]?.failure, failure);
     if (failure)
       assert.ok(
         f.lifecycle().some((e) => e.type === "close"),

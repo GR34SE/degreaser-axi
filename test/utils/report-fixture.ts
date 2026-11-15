@@ -6,7 +6,7 @@ import { join } from "node:path";
 
 import type { AspectId } from "../../src/modules/aspect/api.ts";
 
-import type { Finding, WorkerResult } from "../../src/review/ingest/types.ts";
+import type { Candidate, FinderResult } from "../../src/review/ingest/types.ts";
 
 export const { decode } = createRequire(import.meta.resolve("axi-sdk-js"))(
   "@toon-format/toon",
@@ -17,23 +17,19 @@ export function finding(
   endLine = startLine,
   side: "old" | "new" = "new",
   path = "source.ts",
-): Finding {
+): Candidate {
   return {
     location: { path, side, startLine, endLine },
     quote: `${side} line ${startLine}`,
     title: "Independent source cost",
-    evidence: `Evidence at ${path}:${side}:${startLine}`,
-    consequence: "Extra maintenance.",
-    countercheck: "The neighboring caller does not need this behavior.",
-    recommendation: "Remove the redundant behavior.",
   };
 }
 
 export function result(
   aspect: AspectId,
-  findings: Finding[],
+  findings: Candidate[],
   limitations: string[] = [],
-): WorkerResult {
+): FinderResult {
   return {
     aspect,
     status: limitations.length

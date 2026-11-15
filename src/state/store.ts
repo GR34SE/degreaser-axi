@@ -136,8 +136,7 @@ function checkedRun(
         ) ||
         (t.result &&
           (t.result.aspect !== t.assignment.aspect ||
-            (t.result.status !== t.status &&
-              !(t.result.status === "incomplete" && !resolved(t))))),
+            (t.result.status !== t.status && resolved(t)))),
     ) ||
     (run.status !== "running" && run.status !== terminalStatus(run.tasks))
   )

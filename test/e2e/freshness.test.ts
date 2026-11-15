@@ -14,7 +14,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { assemblePrompt } from "../../src/review/attempt/prompt/assemble.ts";
+import { promptIdentity } from "../../src/review/attempt/prompt/assemble.ts";
 import { reviewIdentity } from "../../src/state/identity.ts";
 import { loadInput } from "../../src/state/store.ts";
 import { prepareReview } from "../../test/utils/input.ts";
@@ -133,10 +133,7 @@ test("review fingerprint ignores independent execution controls but distinguishe
     f.root,
   );
   const fingerprint = (value: typeof input) =>
-    reviewIdentity(value, [
-      assemblePrompt(value, "low-value-comments", "/same/patch.json")
-        .promptHash,
-    ]);
+    reviewIdentity(value, [promptIdentity("low-value-comments")]);
   const original = fingerprint(input);
   const controls = [
     (v: typeof input) => {
@@ -150,6 +147,9 @@ test("review fingerprint ignores independent execution controls but distinguishe
     },
     (v: typeof input) => {
       v.config.limits.workerTimeoutSeconds++;
+    },
+    (v: typeof input) => {
+      v.config.limits.maxTurns++;
     },
   ];
   for (const change of controls) {
@@ -184,7 +184,10 @@ test("review fingerprint ignores independent execution controls but distinguishe
       a.model = "different-model";
     },
     (v: typeof input) => {
-      v.config.limits.maxTurns++;
+      v.config.verifier.agent = "claude";
+    },
+    (v: typeof input) => {
+      v.config.verifier.model = "different-verifier";
     },
   ];
   for (const change of identities) {
@@ -246,6 +249,14 @@ test("public resume independently re-resolves tracked content, new files, task-f
           aspects: {
             "low-value-comments": { model: "exact-codex" },
           },
+        }),
+      ),
+    () =>
+      f.write(
+        ".degreaserrc.json",
+        JSON.stringify({
+          ...JSON.parse(config),
+          verifier: { model: "exact-codex" },
         }),
       ),
   ];
@@ -325,9 +336,12 @@ test("an alternate installed package refuses independently changed instruction, 
   symlinkSync(join(root, "node_modules"), join(install, "node_modules"), "dir");
   writeFileSync(join(install, "package.json"), '{"type":"module"}');
   for (const asset of [
-    "review/attempt/prompt/worker.md",
-    "review/attempt/prompt/response.md",
-    "review/ingest/result.schema.json",
+    "review/attempt/prompt/finder.md",
+    "review/attempt/prompt/find-response.md",
+    "review/ingest/find.schema.json",
+    "review/attempt/prompt/verifier.md",
+    "review/attempt/prompt/verify-response.md",
+    "review/ingest/verify.schema.json",
     "modules/aspect/low-value-comments/rubric.md",
   ]) {
     const file = join(install, "dist", asset);

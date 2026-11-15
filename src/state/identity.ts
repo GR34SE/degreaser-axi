@@ -16,6 +16,7 @@ export function reviewIdentity(input: ReviewInput, prompts: (string | null)[]) {
       task: input.task,
       dismissed: input.dismissed,
       assignments: input.config.assignments,
+      verifier: input.config.verifier,
       prompts,
     }),
   );

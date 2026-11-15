@@ -14,6 +14,8 @@ import { join } from "node:path";
 
 import test from "node:test";
 
+import { decode } from "@toon-format/toon";
+
 import {
   cli,
   defaultSettings,
@@ -51,7 +53,7 @@ for (const existing of [false, true]) {
       if (!args.includes("--agent"))
         assert.match(
           result.stdout,
-          /recommendation:\n {2}agent: claude\n {2}model: claude-haiku-4-5-20251001/,
+          /recommendation:\n {2}agent: codex\n {2}model: "latest:terra"/,
         );
       assert.match(result.stdout, /degreaser-axi init --agent/);
       assert.equal(result.stderr, "");
@@ -65,17 +67,74 @@ for (const existing of [false, true]) {
   });
 }
 
+test("non-TTY init without a verifier model asks for it and writes nothing", (t) => {
+  const f = setup(t);
+  const before = f.unchanged();
+  for (const extra of [[], ["--verifier-agent", "codex"]]) {
+    const result = f.run([
+      ...explicit.slice(0, 4),
+      "--harnesses",
+      "claude,pi",
+      ...extra,
+    ]);
+    assert.equal(result.status, 2, result.stdout);
+    assert.match(result.stdout, /code: decision-required/);
+    assert.match(result.stdout, /missing\[1\]: verifier-model/);
+    assert.match(
+      result.stdout,
+      /verifierPrefill:\n {2}agent: codex\n {2}model: "latest:sol"/,
+    );
+    assert.match(result.stdout, /--verifier-model 'latest:sol'/);
+    assert.deepEqual(f.unchanged(), before);
+  }
+});
+
+test("init writes the verifier as model-only when it shares the worker agent and with its agent otherwise", (t) => {
+  const f = setup(t);
+  const base = [...explicit.slice(0, 4), "--harnesses", "claude"];
+  const same = f.run([...base, "--verifier-model", "gpt-6-sol"]);
+  assert.equal(same.status, 0, same.stdout);
+  assert.deepEqual(f.config().verifier, { model: "gpt-6-sol" });
+  const redundant = f.run([
+    ...base,
+    "--verifier-agent",
+    "codex",
+    "--verifier-model",
+    "gpt-6-luna",
+  ]);
+  assert.equal(redundant.status, 0, redundant.stdout);
+  assert.deepEqual(f.config().verifier, { model: "gpt-6-luna" });
+  const other = f.run([
+    ...base,
+    "--verifier-agent",
+    "claude",
+    "--verifier-model",
+    "claude-haiku-4-5-20251001",
+  ]);
+  assert.equal(other.status, 0, other.stdout);
+  assert.deepEqual(f.config().verifier, {
+    agent: "claude",
+    model: "claude-haiku-4-5-20251001",
+  });
+  assert.equal(f.config().agent, "codex");
+  assert.match(other.stdout, /verifier/);
+  assert.deepEqual([...new Set(f.events().map((e) => e.agent))].sort(), [
+    "claude",
+    "codex",
+  ]);
+});
+
 test("non-TTY agent-only flags prefill that agent's best-ranked model", (t) => {
   const f = setup(t);
   const result = f.run(["--agent", "codex"]);
   assert.equal(result.status, 2, result.stdout);
   assert.match(
     result.stdout,
-    /prefill:\n {2}agent: codex\n {2}model: "latest:luna"/,
+    /prefill:\n {2}agent: codex\n {2}model: "latest:terra"/,
   );
   assert.match(
     result.stdout,
-    /degreaser-axi init --agent codex --model 'latest:luna'/,
+    /degreaser-axi init --agent codex --model 'latest:terra'/,
   );
 });
 
@@ -95,6 +154,8 @@ test("explicit selection persists exact identity and preserves RC controls, then
     "claude",
     "--model",
     "claude-haiku-4-5-20251001",
+    "--verifier-model",
+    "claude-haiku-4-5-20251001",
     "--harnesses",
     "pi",
   ];
@@ -108,6 +169,7 @@ test("explicit selection persists exact identity and preserves RC controls, then
       schemaVersion: 1,
       agent: "claude",
       model: "claude-haiku-4-5-20251001",
+      verifier: { model: "claude-haiku-4-5-20251001" },
       ...defaultSettings,
       ...controls,
       aspects: { ...defaultSettings.aspects, ...controls.aspects },
@@ -156,21 +218,39 @@ test("explicit --agent probes only that agent's catalog", (t) => {
 test("invalid selections and failed discovery never replace config or create product files", (t) => {
   const f = setup(t, true);
   const before = f.unchanged();
+  const verifier = ["--verifier-model", "gpt-6-sol"];
   for (const args of [
-    ["--agent", "droid", "--model", "x", "--harnesses", "codex"],
-    ["--agent", "claude", "--model", "gpt-6-luna", "--harnesses", "codex"],
+    ["--agent", "droid", "--model", "x", ...verifier, "--harnesses", "codex"],
+    [
+      "--agent",
+      "claude",
+      "--model",
+      "gpt-6-luna",
+      ...verifier,
+      "--harnesses",
+      "codex",
+    ],
     [
       "--agent",
       "pi",
       "--model",
       "other-provider/gpt-6-luna",
+      ...verifier,
       "--harnesses",
       "codex",
     ],
-    [...explicit.slice(0, 4), "--harnesses", ""],
-    [...explicit.slice(0, 4), "--harnesses", "codex,codex"],
-    [...explicit.slice(0, 4), "--harnesses", "droid"],
+    [...explicit.slice(0, 4), ...verifier, "--harnesses", ""],
+    [...explicit.slice(0, 4), ...verifier, "--harnesses", "codex,codex"],
+    [...explicit.slice(0, 4), ...verifier, "--harnesses", "droid"],
     [...explicit, "--installation-scope", "invalid"],
+    [
+      ...explicit.slice(0, 4),
+      "--verifier-model",
+      "withdrawn-verifier",
+      "--harnesses",
+      "codex",
+    ],
+    [...explicit, "--verifier-agent", "droid"],
   ]) {
     const result = f.run(args);
     assert.equal(result.status, 2, result.stdout);
@@ -217,10 +297,9 @@ test("a displayed next command is runnable only after explicit user selection", 
   const f = setup(t);
   const preview = f.run();
   assert.equal(preview.status, 2, preview.stdout);
-  const command = preview.stdout.match(
-    /degreaser-axi init --agent [^\n,]+/,
-  )?.[0];
-  assert.ok(command);
+  const command = (decode(preview.stdout) as { help: string[] }).help[0];
+  assert.ok(command?.startsWith("degreaser-axi init --agent "));
+  if (!command) return;
   assert.ok(!existsSync(join(f.root, ".degreaserrc.json")));
   const result = spawnSync(
     "/bin/sh",
@@ -241,8 +320,9 @@ test("a displayed next command is runnable only after explicit user selection", 
   assert.equal(result.status, 0, result.stdout);
   assert.deepEqual(f.config(), {
     schemaVersion: 1,
-    agent: "claude",
-    model: "claude-haiku-4-5-20251001",
+    agent: "codex",
+    model: "latest:terra",
+    verifier: { model: "latest:sol" },
     ...defaultSettings,
   });
 });

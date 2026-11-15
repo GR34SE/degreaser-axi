@@ -39,6 +39,11 @@ fs.readFileSync = (path, ...args) => {
     name.includes("/modules/aspect/low-value-comments/rubric.md") &&
     (!fault.afterAdmission || admitted)
   ) {
+    if (
+      fault.release &&
+      (fault.mode === "prompt-mismatch" || fault.mode === "prompt-error")
+    )
+      pause(fault);
     if (fault.mode === "prompt-mismatch") return `${value}\nChanged rubric.`;
     if (fault.mode === "prompt-error")
       throw new Error("Synthetic unexpected task error with SECRET-canary");

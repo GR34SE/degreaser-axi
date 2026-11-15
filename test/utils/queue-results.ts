@@ -3,7 +3,6 @@ export const clean = {
   status: "no-findings",
   findings: [],
   limitations: [],
-  examinedPaths: ["source.ts"],
 };
 
 export const cleanBlock = `<degreaser-result>${JSON.stringify(clean)}</degreaser-result>`;
@@ -16,8 +15,4 @@ export const finding = {
   location: { path: "source.ts", side: "new", startLine: 1, endLine: 1 },
   quote: "// redundant",
   title: "Repeated comment",
-  evidence: "The comment repeats the declaration.",
-  consequence: "Extra maintenance.",
-  countercheck: "No hidden rationale.",
-  recommendation: "Remove it.",
 };

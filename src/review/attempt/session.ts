@@ -15,7 +15,7 @@ import {
   type WorkerStage,
 } from "../../review/attempt/failure.ts";
 import { executionFailure } from "../../util/exec/failure.ts";
-import { workerInstruction } from "./prompt/assemble.ts";
+import { instructions } from "./prompt/assemble.ts";
 
 import type { WorkerOutcome, WorkerRequest } from "./types.ts";
 
@@ -127,11 +127,10 @@ export async function executeWorker(
   try {
     if (request.signal?.aborted) stop("cancelled");
     // acpx's string systemPrompt replaces Claude Code's native system prompt.
-    const instruction = workerInstruction(request.maxTurns);
-    const system =
-      HARNESSES[profile.agent].session.systemPrompt &&
-      request.prompt.startsWith(instruction);
-    const prompt = system
+    const instruction = HARNESSES[profile.agent].session.systemPrompt
+      ? instructions().find((text) => request.prompt.startsWith(text))
+      : undefined;
+    const prompt = instruction
       ? request.prompt.slice(instruction.length).trimStart()
       : request.prompt;
     handle = await runtime.ensureSession({
@@ -141,7 +140,7 @@ export async function executeWorker(
       cwd: request.cwd,
       sessionOptions: {
         maxTurns: request.maxTurns,
-        ...(system ? { systemPrompt: instruction } : {}),
+        ...(instruction ? { systemPrompt: instruction } : {}),
         ...(HARNESSES[profile.agent].session.allowedTools
           ? { allowedTools: HARNESSES[profile.agent].session.allowedTools }
           : {}),

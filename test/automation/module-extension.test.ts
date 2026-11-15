@@ -55,10 +55,6 @@ test("one new harness and aspect module plus registry entries build and complete
               },
               quote: "// Define trial.",
               title: "Trial finding",
-              evidence: "The comment repeats the declaration.",
-              consequence: "Duplicate maintenance.",
-              countercheck: "No hidden constraint is documented.",
-              recommendation: "Remove the comment.",
             },
           ],
         },
@@ -151,6 +147,7 @@ export const rubric = new URL("./rubric.md", import.meta.url);
     JSON.stringify({
       agent: "trial-harness",
       model: "exact-codex",
+      verifier: { model: "exact-codex" },
       concurrency: 4,
     }),
   );

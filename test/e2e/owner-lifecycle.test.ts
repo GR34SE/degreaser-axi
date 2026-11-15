@@ -15,7 +15,6 @@ const incomplete = (aspect: string) => ({
   status: "incomplete",
   findings: [],
   limitations: ["Turn budget used."],
-  examinedPaths: [],
 });
 
 test("a terminal owner record keeps no exited process identities, so recycled PIDs cannot block resume", async (t) => {
@@ -188,7 +187,11 @@ test("cancel of an interrupted run stops verified orphan workers and starts noth
 });
 
 test("an earlier attempt forced incomplete by cleanup does not make scope-creep applicable", async (t) => {
-  const f = queueFixture(t, { agent: "pi", model: "openai/gpt-6-luna" });
+  const f = queueFixture(t, {
+    agent: "pi",
+    model: "openai/gpt-6-luna",
+    verifier: { model: "openai/gpt-6-sol" },
+  });
   f.setPlan({
     workers: {
       "scope-creep": {

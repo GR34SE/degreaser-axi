@@ -2,13 +2,9 @@ import type { AspectId } from "../../modules/aspect/api.ts";
 import { billingRefusal } from "../../review/attempt/failure.ts";
 import { ResultError } from "../../util/errors.ts";
 import { schema, schemaErrors } from "../../util/schema.ts";
-import type { WorkerResult } from "./types.ts";
+import type { FinderResult, Quoted, VerifierResult } from "./types.ts";
 
-export function parseResult(
-  text: string,
-  aspect: AspectId,
-  repository?: string,
-): WorkerResult {
+function resultBlock(text: string): unknown {
   const open = "<degreaser-result>",
     close = "</degreaser-result>";
   const start = text.lastIndexOf(open);
@@ -21,22 +17,54 @@ export function parseResult(
       );
     throw new ResultError("Missing final result block.");
   }
-  let value: unknown;
   try {
-    value = JSON.parse(text.slice(start + open.length, end));
+    return JSON.parse(text.slice(start + open.length, end));
   } catch {
     throw new ResultError("Final result JSON is malformed.");
   }
-  omitEmptyOptionalReason(value);
-  if (repository !== undefined) normalizeFindingPaths(value, repository);
-  const validate = schema<WorkerResult>(
-    new URL("./result.schema.json", import.meta.url),
-  );
+}
+
+function validated<T extends { aspect: AspectId }>(
+  value: unknown,
+  file: string,
+  aspect: AspectId,
+): T {
+  const validate = schema<T>(new URL(file, import.meta.url));
   if (!validate(value))
     throw new ResultError(`Result schema: ${schemaErrors(validate)}`);
   if (value.aspect !== aspect)
     throw new ResultError("Result aspect differs from the assignment.");
   return value;
+}
+
+export function parseFinder(
+  text: string,
+  aspect: AspectId,
+  repository?: string,
+): FinderResult {
+  const value = resultBlock(text);
+  omitEmptyOptionalReason(value);
+  if (repository !== undefined) {
+    const result = value as { findings?: unknown; kept?: unknown };
+    normalizePaths(result.findings, repository);
+    normalizePaths(result.kept, repository);
+  }
+  return validated<FinderResult>(value, "./find.schema.json", aspect);
+}
+
+export function parseVerifier(
+  text: string,
+  aspect: AspectId,
+  repository?: string,
+): VerifierResult {
+  const value = resultBlock(text);
+  const verdicts = (value as { verdicts?: unknown })?.verdicts;
+  if (repository !== undefined && Array.isArray(verdicts))
+    normalizePaths(
+      verdicts.map((v) => v?.evidence),
+      repository,
+    );
+  return validated<VerifierResult>(value, "./verify.schema.json", aspect);
 }
 
 function omitEmptyOptionalReason(value: unknown) {
@@ -51,11 +79,10 @@ function omitEmptyOptionalReason(value: unknown) {
     delete result.reason;
 }
 
-function normalizeFindingPaths(value: unknown, repository: string) {
-  const findings = (value as { findings?: unknown })?.findings;
-  if (!Array.isArray(findings)) return;
-  for (const finding of findings) {
-    const location = finding?.location;
+function normalizePaths(items: unknown, repository: string) {
+  if (!Array.isArray(items)) return;
+  for (const item of items as (Partial<Quoted> | undefined)[]) {
+    const location = item?.location;
     if (typeof location?.path === "string")
       location.path = repositoryRelative(repository, location.path);
   }

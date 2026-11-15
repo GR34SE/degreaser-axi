@@ -38,13 +38,13 @@ export const pty = fileURLToPath(
 );
 
 export const defaultSettings = {
-  concurrency: null,
+  concurrency: 16,
   maxRetries: 1,
   limits: {
     workerTimeoutSeconds: 300,
     workerIdleSeconds: 120,
     maxTurns: 40,
-    runTimeoutSeconds: 900,
+    runTimeoutSeconds: 7200,
   },
   aspects: {
     "unnecessary-complexity": true,
@@ -74,6 +74,8 @@ export const explicit = [
   "codex",
   "--model",
   "gpt-6-luna",
+  "--verifier-model",
+  "gpt-6-sol",
   "--harnesses",
   "claude,pi",
 ];
@@ -180,6 +182,19 @@ export const acceptAgent: [string, string] = [
   "\r",
 ];
 
-export const acceptModel: [string, string] = ["Search models", "\r"];
+export const acceptModel: [string, string] = [
+  "model should run the reviews?",
+  "\r",
+];
+
+export const acceptVerifierAgent: [string, string] = [
+  "agent should verify findings?",
+  "\r",
+];
+
+export const acceptVerifierModel: [string, string] = [
+  "model should verify findings?",
+  "\r",
+];
 
 export const install: [string, string] = ["Proceed with installation?", "\r"];

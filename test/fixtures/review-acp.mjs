@@ -11,13 +11,14 @@ const sdk = createRequire(require.resolve("acpx/runtime"));
 const { AgentSideConnection, ndJsonStream, RequestError } = await import(
   sdk.resolve("@agentclientprotocol/sdk")
 );
+const { decode } = await import(require.resolve("@toon-format/toon"));
 const plan = JSON.parse(readFileSync(process.argv[2], "utf8"));
 const model = process.env.SYNTHETIC_MODEL;
 const agent = process.env.SYNTHETIC_AGENT;
 const catalog = {
-  codex: ["exact-codex", "gpt-6-luna"],
+  codex: ["exact-codex", "gpt-6-luna", "gpt-6-terra", "gpt-6-sol"],
   claude: ["claude-haiku-4-5-20251001"],
-  pi: ["openai/gpt-6-luna"],
+  pi: ["openai/gpt-6-luna", "openai/gpt-6-terra", "openai/gpt-6-sol"],
   cursor: ["composer-2.5-fast"],
 };
 const admitted = existsSync(".degreaser/state.json");
@@ -36,15 +37,6 @@ const fault = (error) => {
 };
 const models =
   (admitted && plan.runtimeModels) || plan.models?.[agent] || catalog[agent];
-const assessedPaths = () => {
-  const { latestRunId } = JSON.parse(
-    readFileSync(".degreaser/state.json", "utf8"),
-  );
-  const input = JSON.parse(
-    readFileSync(`.degreaser/runs/${latestRunId}/input/review.json`, "utf8"),
-  );
-  return input.paths.map((p) => p.path);
-};
 const record = (event) => {
   if (plan.lifecycleLog)
     appendFileSync(
@@ -136,10 +128,34 @@ const connection = new AgentSideConnection(
         .split("\n")
         .filter(Boolean)
         .map(JSON.parse);
+      const stage = text.startsWith("# Verifier instruction")
+        ? "verify"
+        : "find";
+      const fence = /<(degreaser-input-[0-9a-f]+)>\n([\s\S]*?)\n<\/\1>/.exec(
+        text,
+      );
+      const input = fence ? decode(fence[2]) : {};
+      const paths =
+        stage === "verify"
+          ? (input.paths ?? []).map((p) => p.path)
+          : (input.paths ?? []).filter((p) => p.shard).map((p) => p.path);
+      const candidates = input.candidates ?? [];
       const attempt = previous.filter(
-        (event) => event.aspect === aspect,
+        (event) => event.aspect === aspect && event.stage === stage,
       ).length;
-      const step = settings.attempts?.[attempt] ?? settings;
+      const staged = stage === "verify" ? (settings.verifier ?? {}) : settings;
+      const keyed = paths.find((path) => staged.paths?.[path]);
+      const scoped = keyed === undefined ? staged : staged.paths[keyed];
+      const tries =
+        keyed === undefined
+          ? attempt
+          : previous.filter(
+              (event) =>
+                event.aspect === aspect &&
+                event.stage === stage &&
+                event.paths?.includes(keyed),
+            ).length;
+      const step = scoped.attempts?.[tries] ?? scoped;
       if (plan.nestedCli) {
         const { latestRunId } = JSON.parse(
           readFileSync(".degreaser/state.json", "utf8"),
@@ -168,6 +184,9 @@ const connection = new AgentSideConnection(
         plan.log,
         `${JSON.stringify({
           aspect,
+          stage,
+          paths,
+          ...(stage === "verify" ? { candidates } : {}),
           model,
           prompt: text,
           sessionId: p.sessionId,
@@ -236,14 +255,10 @@ const connection = new AgentSideConnection(
           -32000,
           "Synthetic permission denied before result",
         );
-      await sendResult(
-        connection,
-        p.sessionId,
-        plan,
-        step,
-        aspect,
-        assessedPaths,
-      );
+      await sendResult(connection, p.sessionId, plan, step, aspect, {
+        stage,
+        candidates: candidates.length,
+      });
       record({ type: "output" });
       if (plan.permissionDenied)
         throw new RequestError(

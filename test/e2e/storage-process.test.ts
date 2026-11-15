@@ -5,7 +5,6 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
-import { ASPECT_IDS } from "../../src/modules/aspect/api.ts";
 import { createRun } from "../../src/review/prepare/create.ts";
 import { prepareReview } from "../../test/utils/input.ts";
 import { runtime } from "../../test/utils/runtime.ts";
@@ -124,8 +123,8 @@ test("an independent schema-validating process observes concurrent owner transit
   });
   assert.equal(f.start().status, 3);
   await until(
-    () => f.events().length === ASPECT_IDS.length,
-    "Every default worker overlaps",
+    () => f.events().length === 16,
+    "Sixteen workers overlap under the default cap",
   );
   const reader = processFixture(t, f, "reader");
   await Promise.race([
@@ -185,7 +184,7 @@ for (const [mode, code] of [
   ["prompt-mismatch", "input-changed"],
   ["prompt-error", "owner-failed"],
 ] as const) {
-  test(`${mode} preserves committed peers and is not mislabeled as a storage heartbeat failure`, async (t) => {
+  test(`${mode} stops every aspect under its own code, not as a storage heartbeat failure`, async (t) => {
     const f = queueFixture(t, { concurrency: 1 });
     createRun(
       runtime(),
@@ -210,15 +209,13 @@ for (const [mode, code] of [
     assert.doesNotMatch(done.stdout, /heartbeat|SECRET-canary/i);
     if (mode === "prompt-mismatch") assert.match(error.message, /run\.json/);
     const state = f.state();
-    assert.equal(state.tasks[0]?.status, "no-findings");
-    assert.equal(state.tasks[0]?.attempts.length, 1);
-    assert.ok(state.tasks[0]?.attempts[0]?.endedAt);
-    assert.equal(state.tasks[1]?.status, "cancelled");
+    assert.equal(state.executions?.at(-1)?.failure?.code, code);
+    assert.ok(state.tasks.every((task) => task.result === null));
     assert.deepEqual(state.tasks[1]?.attempts, []);
-    assert.equal(f.events().length, 1);
+    assert.equal(f.events().length, 0);
     const report = f.run(["report", state.id]);
     assert.equal(report.status, 1, report.stdout);
-    assert.match(report.stdout, /status: partial/);
+    assert.match(report.stdout, /status: failed/);
     assert.match(report.stdout, new RegExp(code));
   });
 }

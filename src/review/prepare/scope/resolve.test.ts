@@ -159,6 +159,7 @@ test("repository audit has explicit coverage, no patch and coordinator-owned sco
     JSON.stringify({
       agent: "codex",
       model: "gpt-6-luna",
+      verifier: { model: "gpt-6-sol" },
       exclude: ["package.json"],
     }),
   );

@@ -59,6 +59,8 @@ test("init reports partial installation when the final RC write fails", (t) => {
       "codex",
       "--model",
       "gpt-6-luna",
+      "--verifier-model",
+      "gpt-6-sol",
       "--harnesses",
       "claude",
     ],

@@ -1,23 +1,22 @@
 import { accessSync, constants, statSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 import {
-  autocomplete,
-  type CANCEL_SYMBOL,
   cancel,
   confirm,
   intro,
-  isCancel,
   log,
   multiselect,
   select,
 } from "@clack/prompts";
-import type { Agent, Identity } from "../../../config/types.ts";
+import type { Agent, Identity, ProjectConfig } from "../../../config/types.ts";
 import type { SkillInstall } from "../../../install/plan.ts";
 import type { InstallationScope } from "../../../install/targets.ts";
 import { AGENTS, HARNESSES } from "../../../modules/harness/api.ts";
 import { StateError } from "../../../util/errors.ts";
 import type { Factory } from "../../factory.ts";
-import type { Catalog } from "./catalog.ts";
+import { type Catalog, mergeCatalogs } from "./catalog.ts";
+import { answered, chooseAgent, chooseModel } from "./choose.ts";
+import { byPriority, recommendVerifier } from "./recommend.ts";
 
 function detectedHarnesses(f: Factory): Agent[] {
   const directories = (f.env.PATH ?? "").split(":").filter(isAbsolute);
@@ -36,18 +35,14 @@ function detectedHarnesses(f: Factory): Agent[] {
   );
 }
 
-function answered<T>(value: T | typeof CANCEL_SYMBOL): T {
-  if (isCancel(value))
-    throw new StateError("decision-required", "Installation cancelled.");
-  return value;
-}
-
 export async function configureTerminal(
   f: Factory,
   options: {
     agent: Agent | undefined;
     model: string | undefined;
-    previous: Identity | undefined;
+    verifierAgent: Agent | undefined;
+    verifierModel: string | undefined;
+    previous: ProjectConfig | undefined;
     harnesses: Agent[] | undefined;
     scope: InstallationScope;
     skillInstall: SkillInstall | undefined;
@@ -137,17 +132,11 @@ export async function configureTerminal(
         : undefined;
     const preferred = options.model
       ? undefined
-      : [...AGENTS]
-          .sort(
-            (a, b) =>
-              HARNESSES[a].recommendationPriority -
-              HARNESSES[b].recommendationPriority,
-          )
-          .find(
-            (value) =>
-              detected.includes(value) &&
-              HARNESSES[value].recommendationPriority < 2,
-          );
+      : AGENTS.toSorted(byPriority).find(
+          (value) =>
+            detected.includes(value) &&
+            HARNESSES[value].recommendationPriority < 2,
+        );
     const defaultAgent =
       options.agent ?? previous?.agent ?? preferred ?? detected[0];
     if (!defaultAgent)
@@ -155,64 +144,50 @@ export async function configureTerminal(
     const available = options.agent
       ? [options.agent]
       : [...new Set([...detected, defaultAgent])];
-    const agent =
-      available.length > 1
-        ? answered(
-            await select<Agent>({
-              ...terminal,
-              message: "Which agent should run the reviews?",
-              options: available.map((value) => ({
-                value,
-                label: HARNESSES[value].displayName,
-              })),
-              initialValue: defaultAgent,
-            }),
-          )
-        : defaultAgent;
-    const choices = await catalog(agent);
-    const models = choices.candidates.filter(
-      (candidate) => !options.model || candidate.model === options.model,
+    const agent = await chooseAgent(
+      terminal,
+      "Which agent should run the reviews?",
+      available,
+      defaultAgent,
     );
-    const first = models[0];
-    if (!first)
-      throw new StateError("environment-blocked", "No matching models.");
+    const choices = await catalog(agent);
     const current =
       options.previous?.agent === agent ? options.previous.model : undefined;
-    if (
-      current &&
-      !options.model &&
-      !models.some((candidate) => candidate.model === current)
-    )
-      log.warn(
-        `Previous model ${current} is no longer available from ${HARNESSES[agent].displayName}. Choose another one.`,
-        terminal,
-      );
-    const recommended = choices.recommendation?.model;
-    const prefill = [options.model, current, recommended].find((model) =>
-      models.some((candidate) => candidate.model === model),
+    const model = await chooseModel(terminal, choices, agent, {
+      message: "Which model should run the reviews?",
+      flag: options.model,
+      current,
+      recommended: choices.recommendation?.model,
+    });
+    const previousVerifier = options.previous?.verifier && {
+      agent: options.previous.verifier.agent ?? options.previous.agent,
+      model: options.previous.verifier.model,
+    };
+    const verifierAvailable = options.verifierAgent
+      ? [options.verifierAgent]
+      : [...new Set([agent, ...detected])];
+    const verifierAgent = await chooseAgent(
+      terminal,
+      "Which agent should verify findings?",
+      verifierAvailable,
+      options.verifierAgent ?? previousVerifier?.agent ?? agent,
     );
-    const model = answered(
-      await autocomplete({
-        ...terminal,
-        message: "Which model should run the reviews?",
-        placeholder: "Search models",
-        options: models.map((candidate) => {
-          const hint = [
-            candidate.model === current && "current",
-            candidate.model === recommended && "recommended",
-          ]
-            .filter(Boolean)
-            .join(", ");
-          return {
-            value: candidate.model,
-            label: candidate.label,
-            ...(hint ? { hint } : {}),
-          };
-        }),
-        initialValue: prefill ?? first.model,
-        maxItems: 6,
-      }),
+    const verifierChoices = await catalog(verifierAgent);
+    const verifierModel = await chooseModel(
+      terminal,
+      verifierChoices,
+      verifierAgent,
+      {
+        message: "Which model should verify findings?",
+        flag: options.verifierModel,
+        current:
+          previousVerifier?.agent === verifierAgent
+            ? previousVerifier.model
+            : undefined,
+        recommended: recommendVerifier(verifierChoices.candidates)?.model,
+      },
     );
+    const verifier: Identity = { agent: verifierAgent, model: verifierModel };
     const identity: Identity = { agent, model };
     if (
       !answered(
@@ -224,7 +199,14 @@ export async function configureTerminal(
       )
     )
       throw new StateError("decision-required", "Installation cancelled.");
-    return { identity, harnesses, scope, skillInstall, choices };
+    return {
+      identity,
+      verifier,
+      harnesses,
+      scope,
+      skillInstall,
+      choices: mergeCatalogs(choices, verifierChoices),
+    };
   } catch (error) {
     if (
       controller.signal.aborted ||

@@ -30,10 +30,9 @@ export function coverage(
   interrupted: boolean,
   full: boolean,
 ) {
-  const input = context.input;
   const reason = taskReason(task, interrupted);
   const harness = harnessLimitations(task, context);
-  const split = portions(task);
+  const stages = stageSummary(task);
   return {
     aspect: task.assignment.aspect,
     status:
@@ -46,20 +45,12 @@ export function coverage(
       .filter((l) => l !== reason && !harness.has(l))
       .map((text) => preview(text, full)),
     rejected: task.rejections.length,
+    ...counts(task),
+    ...(stages ? { stages } : {}),
     ...(task.unresolved && !resolved(task)
       ? {
           stopCause: task.unresolved.cause,
           pending: task.unresolved.paths.length,
-          ...(task.unresolved.stuck?.length
-            ? { stuck: task.unresolved.stuck }
-            : {}),
-          ...(task.result?.unresolved?.length
-            ? {
-                unresolved: task.result.unresolved.map(
-                  (u) => `${u.scope}: ${preview(u.reason, full)}`,
-                ),
-              }
-            : {}),
         }
       : {}),
     ...(task.status === "running" && task.attempts.at(-1)?.lastActivityAt
@@ -67,10 +58,6 @@ export function coverage(
           lastActivity: `${Math.round((context.now - (task.attempts.at(-1)?.lastActivityAt ?? 0)) / 1000)}s ago`,
         }
       : {}),
-    ...(split ? { portions: split } : {}),
-    examined: task.result?.examinedPaths
-      ? `${task.result.examinedPaths.length}/${input.paths.length}`
-      : "unknown",
   };
 }
 
@@ -94,16 +81,34 @@ export function sumUsage(
 export const taskUsage = (task: RunTask) =>
   sumUsage(task.attempts.map((a) => a.usage));
 
-export function portions(task: RunTask) {
-  const sizes = new Map(
-    task.attempts.flatMap((a) =>
-      a.portion ? [[a.portion.index, a.portion.paths] as const] : [],
-    ),
-  );
-  return sizes.size > 1
-    ? `${sizes.size} (${[...sizes.values()].join("/")})`
-    : null;
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+export function stageSummary(task: RunTask) {
+  const parts = (["find", "verify"] as const).flatMap((stage) => {
+    const shards = new Set(
+      task.attempts.flatMap((a) =>
+        a.stage === stage ? [a.portion?.index ?? 0] : [],
+      ),
+    );
+    return shards.size
+      ? [plural(shards.size, stage === "find" ? "finder" : "verifier")]
+      : [];
+  });
+  return parts.length ? parts.join(", ") : null;
 }
+
+export function verdictCounts(tasks: readonly RunTask[]) {
+  const all = tasks.flatMap((t) => t.result?.findings ?? []);
+  const count = (verdict: string) =>
+    all.filter((f) => f.verdict === verdict).length;
+  return {
+    upheld: count("upheld"),
+    refuted: count("refuted"),
+    unverified: count("unverified"),
+  };
+}
+
+const counts = (task: RunTask) => verdictCounts([task]);
 
 const STANDING = new Set(["git-object-writes", "live-context", "coverage"]);
 export const shownLimitations = (input: RunInput, full: boolean) =>

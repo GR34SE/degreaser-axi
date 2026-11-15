@@ -86,11 +86,16 @@ for (const override of [false, true]) {
         ? {
             agent: "codex",
             model: "gpt-6-luna",
+            verifier: { model: "gpt-6-sol" },
             aspects: {
               "low-value-comments": { agent: "claude", model: "gpt-6-luna" },
             },
           }
-        : { agent: "claude", model: "gpt-6-luna" },
+        : {
+            agent: "claude",
+            model: "gpt-6-luna",
+            verifier: { model: "gpt-6-luna" },
+          },
     );
     const rc = readFileSync(join(f.root, ".degreaserrc.json"));
     const result = f.run();
@@ -121,6 +126,7 @@ test("public admission discovers only selected exact identities, deduplicates an
   f.config({
     agent: "codex",
     model: "gpt-6-luna",
+    verifier: { model: "gpt-6-sol" },
     aspects: {
       "missed-reuse": { model: "unselected-model" },
       "masked-errors": { model: "exact-codex" },
@@ -146,6 +152,7 @@ test("public admission discovers only selected exact identities, deduplicates an
       ["pi", "openai/gpt-6-luna"],
       ["claude", "claude-haiku-4-5-20251001"],
       ["codex", "gpt-6-luna"],
+      ["codex", "gpt-6-sol"],
     ],
   );
   assert.equal(f.events().filter((e) => e.type === "prompt").length, 5);
@@ -177,11 +184,35 @@ test("public admission discovers only selected exact identities, deduplicates an
   const state = readFileSync(join(f.root, ".degreaser/state.json"));
   const runs = readdirSync(join(f.root, ".degreaser/runs"));
   const prompts = f.events().filter((e) => e.type === "prompt").length;
-  f.config({ agent: "pi", model: "other-provider/gpt-6-luna" });
+  f.config({
+    agent: "pi",
+    model: "other-provider/gpt-6-luna",
+    verifier: { model: "other-provider/gpt-6-luna" },
+  });
   assert.equal(f.run().status, 2);
   assert.deepEqual(readFileSync(join(f.root, ".degreaser/state.json")), state);
   assert.deepEqual(readdirSync(join(f.root, ".degreaser/runs")), runs);
   assert.equal(f.events().filter((e) => e.type === "prompt").length, prompts);
+});
+
+test("public unsupported verifier model refuses as invalid input before any run exists", (t) => {
+  const f = setup(t);
+  f.write("source.ts", "export const value = 1;\n");
+  f.config({
+    agent: "codex",
+    model: "gpt-6-luna",
+    verifier: { model: "withdrawn-verifier" },
+  });
+  const rc = readFileSync(join(f.root, ".degreaserrc.json"));
+  const result = f.run();
+  assert.equal(result.status, 2, result.stdout);
+  assert.match(result.stdout, /code: invalid-input/);
+  assert.match(result.stdout, /verifier.*neither an advertised model ID/);
+  assert.ok(!existsSync(join(f.root, ".degreaser")));
+  assert.deepEqual(readFileSync(join(f.root, ".degreaserrc.json")), rc);
+  assert.ok(
+    f.events().every((e) => e.type !== "prompt" && e.type !== "set-model"),
+  );
 });
 
 test("public syntax errors, empty diff and coordinator-only audit skip metadata discovery", (t) => {
@@ -210,6 +241,7 @@ test("public metadata failures refuse explicitly and join discovery without crea
   f.config({
     agent: "codex",
     model: "gpt-6-luna",
+    verifier: { model: "gpt-6-sol" },
     limits: { workerTimeoutSeconds: 1 },
   });
   for (const plan of [
@@ -245,7 +277,7 @@ test("public runtime refuses an absent advertised model after admission without 
       .events()
       .filter((e) => e.type === "session")
       .map((e) => e.admitted),
-    [false, true],
+    [false, false, true],
   );
   assert.ok(f.events().every((e) => e.type !== "prompt"));
 });

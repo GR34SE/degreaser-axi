@@ -1,5 +1,5 @@
 import { defineHarness } from "../common/definition.ts";
-import { cheapModelRank } from "../common/recommend.ts";
+import { modelTier } from "../common/recommend.ts";
 
 export default defineHarness({
   id: "pi",
@@ -33,7 +33,7 @@ export default defineHarness({
   subscription: (model) =>
     `Pi native credentials (${model.split("/")[0]}); account identity unavailable`,
   recommendationPriority: 2,
-  recommendationRank: cheapModelRank,
+  modelTier,
   modelError: (model) =>
     /^[^/\s]+\/\S+$/.test(model)
       ? undefined

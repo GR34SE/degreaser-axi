@@ -9,6 +9,8 @@ import test from "node:test";
 import {
   acceptAgent,
   acceptModel,
+  acceptVerifierAgent,
+  acceptVerifierModel,
   defaultSettings,
   explicit,
   install,
@@ -28,12 +30,17 @@ test("TTY prefills Claude Haiku over Codex without probing unselected agents", (
       skill,
       acceptAgent,
       acceptModel,
+      acceptVerifierAgent,
+      acceptVerifierModel,
       install,
     ],
   );
   assert.equal(result.status, 0, result.stdout);
   assert.equal(f.config().agent, "claude");
   assert.equal(f.config().model, "claude-haiku-4-5-20251001");
+  assert.deepEqual(f.config().verifier, {
+    model: "claude-haiku-4-5-20251001",
+  });
   assert.match(result.stdout, /Loading Claude Code models/);
   assert.match(result.stdout, /Claude Code +\/degreaser review my changes/);
   assert.match(result.stdout, /Pi +\/skill:degreaser review my changes/);
@@ -57,6 +64,8 @@ test("TTY can change harness and search an exact model, then retains it on reini
       skill,
       [acceptAgent[0], "\x1b[A\r"],
       [acceptModel[0], "exact\r"],
+      acceptVerifierAgent,
+      acceptVerifierModel,
       install,
     ],
   );
@@ -67,11 +76,49 @@ test("TTY can change harness and search an exact model, then retains it on reini
   assert.equal(f.config().model, "exact-codex");
   const again = f.run(
     [],
-    [integrations, project, skill, acceptAgent, acceptModel, install],
+    [
+      integrations,
+      project,
+      skill,
+      acceptAgent,
+      acceptModel,
+      acceptVerifierAgent,
+      acceptVerifierModel,
+      install,
+    ],
   );
   assert.equal(again.status, 0, again.stdout);
   assert.match(again.stdout, /exact-codex \(current/);
   assert.equal(f.config().agent, "codex");
+});
+
+test("TTY asks for the verifier after the worker and records a different agent explicitly", (t) => {
+  const f = setup(t);
+  const result = f.run(
+    [],
+    [
+      [integrations[0], " \r"],
+      project,
+      skill,
+      acceptAgent,
+      acceptModel,
+      [acceptVerifierAgent[0], "\x1b[B\r"],
+      [acceptVerifierModel[0], "gpt-6-sol\r"],
+      install,
+    ],
+  );
+  assert.equal(result.status, 0, result.stdout);
+  assert.equal(f.config().agent, "claude");
+  assert.equal(f.config().model, "claude-haiku-4-5-20251001");
+  assert.deepEqual(f.config().verifier, {
+    agent: "codex",
+    model: "gpt-6-sol",
+  });
+  assert.match(result.stdout, /Loading Codex models/);
+  assert.deepEqual([...new Set(f.events().map((e) => e.agent))].sort(), [
+    "claude",
+    "codex",
+  ]);
 });
 
 test("TTY cancellation before discovery or before installation writes nothing", (t) => {
@@ -91,6 +138,8 @@ test("TTY cancellation before discovery or before installation writes nothing", 
       skill,
       acceptAgent,
       acceptModel,
+      acceptVerifierAgent,
+      acceptVerifierModel,
       [install[0], "n\r"],
     ],
   );
@@ -134,17 +183,25 @@ test("TTY Ctrl+C during discovery stops its adapter and leaves files untouched",
     assert.throws(() => process.kill(pid, 0), { code: "ESRCH" });
 });
 
-test("TTY falls back to Codex Luna latest when Claude is absent", (t) => {
+test("TTY falls back to Codex Terra latest when Claude is absent", (t) => {
   const f = setup(t);
   rmSync(join(f.bin, "claude"));
   const result = f.run(
     [],
-    [integrations, project, acceptAgent, acceptModel, install],
+    [
+      integrations,
+      project,
+      acceptAgent,
+      acceptModel,
+      acceptVerifierAgent,
+      acceptVerifierModel,
+      install,
+    ],
   );
   assert.equal(result.status, 0, result.stdout);
   assert.equal(f.config().agent, "codex");
-  assert.equal(f.config().model, "latest:luna");
-  assert.match(result.stdout, /luna \(latest\)/);
+  assert.equal(f.config().model, "latest:terra");
+  assert.match(result.stdout, /terra \(latest\)/);
   assert.deepEqual([...new Set(f.events().map((e) => e.agent))], ["codex"]);
 });
 
@@ -169,7 +226,16 @@ test("unavailable RC is flagged before the user picks a replacement", (t) => {
   );
   const result = f.run(
     [],
-    [integrations, project, skill, acceptAgent, acceptModel, install],
+    [
+      integrations,
+      project,
+      skill,
+      acceptAgent,
+      acceptModel,
+      acceptVerifierAgent,
+      acceptVerifierModel,
+      install,
+    ],
   );
   assert.equal(result.status, 0, result.stdout);
   assert.match(
@@ -188,6 +254,8 @@ test("TTY global selection installs only into the disposable home", (t) => {
       skill,
       acceptAgent,
       acceptModel,
+      acceptVerifierAgent,
+      acceptVerifierModel,
       install,
     ],
   );
@@ -199,16 +267,37 @@ test("TTY global selection installs only into the disposable home", (t) => {
 test("TTY partial flags constrain prefill instead of being silently ignored", (t) => {
   const f = setup(t, true);
   for (const [args, expected, steps] of [
-    [["--agent", "pi"], { agent: "pi", model: "openai/gpt-6-luna" }, []],
+    [
+      ["--agent", "pi"],
+      {
+        agent: "pi",
+        model: "openai/gpt-6-terra",
+        verifier: { agent: "codex", model: "gpt-6-sol" },
+      },
+      [],
+    ],
     [
       ["--model", "exact-codex"],
-      { agent: "codex", model: "exact-codex" },
+      {
+        agent: "codex",
+        model: "exact-codex",
+        verifier: { model: "gpt-6-sol" },
+      },
       [acceptAgent],
     ],
   ] as const) {
     const result = f.run(
       [...args],
-      [integrations, project, skill, ...steps, acceptModel, install],
+      [
+        integrations,
+        project,
+        skill,
+        ...steps,
+        acceptModel,
+        acceptVerifierAgent,
+        acceptVerifierModel,
+        install,
+      ],
     );
     assert.equal(result.status, 0, result.stdout);
     assert.deepEqual(f.config(), {
@@ -230,6 +319,8 @@ test("TTY offers to replace a stale Degreaser skill instead of failing", (t) => 
     skill,
     acceptAgent,
     acceptModel,
+    acceptVerifierAgent,
+    acceptVerifierModel,
     install,
   ];
   const kept = f.run([], [...steps, ["Replace it?", "\r"]]);

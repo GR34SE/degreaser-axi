@@ -2,8 +2,10 @@ import { AGENTS } from "../../../modules/harness/api.ts";
 import type { CommandSpec } from "../../types.ts";
 
 export const spec: CommandSpec = {
-  description: "Choose the review model and install agent integrations",
-  usage: "init --agent <agent> --model <model> --harnesses <targets>",
+  description:
+    "Choose the review and verifier models and install agent integrations",
+  usage:
+    "init --agent <agent> --model <model> --verifier-model <model> --harnesses <targets>",
   flags: {
     agent: {
       type: "string",
@@ -13,6 +15,15 @@ export const spec: CommandSpec = {
       type: "string",
       description:
         "Confirmed model ID or listed latest selector; required on every init",
+    },
+    "verifier-agent": {
+      type: "string",
+      description: `Confirmed verifier agent: ${AGENTS.join(", ")}; defaults to --agent`,
+    },
+    "verifier-model": {
+      type: "string",
+      description:
+        "Confirmed verifier model ID or listed latest selector; required on every init",
     },
     harnesses: {
       type: "string",
@@ -34,6 +45,6 @@ export const spec: CommandSpec = {
   },
   examples: [
     "degreaser-axi init",
-    "degreaser-axi init --agent codex --model <confirmed-model> --harnesses codex",
+    "degreaser-axi init --agent codex --model <confirmed-model> --verifier-model <confirmed-model> --harnesses codex",
   ],
 };

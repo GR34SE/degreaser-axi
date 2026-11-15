@@ -2,14 +2,51 @@ import assert from "node:assert/strict";
 import { rmSync, symlinkSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
-import { fixture } from "../../../test/utils/git-fixture.ts";
+import { fixture as gitFixture } from "../../../test/utils/git-fixture.ts";
 
 import { prepareReview } from "../../../test/utils/input.ts";
-import { block, clean, finding } from "../../../test/utils/result-fixture.ts";
 import { runtime } from "../../../test/utils/runtime.ts";
-import { assemblePrompt } from "../attempt/prompt/assemble.ts";
-import { parseResult } from "./parse.ts";
-import { ingestResult } from "./verify-quotes.ts";
+import type { ReviewInput } from "../types.ts";
+import { parseFinder } from "./parse.ts";
+import { ingestFinder, ingestVerifier } from "./verify-quotes.ts";
+
+const fixture = (t: Parameters<typeof gitFixture>[0]) => {
+  const f = gitFixture(t);
+  f.write(
+    ".degreaserrc.json",
+    JSON.stringify({
+      agent: "codex",
+      model: "gpt-6-luna",
+      verifier: { model: "gpt-6-luna" },
+    }),
+  );
+  return f;
+};
+const clean = {
+  aspect: "low-value-comments",
+  status: "no-findings",
+  findings: [],
+  limitations: [],
+};
+const block = (data: unknown) =>
+  `<degreaser-result>${JSON.stringify(data)}</degreaser-result>`;
+const finding = (
+  path: string,
+  side: "old" | "new",
+  quote: string,
+  startLine = 1,
+  endLine = startLine,
+) => ({
+  location: { path, side, startLine, endLine },
+  quote,
+  title: "Redundant explanation",
+});
+const ingestResult = (
+  runtime: ReturnType<typeof import("../../../test/utils/runtime.ts").runtime>,
+  text: string,
+  aspect: Parameters<typeof ingestFinder>[2],
+  input: ReviewInput,
+) => ingestFinder(runtime, text, aspect, input);
 
 test("a unique whole-line quote corrects only an omitted final line", (t) => {
   const f = fixture(t);
@@ -146,7 +183,7 @@ test("quotes tolerate CRLF, copied diff markers and repo-path spellings but neve
   assert.deepEqual(ok.rejections, []);
   assert.deepEqual(
     ok.result.findings.map((x) => x.location.path),
-    accepted.map(() => "crlf.ts"),
+    accepted.slice(1).map(() => "crlf.ts"),
   );
   const rejected = [
     finding("crlf.ts", "new", "c", 1, 3),
@@ -164,7 +201,7 @@ test("quotes tolerate CRLF, copied diff markers and repo-path spellings but neve
   );
   assert.throws(
     () =>
-      parseResult(
+      parseFinder(
         block({
           ...clean,
           status: "findings",
@@ -177,7 +214,7 @@ test("quotes tolerate CRLF, copied diff markers and repo-path spellings but neve
   );
 });
 
-test("symlinks are reviewed as links: target text reaches the worker and quotes validate against the link blob", (t) => {
+test("symlink quotes validate against the link blob", (t) => {
   const f = fixture(t);
   f.write("skills/real/SKILL.md", "# Real\n");
   symlinkSync("../skills/real", join(f.root, "dir-link"));
@@ -204,10 +241,6 @@ test("symlinks are reviewed as links: target text reaches the worker and quotes 
   assert.equal(byPath.get("dangling")?.newLink, "does-not-exist");
   assert.equal(byPath.get("naïve external")?.newLink, "/etc/hosts");
   assert.equal(byPath.get("dir-link"), undefined);
-  const { text } = assemblePrompt(input, "low-value-comments", "/p.diff");
-  assert.match(text, /newLink: new-target/);
-  assert.match(text, /oldLink: old-target/);
-  assert.match(text, /newMode: "120000"/);
   const run = (path: string, side: "old" | "new", quote: string) =>
     ingestResult(
       runtime(),
@@ -227,8 +260,115 @@ test("symlinks are reviewed as links: target text reaches the worker and quotes 
   const audit = prepareReview(argv("repository"), f.root);
   const dir = audit.paths.find((p) => p.path === "dir-link");
   assert.equal(dir?.newLink, "../skills/real");
-  assert.match(
-    assemblePrompt(audit, "low-value-comments", "/p.diff").text,
-    /newLink: \.\.\/skills\/real/,
+});
+
+test("a finding outside the shard is not assessed, exact repeats collapse and kept quotes are checked", (t) => {
+  const f = fixture(t);
+  f.write("a.ts", "// first\nexport const a = 1;\n");
+  f.write("b.ts", "// second\n");
+  const input = prepareReview(
+    [
+      "--scope",
+      "repository",
+      "--task",
+      "Audit",
+      "--aspects",
+      "low-value-comments",
+    ],
+    f.root,
+  );
+  const shard = {
+    ...input,
+    paths: input.paths.filter((p) => p.path === "a.ts"),
+  };
+  const first = finding("a.ts", "new", "// first");
+  const { result, rejections } = ingestFinder(
+    runtime(),
+    block({
+      ...clean,
+      status: "findings",
+      findings: [first, first, finding("b.ts", "new", "// second")],
+      kept: [
+        { location: first.location, quote: "// first" },
+        { location: first.location, quote: "invented text" },
+      ],
+    }),
+    "low-value-comments",
+    shard,
+  );
+  assert.deepEqual(result.findings, [first]);
+  assert.deepEqual(rejections, [{ index: 3, reason: "path-not-assessed" }]);
+  assert.deepEqual(result.kept, [
+    { location: first.location, quote: "// first" },
+  ]);
+  assert.match(result.limitations.join(" "), /Dropped 1 kept unit/);
+  assert.equal(result.status, "findings");
+});
+
+test("verifier verdicts need a known candidate, an action when upheld and a matching evidence quote", (t) => {
+  const f = fixture(t);
+  f.write("helper.ts", "export const trim = (v: string) => v.trim();\n");
+  f.write("a.ts", "export const a = 1;\n");
+  f.git("add", ".");
+  f.git("commit", "-m", "Base");
+  f.write("a.ts", "export const a = 2;\n");
+  const input = prepareReview(
+    ["--scope", "worktree", "--task", "Edit", "--aspects", "missed-reuse"],
+    f.root,
+  );
+  const helper = {
+    location: { path: "helper.ts", side: "new", startLine: 1, endLine: 1 },
+    quote: "export const trim = (v: string) => v.trim();",
+  };
+  const verdicts = [
+    {
+      candidate: 1,
+      verdict: "upheld",
+      reason: "Reuse.",
+      action: "Use trim.",
+      evidence: helper,
+    },
+    { candidate: 2, verdict: "refuted", reason: "Distinct." },
+    { candidate: 3, verdict: "upheld", reason: "Out of range.", action: "x" },
+    { candidate: 2, verdict: "upheld", reason: "Repeat.", action: "x" },
+    { candidate: 2, verdict: "upheld", reason: "No action." },
+    {
+      candidate: 1,
+      verdict: "upheld",
+      reason: "Bad evidence.",
+      action: "x",
+      evidence: { ...helper, quote: "invented" },
+    },
+  ];
+  const { result, dropped } = ingestVerifier(
+    runtime(),
+    block({
+      aspect: "missed-reuse",
+      status: "verdicts",
+      verdicts,
+      limitations: [],
+    }),
+    "missed-reuse",
+    input,
+    2,
+  );
+  assert.deepEqual(result.verdicts, verdicts.slice(0, 2));
+  assert.equal(dropped, 4);
+  assert.match(result.limitations.join(" "), /Discarded 4 verdict/);
+  const late = ingestVerifier(
+    runtime(),
+    block({
+      aspect: "missed-reuse",
+      status: "verdicts",
+      verdicts: [{ ...verdicts[1], candidate: 1 }, verdicts[0]],
+      limitations: [],
+    }),
+    "missed-reuse",
+    input,
+    1,
+  );
+  assert.deepEqual(
+    late.result.verdicts.map((v) => v.verdict),
+    ["refuted"],
   );
 });

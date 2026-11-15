@@ -32,9 +32,10 @@ export interface RunTask {
     limitations?: string[];
     usage?: Record<string, number> | null;
     portion?: { index: number; paths: number };
+    stage?: "find" | "verify";
   }[];
   limitations: string[];
-  unresolved?: { cause: string; paths: string[]; stuck?: string[] };
+  unresolved?: { cause: string; paths: string[] };
   usage: Record<string, number> | null;
 }
 export interface Run {

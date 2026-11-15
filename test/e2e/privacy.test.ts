@@ -20,7 +20,11 @@ test("native diagnostic streams and version suffixes are not public diagnostics"
   const f = fixture(t);
   f.write(
     ".degreaserrc.json",
-    JSON.stringify({ agent: "claude", model: "claude-haiku-4-5-20251001" }),
+    JSON.stringify({
+      agent: "claude",
+      model: "claude-haiku-4-5-20251001",
+      verifier: { model: "claude-haiku-4-5-20251001" },
+    }),
   );
   for (const version of [secret, `2.1.317+${secret}`]) {
     f.write("bin/claude", "");
@@ -55,7 +59,12 @@ test("invalid configuration reports schema constraints without echoing unknown k
   ]) {
     f.write(
       ".degreaserrc.json",
-      JSON.stringify({ agent: "codex", model: "gpt-6-luna", ...extra }),
+      JSON.stringify({
+        agent: "codex",
+        model: "gpt-6-luna",
+        verifier: { model: "gpt-6-sol" },
+        ...extra,
+      }),
     );
     for (const args of [[], ["home"], ["doctor"]]) {
       const result = spawnSync(process.execPath, [cli, ...args], {
@@ -125,7 +134,6 @@ test("provider errors stay out of every run artifact while literal source eviden
           aspect: "low-value-comments",
           status: "findings",
           limitations: [],
-          examinedPaths: ["source.ts"],
           findings: [
             {
               location: {
@@ -136,10 +144,6 @@ test("provider errors stay out of every run artifact while literal source eviden
               },
               quote,
               title: "Comment repeats the declaration",
-              evidence: "The comment supplies no rationale.",
-              consequence: "Duplicate maintenance.",
-              countercheck: "No external requirement is documented.",
-              recommendation: "Remove the comment.",
             },
           ],
         })}</degreaser-result>`,

@@ -7,27 +7,28 @@ Result completeness and local data limits are described in [result-contract.md](
 
 Review requires an explicit `worktree`, `branch` or `repository` scope and exactly one nonempty task, supplied as `--task` or a readable UTF-8 `--task-file`. File paths resolve from the invocation directory. Task text preserves whitespace and line breaks. Duplicate flags (other than repeatable `--path`), unknown flags, positional arguments, empty selections and noninteger controls fail before run creation. Only `branch` accepts `--base`, which is mandatory and never inferred.
 
-The repository root comes from Git, including nested invocations and linked worktrees. Only its `.degreaserrc.json` is loaded. There is no parent-directory or global configuration search and no default agent/model.
+The repository root comes from Git, including nested invocations and linked worktrees. Only its `.degreaserrc.json` is loaded. There is no parent-directory or global configuration search and no default agent, model or verifier.
 
 ## Configuration
 
 [config-v1.json](https://github.com/GR34SE/degreaser-axi/blob/main/src/config/config.schema.json) is a strict draft-07 JSON Schema. An omitted `schemaVersion` means version 1, keeping the minimal `{ "agent": "codex", "model": "<model>" }` form valid. Explicit unsupported versions and unknown fields at any depth are errors. No values are coerced.
 
-- Agents: `codex`, `claude`, `pi`, `cursor`. Models are whitespace-free IDs or explicit latest selectors (below), with `provider/model` required for Pi. Syntax checks do not establish model availability. Before creating a run, owner or aspect attempt, `review` discovers the exact catalogs needed by selected workers and rejects unsupported pairs (including overrides) as `invalid-input` / 2. Exact IDs never receive prefix matching, substitution or fallback.
+- Agents: `codex`, `claude`, `pi`, `cursor`. Models are whitespace-free IDs or explicit latest selectors (below), with `provider/model` required for Pi. Syntax checks do not establish model availability. Before creating a run, owner or aspect attempt, `review` discovers the exact catalogs needed by selected finders and the verifier and rejects unsupported pairs (including overrides) as `invalid-input` / 2. Exact IDs never receive prefix matching, substitution or fallback.
 - `aspects` maps each built-in ID to exactly one setting: `true` (on, configured identity), `false` (off) or an identity object (on, that identity). Omitted IDs are on. Unknown IDs, other value types or an empty effective selection are invalid.
 - `--aspects` is a comma-separated one-run subset of enabled IDs, sorted into catalog order. Explicit disabled IDs are errors, not silently re-enabled. No aliases (including former A01–A16 numbers) or custom rubrics.
-- An identity object is `{ "model": "<model>" }` or `{ "agent": "...", "model": "..." }`. Model-only overrides retain the configured agent; an agent override always requires an explicit model.
-- `concurrency` and `limits.maxTurns` accept integers 1–9,007,199,254,740,991. An absent concurrency limit means all selected workers, not a machine-dependent cap. RC `null` explicitly represents no limit, as it does in resolved input.
-- `maxRetries`: 0–10, default 1 additional attempt. `limits.workerTimeoutSeconds`: 1–2,147,483, default 300. `limits.workerIdleSeconds`: the same range, default 120; an attempt with no adapter event for that long stops as a timeout. `limits.runTimeoutSeconds`: the same range, default 900. `limits.maxTurns` defaults to 40. `--wait` uses the seconds range, default 480. The seconds bound prevents signed 32-bit millisecond timer overflow.
+- Every review runs two worker stages. The top-level `agent`/`model` is the **finder** identity and per-aspect overrides apply to finders. The required top-level `verifier` identity selects the sessions that check each candidate finding.
+- An identity object is `{ "model": "<model>" }` or `{ "agent": "...", "model": "..." }`. Model-only overrides retain the configured agent; an agent override always requires an explicit model. `verifier` takes the same two forms: `{ "model": "<model>" }` inherits the top-level agent, `{ "agent": "...", "model": "..." }` sets both. A missing `verifier` is rejected with a pointer to `init`; there is no default, and `config sync` cannot fill it.
+- `concurrency` and `limits.maxTurns` accept integers 1–9,007,199,254,740,991. An absent `concurrency` means 16 simultaneous workers across both stages, not a machine-dependent cap. RC `null` explicitly represents no limit, as it does in resolved input.
+- `maxRetries`: 0–10, default 1 additional attempt. `limits.workerTimeoutSeconds`: 1–2,147,483, default 300. `limits.workerIdleSeconds`: the same range, default 120; an attempt with no adapter event for that long stops as a timeout. `limits.runTimeoutSeconds`: the same range, default 7200. `limits.maxTurns` defaults to 40. `--wait` uses the seconds range, default 480. The seconds bound prevents signed 32-bit millisecond timer overflow.
 - Only `--aspects`, `--concurrency` and `--wait` control this review invocation. They never rewrite the RC.
 
-Init writes every configurable field, including every aspect, empty collections and explicit null concurrency. `config sync` fills only missing fields (including nested limits and aspect settings) in an existing valid RC, retaining explicit values and effective behavior. It writes atomically and leaves complete files untouched. Model-only overrides continue inheriting the configured agent; sync does not copy inherited identities into overrides. Home, installed startup hooks, doctor and review disclose missing settings and the installed default values without editing the RC. No registry lookup or model discovery is needed to sync. The format version is independent of package releases; unsupported versions and unknown fields are errors, never reset or silently discarded.
+Init writes every configurable field, including the verifier, every aspect, empty collections and explicit null concurrency. `config sync` fills only missing configurable fields (including nested limits and aspect settings) in an existing valid RC, retaining explicit values and effective behavior. It writes atomically and leaves complete files untouched. Model-only overrides continue inheriting the configured agent; sync does not copy inherited identities into overrides. Home, installed startup hooks, doctor and review disclose missing settings and the installed default values without editing the RC. No registry lookup or model discovery is needed to sync. The format version is independent of package releases; unsupported versions and unknown fields are errors, never reset or silently discarded.
 
 These numeric defaults, retry ceiling, version-omission rule and exclusion spelling are implementation choices, not additional product requirements.
 
-Model discovery uses the same restricted native profiles and environment as workers, with no prompt or model-setting RPC. Each distinct selected identity is inspected once. Claude discovery omits the native model flag so an arbitrary requested ID cannot add itself to the catalog. Pi discovery omits provider/model selection so an unsupported requested pair cannot prevent its native metadata API from returning the independent configured catalog. A native default may appear in metadata, but it is never used for a review turn or saved as a new default. Metadata sessions may create native harness history, but never Degreaser run history or aspect attempts. Discovery is bounded to at most 120 seconds per identity (or the shorter worker timeout), plus native version checks and joined cleanup. Missing metadata or failed discovery, including auth or host faults, returns `environment-blocked` / 2, not automatic acceptance or an inferred invalid model.
+Model discovery uses the same restricted native profiles and environment as workers, with no prompt or model-setting RPC. Each distinct selected identity, including the verifier, is inspected once. Claude discovery omits the native model flag so an arbitrary requested ID cannot add itself to the catalog. Pi discovery omits provider/model selection so an unsupported requested pair cannot prevent its native metadata API from returning the independent configured catalog. A native default may appear in metadata, but it is never used for a review turn or saved as a new default. Metadata sessions may create native harness history, but never Degreaser run history or aspect attempts. Discovery is bounded to at most 120 seconds per identity (or the shorter worker timeout), plus native version checks and joined cleanup. Missing metadata or failed discovery, including auth or host faults, returns `environment-blocked` / 2, not automatic acceptance or an inferred invalid model.
 
-Invalid syntax fails before discovery. Empty change scopes and coordinator-only scope-creep repository audits need no catalog or reviewer. Identity objects of aspects not selected for the run are syntax-checked but do not trigger discovery. Actual review sessions retain exact argv selection and check the advertised catalog and selected identity before inference. A missing entry or selection mismatch fails as `model-unavailable`, without fallback or blind retry. These are metadata checks, not proof of provider access or future availability. In particular, Claude's review-time `--model` adds the requested ID to its advertised catalog, so that runtime check cannot independently detect provider withdrawal. Provider/auth failures can still occur when a turn starts. Pi's offline startup catalog may also be cached; no preflight predicts future provider availability.
+Invalid syntax fails before discovery. Empty change scopes and coordinator-only scope-creep repository audits need no catalog or reviewer. Identity objects of aspects not selected for the run are syntax-checked but do not trigger discovery; the verifier is always checked when a review needs workers. Actual review sessions retain exact argv selection and check the advertised catalog and selected identity before inference. A missing entry or selection mismatch fails as `model-unavailable`, without fallback or blind retry. These are metadata checks, not proof of provider access or future availability. In particular, Claude's review-time `--model` adds the requested ID to its advertised catalog, so that runtime check cannot independently detect provider withdrawal. Provider/auth failures can still occur when a turn starts. Pi's offline startup catalog may also be cached; no preflight predicts future provider availability.
 
 ### Latest models and version pins
 
@@ -40,11 +41,11 @@ flags remain prefill; init never silently migrates a version pin.
   version it currently points to. Claude Code resolves it at launch. Its native
   version, provider availability and managed policy determine when a new model
   becomes available. Keep Claude Code current to pick up alias updates.
-- **Codex:** select e.g. `luna (latest)` or `sol (latest)`. The RC saves
-  `latest:luna` or `latest:sol`. Before each new review, Degreaser selects the
+- **Codex:** select e.g. `terra (latest)` or `sol (latest)`. The RC saves
+  `latest:terra` or `latest:sol`. Before each new review, Degreaser selects the
   highest numeric GPT version in that exact family from the adapter's advertised
-  catalog, without changing the RC. For example `gpt-6.10-luna` wins over
-  `gpt-6.9-luna`; a newer Sol never replaces Luna. A selector whose family is
+  catalog, without changing the RC. For example `gpt-6.10-terra` wins over
+  `gpt-6.9-terra`; a newer Sol never replaces Terra. A selector whose family is
   not advertised is rejected as `invalid-input` / 2. Families derive from
   `gpt-<version>-<family>` IDs; plain `gpt-<version>` uses `latest:gpt`.
   Variant suffixes stay separate families.
@@ -52,7 +53,7 @@ flags remain prefill; init never silently migrates a version pin.
 Pi and Cursor have no `(latest)` choices; init lists their advertised IDs
 unchanged.
 
-Codex latest selectors work at the top level and in aspect overrides. Resolved
+Codex latest selectors work at the top level, in the verifier and in aspect overrides. Resolved
 assignments save the exact model plus `requestedModel` (the latest selector).
 All attempts and resumes of that run keep that exact model, even if the catalog
 later adds a newer one. A changed selector requires a new review; a withdrawn
@@ -67,20 +68,21 @@ day. Degreaser does not install updates, change accounts or fall back to paid AP
 
 ### Complete configuration example
 
-Example with Codex and `gpt-6-luna`; confirm the exact model available in your native catalog during `init`.
+Example with Codex, `gpt-6-terra` as finder and `gpt-6-sol` as verifier; confirm the exact model available in your native catalog during `init`.
 
 ```json
 {
   "schemaVersion": 1,
   "agent": "codex",
-  "model": "gpt-6-luna",
-  "concurrency": null,
+  "model": "gpt-6-terra",
+  "verifier": { "model": "gpt-6-sol" },
+  "concurrency": 16,
   "maxRetries": 1,
   "limits": {
     "workerTimeoutSeconds": 300,
     "workerIdleSeconds": 120,
     "maxTurns": 40,
-    "runTimeoutSeconds": 900
+    "runTimeoutSeconds": 7200
   },
   "aspects": {
     "unnecessary-complexity": true,

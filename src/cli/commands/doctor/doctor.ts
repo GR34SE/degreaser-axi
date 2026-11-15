@@ -70,8 +70,9 @@ export async function run(f: Factory) {
   const configured =
     readConfigText(join(repository, ".degreaserrc.json")) !== null;
   const config = configured ? f.config(repository) : undefined;
-  const identities = config
-    ? [config, ...resolveConfig(config, {}, ASPECT_IDS).assignments]
+  const effective = config && resolveConfig(config, {}, ASPECT_IDS);
+  const identities = effective
+    ? [config, effective.verifier, ...effective.assignments]
     : AGENTS.map((agent) => ({ agent, model: "" }));
   const profiles = [];
   const seen = new Set<string>();
@@ -121,7 +122,13 @@ export async function run(f: Factory) {
         : configured
           ? "checked"
           : "not-configured",
-      ...(config ? { agent: config.agent, model: config.model } : {}),
+      ...(config && effective
+        ? {
+            agent: config.agent,
+            model: config.model,
+            verifier: effective.verifier,
+          }
+        : {}),
       profiles,
       integrations,
       modelAvailability:

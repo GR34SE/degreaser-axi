@@ -64,6 +64,8 @@ export function setup(t: TestContext) {
       "codex",
       "--model",
       "gpt-6-luna",
+      "--verifier-model",
+      "gpt-6-sol",
       "--harnesses",
       harnesses,
       "--installation-scope",

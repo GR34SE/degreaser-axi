@@ -4,7 +4,9 @@
 
 **Question:** Can the test detect a plausible regression not already detected by a stronger retained test?
 
-**Applies when:** The change adds or edits tests, test helpers, fixtures or mocks. Otherwise return not-applicable.
+**Applies when:** The assessed change contains added or edited tests, test helpers, fixtures or mocks. In a repository audit, assess existing tests too. Otherwise return not-applicable.
+
+**Unit:** Each test case.
 
 **Evidence:** Name a plausible regression, the actual code executed and the source of expectations. For negative tests, show that input reaches the intended guard instead of failing earlier for an unrelated reason. Before proposing removal, read the complete test, implementation, relevant callers and overlapping coverage. Identify a stronger retained test under the same conditions, including its distinct boundary and CI routing; similar names or setup do not establish redundancy.
 

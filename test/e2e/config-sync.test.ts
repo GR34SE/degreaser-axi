@@ -39,13 +39,14 @@ const full = {
   schemaVersion: 1,
   agent: "codex",
   model: "gpt-6-luna",
-  concurrency: null,
+  verifier: { model: "gpt-6-sol" },
+  concurrency: 16,
   maxRetries: 1,
   limits: {
     workerTimeoutSeconds: 300,
     workerIdleSeconds: 120,
     maxTurns: 40,
-    runTimeoutSeconds: 900,
+    runTimeoutSeconds: 7200,
   },
   aspects: Object.fromEntries(allAspects.map((id) => [id, true])),
   exclude: [],
@@ -86,6 +87,7 @@ test("sync fills only absent nested settings, retaining explicit aspect settings
   const previous = {
     agent: "claude",
     model: "chosen-model",
+    verifier: { agent: "codex", model: "chosen-verifier" },
     concurrency: 3,
     maxRetries: 0,
     limits: { maxTurns: 12 },
@@ -107,7 +109,7 @@ test("sync fills only absent nested settings, retaining explicit aspect settings
     limits: {
       workerTimeoutSeconds: 300,
       workerIdleSeconds: 120,
-      runTimeoutSeconds: 900,
+      runTimeoutSeconds: 7200,
       maxTurns: 12,
     },
     aspects: { ...full.aspects, ...previous.aspects },
@@ -141,7 +143,7 @@ test("home, doctor and empty review disclose missing fields without modifying RC
     ".degreaserrc.json",
     JSON.stringify({
       ...full,
-      limits: { workerTimeoutSeconds: 300, runTimeoutSeconds: 900 },
+      limits: { workerTimeoutSeconds: 300, runTimeoutSeconds: 7200 },
     }),
   );
   const path = join(f.root, ".degreaserrc.json");
@@ -189,6 +191,23 @@ test("sync rejects invalid, future, missing and symlinked RC without replacing i
   assert.equal(run(f.root).status, 2);
   assert.equal(lstatSync(path).isSymbolicLink(), true);
   assert.equal(readFileSync(path, "utf8"), JSON.stringify(full));
+});
+
+test("sync does not invent a verifier: it points to init and leaves the RC untouched", (t) => {
+  const f = fixture(t);
+  const path = join(f.root, ".degreaserrc.json");
+  const { verifier: _omitted, ...withoutVerifier } = full;
+  for (const text of [
+    JSON.stringify({ agent: "codex", model: "gpt-6-luna" }),
+    JSON.stringify(withoutVerifier),
+  ]) {
+    f.write(".degreaserrc.json", text);
+    const result = run(f.root);
+    assert.equal(result.status, 2, result.stdout);
+    assert.match(result.stdout, /verifier is required/);
+    assert.match(result.stdout, /degreaser-axi init/);
+    assert.equal(readFileSync(path, "utf8"), text);
+  }
 });
 
 test("sync requires exact arguments and never writes from worker sessions", (t) => {

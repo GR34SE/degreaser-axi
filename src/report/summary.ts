@@ -2,14 +2,16 @@ import { type Run, resolved } from "../state/run.ts";
 import {
   coverage,
   harnessLimitations,
-  portions,
   shownLimitations,
   sumUsage,
   taskLimitations,
   taskReason,
   taskUsage,
+  verdictCounts,
 } from "./details.ts";
-import { findings } from "./group.ts";
+import { findings } from "./findings.ts";
+import { present } from "./present.ts";
+import { upheldRows } from "./rows.ts";
 import type { ReportContext } from "./types.ts";
 
 export function renderReport(run: Run, context: ReportContext, full = false) {
@@ -22,11 +24,11 @@ export function renderReport(run: Run, context: ReportContext, full = false) {
     status !== "completed" &&
     !unverifiedOwner &&
     failure?.code !== "input-changed";
-  const all = findings(run),
-    shown = full ? all : all.slice(0, 30);
+  const all = findings(run);
+  const counts = verdictCounts(run.tasks);
+  const hidden = counts.refuted + counts.unverified;
   const workers = run.tasks.filter((task) => task.promptHash !== null);
   const usage = sumUsage(workers.map(taskUsage));
-  const split = workers.some((task) => portions(task));
   const clipped =
     !full &&
     run.tasks.some((task) =>
@@ -43,19 +45,10 @@ export function renderReport(run: Run, context: ReportContext, full = false) {
     evidence: "source-only",
     scope: input.scope,
     aspects: `${run.tasks.filter(resolved).length}/${run.tasks.length}`,
-    count: all.length,
-    shown: shown.length,
+    ...counts,
     rejected: run.tasks.reduce((n, t) => n + t.rejections.length, 0),
-    findings: full
-      ? shown
-      : shown.map((f) => ({
-          id: f.id,
-          group: f.group,
-          aspect: f.aspect,
-          location: `${f.location.path}:${f.location.side}:${f.location.startLine}-${f.location.endLine}`,
-          title: f.title,
-        })),
-    coverageBasis: "worker-declared",
+    findings: full ? all.map(present) : upheldRows(all),
+    coverageBasis: "coordinator-assigned",
     coverage: run.tasks.map((t) =>
       coverage(t, context, status === "interrupted", full),
     ),
@@ -102,13 +95,13 @@ export function renderReport(run: Run, context: ReportContext, full = false) {
       status === "running"
         ? [
             `degreaser-axi wait ${run.id}`,
-            ...(all.length > shown.length || clipped
+            ...(hidden || clipped
               ? [`degreaser-axi report ${run.id} --full`]
               : []),
             ...(all.length ? [`degreaser-axi finding F1 --run ${run.id}`] : []),
           ]
         : [
-            ...(!full && (all.length || clipped)
+            ...(!full && (hidden || clipped)
               ? [`degreaser-axi report ${run.id} --full`]
               : []),
             ...(unverifiedOwner ? [context.ownerRecovery] : []),
@@ -119,11 +112,6 @@ export function renderReport(run: Run, context: ReportContext, full = false) {
               : []),
             ...(all.length ? [`degreaser-axi finding F1 --run ${run.id}`] : []),
             context.reviewCommand,
-            ...(split
-              ? [
-                  "Large scopes are split into portions; narrow the next review with repeatable --path <pattern> or exclude generated files via exclude in .degreaserrc.json.",
-                ]
-              : []),
             ...(canResume &&
             run.tasks.some(
               (task) => task.attempts.at(-1)?.failure === "account-disabled",

@@ -39,7 +39,11 @@ function setup(t: TestContext) {
   f.write("source.ts", "export const value = 1;\n");
   const config = (value: object) =>
     f.write(".degreaserrc.json", JSON.stringify(value));
-  config({ agent: "pi", model: unsupported });
+  config({
+    agent: "pi",
+    model: unsupported,
+    verifier: { model: unsupported },
+  });
   const run = (aspects = "low-value-comments") => {
     const rc = readFileSync(join(f.root, ".degreaserrc.json"));
     const result = spawnSync(
@@ -110,17 +114,29 @@ test("unselected Pi discovery uses the real profile and adapter without a model 
     assert.ok(!event.args.includes("--model"));
 });
 
-for (const override of [false, true]) {
-  test(`public Pi ${override ? "override" : "pair"} uses independent native metadata before admission`, (t) => {
+for (const [name, rc] of [
+  ["pair", undefined],
+  [
+    "override",
+    {
+      agent: "codex",
+      model: "gpt-6-luna",
+      verifier: { model: "gpt-6-luna" },
+      aspects: { "low-value-comments": { agent: "pi", model: unsupported } },
+    },
+  ],
+  [
+    "verifier",
+    {
+      agent: "pi",
+      model: "openai/gpt-6-luna",
+      verifier: { model: unsupported },
+    },
+  ],
+] as const) {
+  test(`public Pi ${name} uses independent native metadata before admission`, (t) => {
     const f = setup(t);
-    if (override)
-      f.config({
-        agent: "codex",
-        model: "gpt-6-luna",
-        aspects: {
-          "low-value-comments": { agent: "pi", model: unsupported },
-        },
-      });
+    if (rc) f.config(rc);
     const result = f.run();
     assert.equal(result.status, 2, result.stdout);
     assert.match(result.stdout, /code: invalid-input/);
@@ -156,7 +172,11 @@ test("Pi refusal preserves existing history and does not mistake native faults f
   assert.ok(runId);
   const runPath = join(runsPath, runId, "run.json");
   const previous = readFileSync(runPath);
-  f.config({ agent: "pi", model: "anthropic/gpt-6-luna" });
+  f.config({
+    agent: "pi",
+    model: "anthropic/gpt-6-luna",
+    verifier: { model: "anthropic/gpt-6-luna" },
+  });
   for (const [plan, expected] of [
     [{}, "invalid-input"],
     [{ unauthenticated: true }, "environment-blocked"],
@@ -186,7 +206,11 @@ test("Pi refusal preserves existing history and does not mistake native faults f
 
 test("Pi review pins the admitted identity and refuses native substitution before prompting", (t) => {
   const f = setup(t);
-  f.config({ agent: "pi", model: "openai/gpt-6-luna" });
+  f.config({
+    agent: "pi",
+    model: "openai/gpt-6-luna",
+    verifier: { model: "openai/gpt-6-luna" },
+  });
   f.plan({ runtimeModelMismatch: true });
   const result = f.run();
   assert.equal(result.status, 1, result.stdout);

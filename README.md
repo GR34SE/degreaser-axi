@@ -4,7 +4,7 @@
 
 # Degreaser
 
-Code review for coding agents. Degreaser checks for unnecessary complexity, broken contracts and misleading verification. It runs 18 focused reviewers in fresh, read-only sessions and returns findings with code quotes and suggested corrections. Your agent decides what to fix.
+Code review for coding agents. Degreaser checks for unnecessary complexity, broken contracts and misleading verification. It runs 18 focused reviewers in fresh, read-only sessions and returns findings with code quotes and suggested corrections. A second, independent pass tries to refute each finding before it is reported. Your agent decides what to fix.
 
 ## Install
 
@@ -30,7 +30,7 @@ In the Git repository you want to review:
 degreaser-axi init
 ```
 
-Choose the review model and the agent integrations you use, then start a new agent session (or reload Pi). Ask your agent:
+Choose two models, one to find candidates and one to verify them, and the agent integrations you use, then start a new agent session (or reload Pi). Ask your agent:
 
 > Run Degreaser on my current changes. The task was to add CSV import. Wait for the review, assess the findings, and fix the ones that apply.
 
@@ -43,7 +43,7 @@ degreaser-axi report
 
 If the review returns `running`, follow its `degreaser-axi wait <run-id>` command. Keep the code unchanged until it finishes. A partial review is not a clean result.
 
-Reviews read source; they do not run tests or apply fixes. Review context goes to your selected model provider, uses its quota, and is saved locally in ignored `.degreaser/` files. All 18 reviewers run by default; use `--aspects` to select fewer or `--concurrency` to limit simultaneous calls.
+Reviews read source; they do not run tests or apply fixes. Review context goes to your selected model provider, uses its quota, and is saved locally in ignored `.degreaser/` files. All 18 reviewers run by default, each in two stages, so a review takes longer than a single pass; use `--aspects` to select fewer or `--concurrency` to limit simultaneous calls.
 
 See `degreaser-axi --help` for commands and options, or `degreaser-axi doctor` for setup diagnostics. Details: [configuration and scopes](https://github.com/GR34SE/degreaser-axi/blob/main/docs/input-contract.md), [results and limitations](https://github.com/GR34SE/degreaser-axi/blob/main/docs/result-contract.md), [worker restrictions](https://github.com/GR34SE/degreaser-axi/blob/main/docs/harnesses.md).
 
@@ -72,7 +72,7 @@ All 18 built-in aspects are enabled by default. Each reviewer checks one questio
 | `unidiomatic-code` | Can a native construct remove unnecessary logic without changing behavior? |
 | `low-value-comments` | Does the comment prevent a trap that code cannot reveal? |
 
-A wrapper, comment or validation check is not automatically a problem. Reviewers must establish a concrete consequence and check reasons to keep the code. See the [catalog and aspect boundaries](https://github.com/GR34SE/degreaser-axi/blob/main/docs/aspects.md) for details.
+A wrapper, comment or validation check is not automatically a problem. Findings need a concrete consequence, and the verifier checks reasons to keep the code before a finding is upheld. See the [catalog and aspect boundaries](https://github.com/GR34SE/degreaser-axi/blob/main/docs/aspects.md) for details.
 
 For a one-run subset of enabled aspects:
 
@@ -82,20 +82,21 @@ degreaser-axi review --scope worktree --task "Add CSV import" --aspects missed-r
 
 ## Configuration
 
-`init` writes `.degreaserrc.json` at the Git root. Keep the `agent` and `model` you confirmed there. `model` is a version pin, like the Codex example below, or a `(latest)` choice that tracks the newest version your installed harness offers; neither guarantees availability. See [latest models and version pins](https://github.com/GR34SE/degreaser-axi/blob/main/docs/input-contract.md).
+`init` writes `.degreaserrc.json` at the Git root. Keep the `agent`, `model` (finder) and `verifier` you confirmed there; the verifier is required. `model` is a version pin, like the Codex example below, or a `(latest)` choice that tracks the newest version your installed harness offers; neither guarantees availability. See [latest models and version pins](https://github.com/GR34SE/degreaser-axi/blob/main/docs/input-contract.md).
 
 ```json
 {
   "schemaVersion": 1,
   "agent": "codex",
-  "model": "gpt-6-luna",
+  "model": "gpt-6-terra",
+  "verifier": { "model": "gpt-6-sol" },
   "concurrency": 4,
   "maxRetries": 1,
   "limits": {
     "workerTimeoutSeconds": 300,
     "workerIdleSeconds": 120,
     "maxTurns": 40,
-    "runTimeoutSeconds": 900
+    "runTimeoutSeconds": 7200
   },
   "aspects": {
     "low-value-comments": true,
@@ -105,8 +106,8 @@ degreaser-axi review --scope worktree --task "Add CSV import" --aspects missed-r
 }
 ```
 
-- `concurrency: 4` caps simultaneous reviewers; the default `null` leaves them uncapped.
-- `aspects` accepts `true` (enabled), `false` (disabled), or `{ "model": "<model>" }` to override the model for one aspect. Omitted aspects stay enabled. Changing its agent also requires an explicit compatible model.
+- `concurrency: 4` caps simultaneous reviewers; the default is 16, and `null` leaves them uncapped.
+- `aspects` accepts `true` (enabled), `false` (disabled), or `{ "model": "<model>" }` to override the finder model for one aspect. Omitted aspects stay enabled. Changing its agent also requires an explicit compatible model.
 - `maxRetries` counts extra attempts. The limits above are defaults; `maxTurns` is enforced natively only by Claude and is advisory for other workers.
 - `exclude` adds literal repository-relative files or directory prefixes, not globs. It narrows assessed coverage, not worker read access.
 

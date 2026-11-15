@@ -90,6 +90,7 @@
                 "rejections": { "$ref": "#/properties/tasks/items/properties/rejections" },
                 "limitations": { "$ref": "#/properties/tasks/items/properties/limitations" },
                 "usage": { "$ref": "#/properties/tasks/items/properties/usage" },
+                "stage": { "enum": ["find", "verify"] },
                 "portion": {
                   "type": "object", "additionalProperties": false, "required": ["index", "paths"],
                   "properties": { "index": { "type": "integer", "minimum": 1 }, "paths": { "type": "integer", "minimum": 0 } }
@@ -102,8 +103,7 @@
             "type": "object", "additionalProperties": false, "required": ["cause", "paths"],
             "properties": {
               "cause": { "type": "string", "minLength": 1 },
-              "paths": { "type": "array", "items": { "type": "string" } },
-              "stuck": { "type": "array", "items": { "type": "string" } }
+              "paths": { "type": "array", "items": { "type": "string" } }
             }
           },
           "usage": {
