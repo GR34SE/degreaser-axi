@@ -12,6 +12,7 @@
 
 **Not here (another reviewer):**
 - Code not requested by the task, even when disconnected: scope-creep.
+- Documentation, help text, comments, examples, prompts or instructions read by people or agents that still describe a name, path or value the change removed or renamed: stale-references. Code-consumed references such as entry points, exports maps, registrations and configuration keys read by code stay here.
 
 Teaching excerpts; context states omitted setup. These have not been executed as programs or model evaluations.
 

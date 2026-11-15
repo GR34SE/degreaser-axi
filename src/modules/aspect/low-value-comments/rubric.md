@@ -14,6 +14,7 @@
 
 **Not here (another reviewer):**
 - Type/lint suppression directives such as `@ts-ignore`, `# type: ignore` or `eslint-disable`: contract-bypass. Explanatory prose beside a directive still faces this aspect's trap test.
+- A comment the change made false, such as one still naming a removed function or an old value: stale-references. Accurate narration still faces this aspect's trap test.
 
 Sources / inspiration: product-specific zero-comment policy. Teaching excerpts state their external assumptions; they are not executed programs or model efficacy measurements.
 

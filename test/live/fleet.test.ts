@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { ASPECT_IDS } from "../../src/modules/aspect/api.ts";
 import { queueFixture, until } from "../utils/queue-fixture.ts";
 import { type FleetEvent, fleetEvidence } from "./support/fleet-evidence.ts";
 import {
@@ -57,7 +58,7 @@ for (const retry of [false, true]) {
     child.stderr.resume();
     assert.equal((await once(child, "exit"))[0], 3);
     await until(
-      () => f.events().length === 17,
+      () => f.events().length === ASPECT_IDS.length,
       "All synthetic adapters received prompts",
     );
     f.release("results");
@@ -68,8 +69,8 @@ for (const retry of [false, true]) {
       .map((line) => JSON.parse(line));
     const run = f.state();
     const evidence = fleetEvidence(run, events, "codex", "gpt-6-luna");
-    assert.equal(evidence.sessions, retry ? 18 : 17);
-    assert.equal(evidence.peakInvocations, 17);
+    assert.equal(evidence.sessions, ASPECT_IDS.length + (retry ? 1 : 0));
+    assert.equal(evidence.peakInvocations, ASPECT_IDS.length);
     assert.equal(evidence.warmup, true);
     assert.deepEqual(
       events

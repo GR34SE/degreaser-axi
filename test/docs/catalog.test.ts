@@ -5,7 +5,7 @@ import { ASPECT_IDS } from "../../src/modules/aspect/api.ts";
 
 const root = new URL("../../dist/modules/aspect/", import.meta.url);
 
-test("distribution carries the fixed seventeen rubrics and 102 contextual examples", () => {
+test("distribution carries every registered rubric with three REPORT and three PRESERVE examples", () => {
   assert.deepEqual(
     readdirSync(root, { withFileTypes: true })
       .filter((entry) => entry.isDirectory())
@@ -43,7 +43,7 @@ test("distribution carries the fixed seventeen rubrics and 102 contextual exampl
       assert.match(example, /\*\*Context:\*\* .+/);
       assert.match(
         example,
-        /```(?:typescript|python|go|javascript|json|sh|bash)/,
+        /```(?:typescript|python|go|javascript|json|sh|bash|markdown)/,
       );
       assert.match(example, /\*\*Why:\*\* .+/);
     }
@@ -78,6 +78,9 @@ test("each neighboring rubric exposes its reciprocal routing boundary", () => {
     ["low-value-tests", "verification-theater"],
     ["wrong-abstraction", "structural-erosion"],
     ["low-value-comments", "contract-bypass"],
+    ["stale-references", "incomplete-integration"],
+    ["stale-references", "low-value-comments"],
+    ["stale-references", "scope-creep"],
   ];
   for (const [left, right] of pairs)
     for (const [from, to] of [

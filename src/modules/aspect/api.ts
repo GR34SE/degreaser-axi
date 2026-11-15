@@ -8,6 +8,7 @@ import * as missedReuse from "./missed-reuse/index.ts";
 import * as reinventedInfrastructure from "./reinvented-infrastructure/index.ts";
 import * as scopeCreep from "./scope-creep/index.ts";
 import * as speculativeFlexibility from "./speculative-flexibility/index.ts";
+import * as staleReferences from "./stale-references/index.ts";
 import * as structuralErosion from "./structural-erosion/index.ts";
 import type { Aspect } from "./types.ts";
 import * as unidiomaticCode from "./unidiomatic-code/index.ts";
@@ -23,6 +24,7 @@ export const ASPECTS = {
   "verification-theater": verificationTheater,
   "contract-bypass": contractBypass,
   "incomplete-integration": incompleteIntegration,
+  "stale-references": staleReferences,
   "low-value-tests": lowValueTests,
   "scope-creep": scopeCreep,
   "reinvented-infrastructure": reinventedInfrastructure,

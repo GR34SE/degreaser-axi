@@ -52,6 +52,7 @@ export const defaultSettings = {
     "verification-theater": true,
     "contract-bypass": true,
     "incomplete-integration": true,
+    "stale-references": true,
     "low-value-tests": true,
     "scope-creep": true,
     "reinvented-infrastructure": true,

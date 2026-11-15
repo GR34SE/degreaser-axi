@@ -88,6 +88,7 @@ Example with Codex and `gpt-6-luna`; confirm the exact model available in your n
     "verification-theater": true,
     "contract-bypass": true,
     "incomplete-integration": true,
+    "stale-references": true,
     "low-value-tests": true,
     "scope-creep": true,
     "reinvented-infrastructure": true,

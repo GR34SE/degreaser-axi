@@ -33,7 +33,7 @@ const input = prepareReview(
   },
   cwd,
 );
-assert.equal(input.config.assignments.length, 17);
+assert.equal(input.config.assignments.length, 18);
 assert.deepEqual(
   input.paths.map((p) => p.path),
   [".gitignore", "source"],

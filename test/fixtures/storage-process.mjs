@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { setTimeout } from "node:timers/promises";
 import { createFactory } from "../../dist/cli/factory.js";
+import { ASPECT_IDS } from "../../dist/modules/aspect/api.js";
 import { ownRun } from "../../dist/review/owner/index.js";
 import { loadInput, loadRun, saveRun } from "../../dist/state/store.js";
 
@@ -37,7 +38,7 @@ try {
       }
       if (run.status !== "running") {
         assert.equal(run.status, "completed");
-        assert.equal(run.tasks.length, 17);
+        assert.equal(run.tasks.length, ASPECT_IDS.length);
         for (const task of run.tasks) {
           assert.equal(task.status, "no-findings");
           assert.equal(
