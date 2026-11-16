@@ -1,114 +1,58 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { fixture } from "../../../test/utils/git-fixture.ts";
-import { prepareReview } from "../../../test/utils/input.ts";
-import { mergePass } from "./coverage.ts";
-import type { WorkerResult } from "./types.ts";
+import type { ReviewInput } from "../types.ts";
+import { packShards, uncovered, verifyBatches } from "./coverage.ts";
+import type { Finding } from "./types.ts";
 
-const review = (t: Parameters<typeof fixture>[0]) => {
-  const f = fixture(t);
-  for (const name of ["a.ts", "b.ts", "c.ts"])
-    f.write(name, `export const ${name[0]} = 1;\n`);
-  return prepareReview(
-    [
-      "--scope",
-      "repository",
-      "--task",
-      "Review",
-      "--aspects",
-      "low-value-comments",
-      ...["a.ts", "b.ts", "c.ts"].flatMap((p) => ["--path", p]),
-    ],
-    f.root,
-  );
-};
-
-const result = (
-  examinedPaths: string[],
-  limitations: string[],
-  extra: Partial<WorkerResult> = {},
-): WorkerResult => ({
-  aspect: "low-value-comments",
-  status: "no-findings",
-  findings: [],
-  limitations,
-  examinedPaths,
-  ...extra,
-});
-
-test("portion limitations survive later portions and name their portion", (t) => {
-  const input = review(t);
-  const first = mergePass(
-    input,
-    null,
-    result(["a.ts"], ["The one assessed path is a.ts."]),
-    false,
-    false,
-    { index: 1, paths: 1 },
-  );
-  assert.match(first.limitations[0] ?? "", /^Unexamined assessed paths \(/);
-  const merged = mergePass(
-    input,
-    first,
-    result(["b.ts", "c.ts"], ["The two assessed paths are b.ts and c.ts."]),
-    false,
-    false,
-    { index: 2, paths: 2 },
-  );
-  assert.equal(merged.status, "no-findings");
-  assert.deepEqual(merged.limitations, [
-    "Portion 1 (1 path): The one assessed path is a.ts.",
-    "Portion 2 (2 paths): The two assessed paths are b.ts and c.ts.",
+test("shards pack greedily in input order and an oversize path stands alone", () => {
+  const sizes = new Map([
+    ["a", 10],
+    ["b", 25],
+    ["big", 90],
+    ["c", 5],
+    ["d", 30],
   ]);
-});
-
-test("a single whole-input pass keeps unlabeled limitations and reason", (t) => {
-  const input = review(t);
-  const merged = mergePass(
-    input,
-    null,
-    result(["a.ts"], ["Turn budget used."], {
-      status: "incomplete",
-      reason: "Ran out of turns.",
-    }),
-  );
-  assert.equal(merged.reason, "Ran out of turns.");
-  assert.deepEqual(merged.limitations, [
-    "Unexamined assessed paths (2): b.ts, c.ts.",
-    "Turn budget used.",
+  assert.deepEqual(packShards(["a", "b", "big", "c", "d", "gone"], sizes, 40), [
+    ["a", "b"],
+    ["big"],
+    ["c", "d"],
+    ["gone"],
   ]);
+  assert.deepEqual(packShards([], sizes, 40), []);
 });
 
-test("distinct portion reasons are combined, repeated ones kept once", (t) => {
-  const input = review(t);
-  const incomplete = (paths: string[], reason: string) =>
-    result(paths, [], { status: "incomplete", reason });
-  const first = mergePass(
-    input,
-    null,
-    incomplete(["a.ts"], "Callers unread."),
-    false,
-    false,
-    { index: 1, paths: 1 },
-  );
-  const second = mergePass(
-    input,
-    first,
-    incomplete(["b.ts"], "Budget exhausted."),
-    false,
-    false,
-    { index: 2, paths: 1 },
-  );
-  const third = mergePass(
-    input,
-    second,
-    incomplete(["c.ts"], "Budget exhausted."),
-    false,
-    false,
-    { index: 3, paths: 1 },
-  );
-  assert.equal(
-    third.reason,
-    "Portion 1 (1 path): Callers unread. Portion 2 (1 path): Budget exhausted.",
-  );
+test("verification batches fill across paths in path and line order, at most the batch size", () => {
+  const at = (path: string, line: number): Finding => ({
+    location: { path, side: "new", startLine: line, endLine: line },
+    quote: "x",
+    title: "t",
+    verdict: "unverified",
+  });
+  const b5 = at("b", 5);
+  const a10 = at("a", 10);
+  const c1 = at("c", 1);
+  const a2 = at("a", 2);
+  const b2 = at("b", 2);
+  const findings = [b5, a10, c1, a2, b2];
+  assert.deepEqual(verifyBatches(findings, 3), [
+    [a2, a10, b2],
+    [b5, c1],
+  ]);
+  assert.ok(verifyBatches(findings, 3)[0]?.[0] === a2);
+  assert.deepEqual(findings, [b5, a10, c1, a2, b2]);
+  assert.deepEqual(verifyBatches([], 3), []);
+});
+
+test("a new file at a rename's old name does not cover the renamed path", () => {
+  const record = (path: string, oldPath: string | null) => ({
+    path,
+    oldPath,
+    binary: false,
+    oldMode: oldPath ? "100644" : null,
+    newMode: "100644",
+  });
+  const input = {
+    paths: [record("moved.ts", "kept.ts"), record("kept.ts", null)],
+  } as unknown as ReviewInput;
+  assert.deepEqual(uncovered(input, ["kept.ts"]), ["moved.ts"]);
 });

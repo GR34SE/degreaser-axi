@@ -48,7 +48,7 @@ test("CI selects documentation only for an entirely allowlisted PR diff; all oth
   assert.equal(plan("pull_request", "0".repeat(40)).scope, "full");
   assert.equal(plan("pull_request", "--output=unexpected").scope, "full");
   for (const path of [
-    "src/review/attempt/prompt/worker.md",
+    "src/review/attempt/prompt/finder.md",
     "package.json",
     ".github/workflows/check.yml",
     "test/new.test.ts",

@@ -1,7 +1,7 @@
 # Review results and local state
 
-The response contract and `dist/review/ingest/result.schema.json` are included in every
-assignment before untrusted task/scope data and exactly one rubric. Only the last
+The finder and verifier response contracts, each with its JSON schema, are included in
+every assignment of that stage before untrusted task/scope data and exactly one rubric. Only the last
 assistant result block is accepted. Tool output and thoughts are not result text.
 An unclosed or malformed last block does not fall back to an earlier block.
 
@@ -11,7 +11,9 @@ apart from the single end-line correction in the next paragraph.
 Only CRLF line endings and trailing whitespace per line are normalized. A quote
 copied from the patch is accepted when every non-empty line carries one diff
 marker consistent with the cited side (`+`/space for new, `-`/space for old);
-the marker-stripped text must still occur in the cited lines. A quote needs at
+the marker-stripped text must still occur in the cited lines. Likewise, a quote
+copied from numbered audit text, with a `<digits><tab>` prefix on every non-empty
+line, is checked without those prefixes. A quote needs at
 least three non-whitespace characters unless it equals the whole cited text.
 Absolute or `./`-prefixed finding paths inside the repository are normalized
 before schema validation; other paths remain invalid. Old evidence uses the old path
@@ -38,63 +40,78 @@ aspect, unknown fields and every other schema violation remain `invalid-output`.
 A rejected attempt is retried (within `maxRetries`, same model) with the
 validator's short message appended to the prompt; the raw payload is not echoed.
 
-Each unsupported finding is rejected separately, with its one-based index and
-reason available in `report --full`. Valid neighbors survive. If every finding
-is rejected, the aspect becomes incomplete, not no-findings. This checks literal
-support, not whether the recommendation is correct. The caller makes that decision.
+Each unsupported candidate is rejected separately, with its one-based index and
+reason available in `report --full`. Valid neighbors survive, but the path of a
+rejected candidate stays uncovered, so the aspect stays incomplete and resume
+reruns that path. If every candidate
+of a shard is rejected, that shard fails, so the aspect becomes incomplete, not
+no-findings. This checks literal support, not whether the recommendation is
+correct. The caller makes that decision.
 
-Workers also list the assessed paths they examined. Paths outside the review are
-dropped, and so is a path with a rejected finding, so a later pass judges it
-again. A pass whose worker lifecycle failed contributes no coverage and ends the
-aspect's passes. Rejection counts accumulate across passes. The coordinator completes findings, no-findings or not-applicable only
-when the accumulated `examinedPaths` cover every readable assessed path (binaries
-and gitlinks are not required). `scope-creep` not-applicable is the exception: its rubric
-decides applicability from the task's feature scope, not from files. Otherwise it starts a focused pass, in a fresh
-worker session, over only the unexamined paths and merges that pass's coverage
-and findings (an exact repeat is kept once). Every pass, also the first one of a
-large assignment, covers a bounded portion of the remaining paths. The bound is
-derived from the turn budget (half the turns, one path per read turn) and from
-an average text size per path, and a portion always holds at least one path;
-the rest of the repository stays readable context. A pass without new coverage
-halves its portion. A pass that examines every path in a portion that filled
-the path allowance doubles that allowance for later passes, up to the starting
-bound; the text-size bound does not increase. A pass that examines only part
-of its portion leaves the allowance unchanged, so the unfinished paths are not
-combined with later ones. A single path that still makes no progress is recorded as
-stuck, and the other portions continue; the aspect then ends incomplete naming
-that path. The loop is therefore bounded by the path count and the run
-deadline, not by a fixed pass limit. Report coverage shows `examined`
-as examined/assessed paths, or `unknown` when the worker did not say. It is the
-worker's declaration, not proof of reading; reports and exports label it
-`coverageBasis: worker-declared`.
+## Two stages: finders and verifiers
 
-An incomplete result can also leave work open when declared coverage is full.
-Workers name it in `unresolved` (`scope`, `reason`, optional `paths`); an
-incomplete result without it gets an `unspecified` entry. Such a result stays
-incomplete, and coverage counts never turn it into a clean one. Established
-findings are kept. Open entries persist until a resolving pass, which `resume`
-runs once: it returns findings or no-findings to clear them, or `incomplete`
-with the entries that remain. A pass that fails before answering cannot clear
-them. An entry of scope `paths` whose named paths have all since been examined
-is dropped when passes merge. Each unresolved task records `unresolved.cause` and the exact pending
-`paths` in `run.json`, and report coverage shows `stopCause` and `pending`.
-Causes are kept apart: `deadline`, `cancelled`, `no-progress`, `invalid-output`,
-`timeout`, other runtime failure codes and `declared-unresolved`. State saved
-before these fields remains readable; its incomplete results with full coverage
-resume as a whole-aspect rerun.
+Each aspect runs in two worker stages, each in fresh sessions with its own
+identity (see [input-contract.md](input-contract.md)).
+
+**Find.** The coordinator packs the assessed paths into shards of bounded text
+size; a path larger than a shard is a shard of its own. One finder session per
+shard receives the shard's content inline (patch sections for a change scope,
+numbered file text for a repository audit; quotes exclude the line numbers).
+Binary, symbolic-link, gitlink and oversized paths are listed for tool reading.
+The finder also receives the patch file reference and the number of other
+assessed paths as context, but reports only on its shard. It enumerates
+candidates and does not adjudicate: each
+candidate has a location, an exact quote and a one-line title, every instance is
+listed separately, and a doubtful one is still listed. When the rubric declares a
+`Unit` ([aspects.md](aspects.md)), the finder also returns a `kept` inventory,
+the location and quote of every unit it examined and did not report. A finder
+status is `findings`, `no-findings`, `not-applicable` or `incomplete`. Exact
+duplicates across shards are kept once.
+
+**Verify.** The candidates of each finder shard, ordered by path and line, are
+sent in numbered batches of at most 20, which may span several paths, to a
+separate verifier session. The verifier receives the task, the rubric with its
+examples and the batch, never the finder's reasoning, and tries to refute each
+candidate. A verdict is `upheld`, with the action to take, or `refuted`, with a
+reason and optional quoted evidence. Evidence quotes are checked like any other
+quote; a verdict whose evidence quote fails is dropped. A candidate that has no
+valid verdict is `unverified`. Verdicts from a verifier session that did not
+finish cleanly (timeout, cleanup failure, cancellation or deadline) are not
+applied, so its candidates stay `unverified`. Verdicts are source judgments, not
+test or runtime evidence.
+
+A stored finding therefore has a location, quote and title, a `verdict` of
+`upheld`, `refuted` or `unverified`, and, once verified, the action or reason and
+evidence.
+
+**Coverage** is assigned by the coordinator: the paths of a shard count as
+examined when its finder returned a valid result whose status is not `incomplete`.
+Workers do not declare examined paths and cannot leave open entries. Binaries
+and gitlinks are not required. `scope-creep` not-applicable is the exception: its
+rubric decides applicability from the task's feature scope, not from files.
+Report coverage shows `examined` as examined/assessed paths, with
+`coverageBasis: coordinator-assigned`. It records that a finder returned a valid
+answer for the shard, not proof that every line was read. Each unresolved task
+records its `unresolved.cause` and the exact pending `paths`, and report coverage
+shows `stopCause` and `pending`. Causes include `deadline`, `cancelled`, `timeout`,
+`invalid-output` and other runtime failure codes.
+
+**Aspect status.**
+
+1. Any uncovered path, failed shard or `unverified` finding: `incomplete`.
+2. Otherwise at least one `upheld` finding: `findings`.
+3. Otherwise every shard `not-applicable`: `not-applicable`.
+4. Otherwise `no-findings`, including when every candidate was refuted.
+
+Established findings are kept when an aspect is incomplete.
 
 Assignment evidence is TOON inside a tag whose suffix is derived from the
-evidence digest, so embedded text cannot close the block. On the first pass, patches up to 60,000
-bytes are inline in a separate digest-tagged block. Focused passes list only
-remaining paths and use the file-backed patch even when it is small. New
-findings outside that pass are rejected; verbatim repeats of accepted findings
-are ignored, also when they repeat the end line that was corrected on
-acceptance. Larger patches are written
-as a raw unified diff to `input/patch.diff`, and each assessed path carries
-`patchLines`, its section's line range there, so workers read the change in
-slices instead of one oversized read. `input/patch.json` keeps the exact patch
-as a JSON string for resume integrity. Prompt hashes bind the assignment;
-focused continuation text is appended per pass and is not part of that identity.
+evidence digest, so embedded text cannot close the block. A change scope also
+writes the raw unified diff to `input/patch.diff`, and each assessed path carries
+`patchLines`, its section's line range there, so workers can read the change in
+slices. `input/patch.json` keeps the exact patch as a JSON string for resume
+integrity. The prompt hash binds both stages' instructions, response contracts and
+schemas plus the rubric; it does not include shard content.
 
 The storage format keeps each run's task statuses, attempts and validated
 results together in one atomically replaced `run.json`. The separately immutable
@@ -160,8 +177,12 @@ the authoritative store fails.
 
 `review` and `wait` return completed/0, partial or failed/1, or running/3.
 `report` reads without launching work. `finding` retrieves complete evidence.
-The default report shows at most 30 findings; `report --full` shows every finding,
-per-aspect rejection reasons, attempts and exact selected identities. It reports
+The default report lists every upheld finding grouped by path, one compact row each
+with its ID, aspect, lines and action, with no item cap. Its summary counts upheld,
+refuted and unverified findings. `report --full` also shows refuted and unverified
+findings with their reasons and evidence, per-aspect rejection reasons, attempts and
+exact selected identities; `finding <id>` shows the same for one finding.
+An unverified finding makes its aspect incomplete, so the run is partial and exits 1. It reports
 the reviewed path count as `paths`; `pathList` names the run's resolved input
 (`.degreaser/runs/<run-id>/input/review.json`) that holds the complete list.
 Missing usage is unknown, not zero. No-findings and not-applicable are distinct;
@@ -169,29 +190,23 @@ neither a partial review nor an all-not-applicable review certifies clean code.
 
 ## Finding order and read surfaces
 
-For the same saved finding set, IDs and order do not depend on worker completion
-or result-list order. Inclusive overlapping intervals on the **same path and
-old/new coordinate side** form transitive groups. Each group, including a
-singleton, receives `G<n>`; every finding retains its own `F<n>`, aspect and
-complete evidence. Equal recommendations never merge findings.
+For the same saved finding set, IDs and order do not depend on worker completion,
+result-list order or verdicts. Findings sort by path, start line, side (`new`
+before `old`), end line, aspect, title and quote, and receive `F<n>` in that
+order. Text comparisons use case-sensitive UTF-16 order, not locale collation.
+Identical findings remain separate, and equal recommendations never merge
+findings. Because a verdict does not move a finding, an ID stays the same when a
+resume verifies a previously unverified finding. The default report lists only
+upheld findings with their IDs, so gaps in the numbering are expected. New
+candidates from a resumed finder can shift later IDs.
 
-Groups sort by path and their earliest start line, with side (`new` before
-`old`) breaking ties. Members sort by start line, end line, aspect, title,
-quote, evidence, consequence, countercheck, recommendation and uncertainty.
-Text comparisons use case-sensitive UTF-16 order, not locale collation. An
-absent uncertainty precedes an empty one. Identical findings remain separate.
-Group members stay adjacent, so an overlapping group can precede an opposite-side
-finding whose line falls inside it. IDs describe the current saved finding set;
-new results or replacement incomplete evidence can change ordinal IDs.
-
-Short reports expose total `count`, `shown` (at most 30), resolved/selected
-`aspects`, and each aspect's status, reason (omitted when none), limitations and
+Short reports expose the counts of upheld, refuted and unverified findings,
+resolved/selected `aspects`, and each aspect's status, reason (omitted when none), limitations and
 rejection count. Reasons and aspect limitations longer than 240 characters show
 a preview, original length and a full-report command. Run-level `limitations`
 lists input and shared harness limitations once; aspect rows own the remaining
 worker-reported and attempt limitations, excluding text identical to their reason.
-`report <run-id> --full` retrieves every finding without clipping, including
-uncertainty, and `finding <id> --run <run-id>` includes its aspect's limitations
+`report <run-id> --full` retrieves every finding without clipping, and `finding <id> --run <run-id>` includes its aspect's limitations
 and the input's coverage limits. Running reports read the current saved snapshot
 without waiting; omitted rows still have a full-report command.
 
@@ -200,26 +215,14 @@ Full reports distinguish `configuration` (all selected exact identities),
 tasks with actual attempt records). Repository scope-creep stays configured but appears
 as coordinator-owned not-applicable, never a phantom worker.
 
-A large aspect review runs as several portions, each a pass over a subset of
-the assessed paths. An attempt record carries `portion: {index, paths}` only
-when its pass covers a subset of the assessed paths or continues an earlier
-pass; a single pass over the whole scope, including a resumed one, has no
-portion. Retries of one pass share its index, the next recorded portion takes
-the next index, and `paths` counts the paths given to that pass. Attempts
-saved before this field existed have no portion and still load. A coverage row
-of an aspect reviewed in more than one portion shows `portions`, such as
-`3 (20/20/2)` (count, then paths per portion). Worker limitations from every
-portion are kept, and each distinct `reason` is appended to the earlier ones. A
-pass over a subset of the assessed paths, or any later pass, prefixes its
-limitations and reason with its portion, such as `Portion 3 (2 paths): `,
-because they may describe only that portion's paths. The coordinator's
-unexamined-paths limitation always reflects the merged coverage. When any
-aspect needed more than
-one portion, `help` adds one line suggesting a narrower next review with
-repeatable `--path` or `exclude` in `.degreaserrc.json`.
+Every worker call is an attempt tagged with its `stage` (`find` or `verify`) and, for
+a finder shard or verifier batch, a `portion: {index}` naming which slice it
+covered. Retries of one call share its portion. Limitations and reasons from every
+shard and batch are kept, prefixed with their portion where they may describe only
+part of the paths.
 
 `usageScope: all-attempts-per-aspect` means usage sums every recorded attempt of
-an aspect: all portions and all retries. The summary `usage` is the total over
+an aspect: both stages, every shard and batch, and all retries. The summary `usage` is the total over
 all executed aspects; `report --full` adds `aspectUsage` (one row per aspect,
 or `unknown` with the total) and each execution row's `usage`. A sum is known
 only when every attempt in it has nonempty metadata, so an attempt that failed
@@ -229,8 +232,8 @@ fields are not estimated or filled with zeros. A coordinator-only run has
 unknown usage, not an invented zero.
 
 Stored task `usage` resets to null when a new attempt is admitted, including
-retries and resume, then receives only that attempt's metadata. Reports use the
-attempt records, not that task summary. Earlier `attempts[].usage` records and
+retries and resume, then receives the same sum over all of the task's attempts.
+Reports use the attempt records, not that task summary. Earlier `attempts[].usage` records and
 successful peers remain unchanged, and `report --full` preserves known usage at
 its original position in attempt history. Usage is what workers reported, not
 complete billing coverage.
@@ -246,11 +249,11 @@ establish account access or model availability.
 
 ## Execution and lifecycle outcomes
 
-All eighteen aspects run by default, admitted in catalog order. The owner
-admits one worker at a time until
+All eighteen aspects run by default and start together. A run-wide limit caps
+simultaneous workers across both stages: `concurrency`, 16 when absent, or no cap
+when `null`. The owner admits one worker at a time until
 the first prompt has been accepted by the model transport, not merely until a
-process or session is ready. It then fills all selected slots, or the explicitly
-configured positive concurrency cap. A pre-invocation failure advances to the
+process or session is ready. It then fills the available slots. A pre-invocation failure advances to the
 next worker without releasing a still-cold fleet.
 
 Only missing/malformed results and whole-attempt timeouts without valid evidence
@@ -300,8 +303,9 @@ Lifecycle disposition is separate from finding count:
   and full reports retain earlier stops after resume. Cleanup is still joined,
   admission/retries stop, and useful peer results remain intact.
 
-All selected aspects resolved means completed/0, even with findings or only
-explained not-applicable results. Any useful result plus unresolved coverage is
+All selected aspects resolved means completed/0, even with upheld findings or only
+explained not-applicable results. An unverified finding leaves its aspect incomplete,
+so it makes the run partial/1. Any useful result plus unresolved coverage is
 partial/1, including all-incomplete results with zero findings. Zero useful
 results is failed/1. Process exit 0 alone never establishes reviewed coverage.
 
@@ -319,9 +323,10 @@ concurrency, wait and absolute deadline. Only explicit `--deadline <seconds>`
 starts a new budget. Expired original budgets are not silently renewed.
 
 Resolved findings/no-findings/not-applicable tasks are never replayed. Pending,
-interrupted, failed, cancelled and incomplete tasks get fresh attempts. An incomplete
-result with unexamined paths resumes as a focused pass over those paths and
-merges into the current result; otherwise a usable new result replaces it; attempt records retain earlier
+interrupted, failed, cancelled and incomplete tasks get fresh attempts, but only
+for the work that is still open: finder shards over the uncovered paths and
+verifier batches for `unverified` findings. Candidates, upheld and refuted
+verdicts and covered paths are kept, and a verdict is never replayed. Attempt records retain earlier
 validated evidence, rejection reasons, limitations, session identities and known
 usage. A failed replacement does not erase the previous incomplete evidence.
 Full reports expose this history. A completed unchanged resume is a no-op.
@@ -365,9 +370,14 @@ status: completed
 evidence: source-only
 scope: worktree
 aspects: 1/1
-count: 1
-shown: 1
+upheld: 1
+refuted: 0
+unverified: 0
 rejected: 0
+findings:
+  sum.ts[1]{id,aspect,lines,action}:
+    F1,low-value-comments,"new:1-1",Remove it.
+coverageBasis: coordinator-assigned
 ```
 
-For example, `finding F1` can quote `// Return the sum of two numbers.` and explain why it repeats the function below it. The quote check establishes that the code exists, not that the recommendation is correct. Zero findings is equally valid.
+For example, `finding F1` can quote `// Return the sum of two numbers.`, show the verifier's action and explain why the comment repeats the function below it. The quote check establishes that the code exists, not that the recommendation is correct. Zero findings is equally valid.

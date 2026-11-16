@@ -29,6 +29,8 @@ export function checkOnboarding({ repo, home, run }) {
         "codex",
         "--model",
         "gpt-6-luna",
+        "--verifier-model",
+        "gpt-6-sol",
         "--harnesses",
         "claude,pi",
       ],
@@ -41,6 +43,7 @@ export function checkOnboarding({ repo, home, run }) {
   );
   assert.equal(config.agent, "codex");
   assert.equal(config.model, "gpt-6-luna");
+  assert.deepEqual(config.verifier, { model: "gpt-6-sol" });
   for (const path of [
     ".claude/settings.json",
     ".claude/skills/degreaser/SKILL.md",

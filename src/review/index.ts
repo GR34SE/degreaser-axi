@@ -1,5 +1,5 @@
 import { unsupportedModel } from "../config/resolve.ts";
-import type { Assignment } from "../config/types.ts";
+import type { Identity } from "../config/types.ts";
 import { assertNotWorker } from "../modules/harness/common/isolation.ts";
 import {
   discoverModels,
@@ -23,7 +23,10 @@ export async function startReview(runtime: Runtime, input: ReviewInput) {
   if (input.status === "no-changes") return { run: null, versionNotices: [] };
   const selections = new Map<string, string>();
   const versionNotices = new Set<string>();
-  for (const assignment of input.workers) {
+  const admitted: Identity[] = input.workers.length
+    ? [...input.workers, input.config.verifier]
+    : [];
+  for (const assignment of admitted) {
     const key = JSON.stringify([assignment.agent, assignment.model]);
     if (selections.has(key)) continue;
     const models = await discoverModels(
@@ -46,7 +49,7 @@ export async function startReview(runtime: Runtime, input: ReviewInput) {
       ]);
     selections.set(key, resolved);
   }
-  const pin = (assignment: Assignment): Assignment => {
+  const pin = <T extends Identity>(assignment: T): T => {
     const model = selections.get(
       JSON.stringify([assignment.agent, assignment.model]),
     );
@@ -56,7 +59,11 @@ export async function startReview(runtime: Runtime, input: ReviewInput) {
   };
   const resolvedInput = {
     ...input,
-    config: { ...input.config, assignments: input.config.assignments.map(pin) },
+    config: {
+      ...input.config,
+      assignments: input.config.assignments.map(pin),
+      verifier: pin(input.config.verifier),
+    },
     workers: input.workers.map(pin),
   };
   return {

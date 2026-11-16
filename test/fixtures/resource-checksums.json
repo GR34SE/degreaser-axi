@@ -1,10 +1,14 @@
 {
-  "src/review/attempt/prompt/worker.md": "03e28b87e40708924dae93774e67279f38cb7e0e6117e84cf4dbec1ce4313a1c",
-  "src/review/attempt/prompt/response.md": "550d446e500544b5d5129b2c1f4f7bc5a165fe9fe0003fadff3cce8566a9792f",
-  "src/config/config.schema.json": "5b373d158c026161a2dd233e9d649528970b0b30356b03840843e9e2f06fe335",
-  "src/review/input.schema.json": "c2551012e20872521afd3c60f5b1cd864286944a3030adcc8144d008c87b2a67",
+  "src/review/attempt/prompt/finder.md": "e282bc643064b796ffae84ce11307961422193609b689dff0d4c95c190476f8d",
+  "src/review/attempt/prompt/find-response.md": "884e7de73f05266a1ccf5f079d8fb18f8f7cb2855fbaba09f11c8e6f8b892d2b",
+  "src/review/attempt/prompt/verifier.md": "a7168d9a9d63f8af255b54758d6e577e64144db0bdd53f23d7bc4175297864e4",
+  "src/review/attempt/prompt/verify-response.md": "db8f70f96628cc25c33253294e3e80217d4d750dafed61d4c9d60c3c3bb8a386",
+  "src/config/config.schema.json": "ae440dd0d8c36ad69c7ef519b1ddf5c5caecc0b1ba0e52e6d6fd4f861dc5912f",
+  "src/review/input.schema.json": "7dc14cd07209c7f4db979f281fcba7185a559149effe0bcb86389293d19c11f1",
   "src/review/prepare/patch.schema.json": "e93967d2e046bd4aa1de63545adfe335147c7c21910783364008406907584deb",
-  "src/review/ingest/result.schema.json": "4f955223ef7ef331efa2c97ea31e1b82360e9d23ba94ae9a18c154b908d03502",
-  "src/state/run.schema.json": "831b2f6ee2546f488b5419e4fec9dabc1c6707936d4219a6283625e2da4d51df",
+  "src/review/ingest/find.schema.json": "cbdf3c69aff12e892e32c024e3826d481593d3d47a861eb06d93382036daf925",
+  "src/review/ingest/verify.schema.json": "200090449e7721e9e79f4098ec01fa9f714e01901c2ac6595041419241fcf4aa",
+  "src/review/ingest/result.schema.json": "b150feb50f9f6e48d935e677f952966ea23e0f5ffa7f9b614cc4ac3d82b74e5b",
+  "src/state/run.schema.json": "c875e9e683b85660908bc1ef8203f51da8ec737b0a440959f27fb98c9f4ec360",
   "src/state/state.schema.json": "317cd176fbb9904112f777bc0fd28a79a8411eab83c9ac2070980e3fc3aba91e"
 }

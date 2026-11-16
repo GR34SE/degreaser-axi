@@ -1,5 +1,5 @@
 import { defineHarness } from "../common/definition.ts";
-import { cheapModelRank } from "../common/recommend.ts";
+import { modelTier } from "../common/recommend.ts";
 
 const latestAliases = new Set(["sonnet", "opus", "haiku", "fable"]);
 
@@ -45,11 +45,7 @@ export default defineHarness({
         label: latestAliases.has(model) ? `${model} (latest)` : model,
         resolvedModel: model,
       })),
-  recommendationRank: (model) =>
-    model === "haiku" ||
-    (model.includes("-") && /(?:^|[-/])haiku(?:-|$)/i.test(model))
-      ? 0
-      : cheapModelRank(model),
+  modelTier,
   modelError: () => undefined,
   session: {
     systemPrompt: true,

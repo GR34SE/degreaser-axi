@@ -35,7 +35,7 @@ export const spec: CommandSpec = {
     },
     concurrency: {
       type: "string",
-      description: "Positive active-worker limit (default all enabled aspects)",
+      description: "Positive active-worker limit (default 16, or the RC value)",
     },
     wait: {
       type: "string",

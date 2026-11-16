@@ -39,6 +39,11 @@ fs.readFileSync = (path, ...args) => {
     name.includes("/modules/aspect/low-value-comments/rubric.md") &&
     (!fault.afterAdmission || admitted)
   ) {
+    if (
+      fault.release &&
+      (fault.mode === "prompt-mismatch" || fault.mode === "prompt-error")
+    )
+      pause(fault);
     if (fault.mode === "prompt-mismatch") return `${value}\nChanged rubric.`;
     if (fault.mode === "prompt-error")
       throw new Error("Synthetic unexpected task error with SECRET-canary");
@@ -58,7 +63,7 @@ fs.renameSync = (source, destination) => {
         JSON.parse(read(destination, "utf8")).status !== "running"))
   ) {
     fs.writeFileSync(
-      fault.marker,
+      `${fault.marker}.tmp`,
       JSON.stringify({
         source,
         destination,
@@ -66,6 +71,7 @@ fs.renameSync = (source, destination) => {
         proposed: read(source, "utf8"),
       }),
     );
+    rename(`${fault.marker}.tmp`, fault.marker);
     if (fault.mode === "write-failure") {
       fs.unlinkSync(planPath);
       throw Object.assign(new Error("Synthetic disk failure SECRET-canary"), {

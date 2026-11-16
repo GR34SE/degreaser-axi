@@ -105,17 +105,23 @@ export async function runScenario(node, packageRoot) {
       ),
       /status: completed/,
     );
+    const upheld = {
+      ...finding,
+      verdict: "upheld",
+      reason: "The source confirms the candidate.",
+      action: "Remove it.",
+    };
     const firstRun = currentRun();
     const firstId = firstRun.id;
     assert.equal(firstRun.tasks.length, 1);
     assert.equal(firstRun.tasks[0].status, "findings");
-    assert.deepEqual(firstRun.tasks[0].result.findings, [finding]);
+    assert.deepEqual(firstRun.tasks[0].result.findings, [upheld]);
     const firstReport = decode(run(["report", firstId, "--full"], 0));
     assert.equal(firstReport.run, firstId);
     assert.equal(firstReport.status, "completed");
     assert.equal(firstReport.evidence, "source-only");
     assert.equal(firstReport.aspects, "1/1");
-    assert.equal(firstReport.count, 1);
+    assert.equal(firstReport.upheld, 1);
     assert.deepEqual(
       firstReport.findings.map((f) => f.id),
       ["F1"],
@@ -124,6 +130,7 @@ export async function runScenario(node, packageRoot) {
     const firstFinding = decode(run(["finding", "F1", "--run", firstId], 0));
     assert.equal(firstFinding.id, "F1");
     assert.equal(firstFinding.quote, finding.quote);
+    assert.equal(firstFinding.verdict, "upheld");
     unchanged();
     setPlan({
       results: {
@@ -134,7 +141,10 @@ export async function runScenario(node, packageRoot) {
           limitations: [],
         },
       },
-      workers: { "unjustified-defense": { result: "" } },
+      workers: {
+        "unjustified-defense": { result: "" },
+        "low-value-comments": { verifier: { verdicts: ["omit"] } },
+      },
     });
     assert.match(
       run(
@@ -154,13 +164,13 @@ export async function runScenario(node, packageRoot) {
       /status: partial/,
     );
     const partial = currentRun();
-    const resolved = partial.tasks.find(
+    const unverified = partial.tasks.find(
       (task) => task.assignment.aspect === "low-value-comments",
     );
     const unresolved = partial.tasks.find(
       (task) => task.assignment.aspect === "unjustified-defense",
     );
-    assert.ok(resolved && unresolved);
+    assert.ok(unverified && unresolved);
     assert.notEqual(partial.id, firstId);
     assert.equal(unresolved.status, "failed");
     assert.equal(unresolved.attempts.length, 2);
@@ -168,22 +178,25 @@ export async function runScenario(node, packageRoot) {
       unresolved.attempts.map((attempt) => attempt.failure),
       ["invalid-output", "invalid-output"],
     );
-    assert.equal(resolved.status, "findings");
-    assert.deepEqual(resolved.result.findings, [finding]);
+    assert.equal(unverified.status, "incomplete");
+    assert.deepEqual(unverified.result.findings, [
+      { ...finding, verdict: "unverified" },
+    ]);
     const partialReport = decode(run(["report", partial.id, "--full"], 1));
     assert.equal(partialReport.run, partial.id);
     assert.equal(partialReport.status, "partial");
     assert.equal(partialReport.evidence, "source-only");
-    assert.equal(partialReport.aspects, "1/2");
+    assert.equal(partialReport.aspects, "0/2");
+    assert.equal(partialReport.unverified, 1);
     assert.deepEqual(
-      partialReport.findings.map((f) => f.id),
-      ["F1"],
+      partialReport.findings.map((f) => [f.id, f.verdict]),
+      [["F1", "unverified"]],
     );
     assert.deepEqual(
       partialReport.coverage.map(({ aspect, status }) => [aspect, status]),
       [
         ["unjustified-defense", "failed"],
-        ["low-value-comments", "findings"],
+        ["low-value-comments", "incomplete"],
       ],
     );
     assert.ok(
@@ -192,6 +205,7 @@ export async function runScenario(node, packageRoot) {
     const detail = decode(run(["finding", "F1", "--run", partial.id], 0));
     assert.equal(detail.id, "F1");
     assert.equal(detail.quote, finding.quote);
+    assert.equal(detail.verdict, "unverified");
     unchanged();
     const previousEvents = readFileSync(log, "utf8").trim().split("\n").length;
     setPlan();
@@ -201,11 +215,14 @@ export async function runScenario(node, packageRoot) {
     );
     const completed = currentRun();
     assert.equal(completed.id, partial.id);
+    const verified = completed.tasks.find(
+      (task) => task.assignment.aspect === "low-value-comments",
+    );
+    assert.equal(verified.status, "findings");
+    assert.deepEqual(verified.result.findings, [upheld]);
     assert.deepEqual(
-      completed.tasks.find(
-        (task) => task.assignment.aspect === "low-value-comments",
-      ),
-      resolved,
+      verified.attempts.slice(0, unverified.attempts.length),
+      unverified.attempts,
     );
     const retried = completed.tasks.find(
       (task) => task.assignment.aspect === "unjustified-defense",
@@ -222,20 +239,23 @@ export async function runScenario(node, packageRoot) {
       .slice(previousEvents)
       .map((line) => JSON.parse(line));
     assert.deepEqual(
-      freshEvents.map((event) => event.aspect),
-      ["unjustified-defense"],
+      freshEvents
+        .map((event) => `${event.aspect}:${event.stage}:${event.model}`)
+        .sort(),
+      [
+        "low-value-comments:verify:gpt-6-sol",
+        "unjustified-defense:find:gpt-6-luna",
+      ],
     );
-    assert.equal(freshEvents[0].model, "gpt-6-luna");
-    assert.deepEqual(
-      decode(run(["finding", "F1", "--run", partial.id], 0)),
-      detail,
-    );
+    const settled = decode(run(["finding", "F1", "--run", partial.id], 0));
+    assert.equal(settled.quote, detail.quote);
+    assert.equal(settled.verdict, "upheld");
     const finalReport = decode(run(["report", partial.id, "--full"], 0));
     assert.equal(finalReport.run, partial.id);
     assert.equal(finalReport.status, "completed");
     assert.equal(finalReport.evidence, "source-only");
     assert.equal(finalReport.aspects, "2/2");
-    assert.equal(finalReport.count, 1);
+    assert.equal(finalReport.upheld, 1);
     assert.deepEqual(
       finalReport.findings.map((f) => f.id),
       ["F1"],

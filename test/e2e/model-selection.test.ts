@@ -3,7 +3,17 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 import { decode } from "@toon-format/toon";
-import { acceptModel, install, setup } from "../utils/init-fixture.ts";
+import {
+  acceptAgent,
+  acceptModel,
+  acceptVerifierAgent,
+  acceptVerifierModel,
+  install,
+  integrations,
+  project,
+  setup,
+  skill,
+} from "../utils/init-fixture.ts";
 import { queueFixture } from "../utils/queue-fixture.ts";
 
 test("Claude latest aliases precede pins, are recommended and persist without a version", (t) => {
@@ -24,6 +34,7 @@ test("Claude latest aliases precede pins, are recommended and persist without a 
   const output = decode(preview.stdout) as {
     candidates: { model: string; label: string }[];
     recommendation: { agent: string; model: string };
+    verifierPrefill: { agent: string; model: string };
   };
   assert.deepEqual(
     output.candidates.map((c) => c.model),
@@ -37,56 +48,102 @@ test("Claude latest aliases precede pins, are recommended and persist without a 
   );
   assert.equal(output.candidates[0]?.label, "sonnet (latest)");
   assert.equal(output.recommendation.agent, "claude");
-  assert.equal(output.recommendation.model, "haiku");
+  assert.equal(output.recommendation.model, "sonnet");
+  assert.deepEqual(output.verifierPrefill, { agent: "claude", model: "opus" });
   const selected = f.run(
     ["--agent", "claude", "--harnesses", "claude"],
     [
       ["Which agents do you want to install to?", "\r"],
       ["Installation scope", "\r"],
       [acceptModel[0], "sonnet\r"],
+      acceptVerifierAgent,
+      acceptVerifierModel,
       install,
     ],
   );
   assert.equal(selected.status, 0, selected.stdout);
   assert.match(selected.stdout, /sonnet \(latest\)/);
   assert.equal(f.config().model, "sonnet");
+  assert.deepEqual(f.config().verifier, { model: "opus" });
+});
+
+test("terminal and non-TTY init recommend the same agent when several offer the preferred tier", (t) => {
+  const f = setup(t);
+  f.setPlan({ models: { claude: ["sonnet", "opus"] } });
+  const preview = f.run([]);
+  assert.equal(preview.status, 2, preview.stdout);
+  const output = decode(preview.stdout) as {
+    recommendation: { agent: string; model: string };
+    verifierPrefill: { agent: string; model: string };
+  };
+  assert.deepEqual(
+    [output.recommendation.agent, output.recommendation.model],
+    ["claude", "sonnet"],
+  );
+  assert.deepEqual(output.verifierPrefill, { agent: "claude", model: "opus" });
+  const terminal = f.run(
+    [],
+    [
+      integrations,
+      project,
+      skill,
+      acceptAgent,
+      acceptModel,
+      acceptVerifierAgent,
+      acceptVerifierModel,
+      install,
+    ],
+  );
+  assert.equal(terminal.status, 0, terminal.stdout);
+  assert.equal(f.config().agent, "claude");
+  assert.equal(f.config().model, "sonnet");
+  assert.deepEqual(f.config().verifier, { model: "opus" });
 });
 
 test("Codex latest family choices precede pins and init saves the rolling choice", (t) => {
   const f = setup(t);
   f.setPlan({
-    models: { codex: ["gpt-6-luna", "gpt-6.1-sol", "gpt-5.6-luna"] },
+    models: {
+      codex: ["gpt-6-luna", "gpt-6.1-terra", "gpt-6.1-sol", "gpt-5.6-luna"],
+    },
   });
   const preview = f.run(["--agent", "codex"]);
   assert.equal(preview.status, 2, preview.stdout);
   const output = decode(preview.stdout) as {
     candidates: { model: string; label: string }[];
     recommendation: { model: string };
+    verifierPrefill: { model: string };
   };
   assert.deepEqual(
     output.candidates.map((c) => [c.model, c.label]),
     [
       ["latest:luna", "luna (latest)"],
+      ["latest:terra", "terra (latest)"],
       ["latest:sol", "sol (latest)"],
       ["gpt-6-luna", "gpt-6-luna"],
+      ["gpt-6.1-terra", "gpt-6.1-terra"],
       ["gpt-6.1-sol", "gpt-6.1-sol"],
       ["gpt-5.6-luna", "gpt-5.6-luna"],
     ],
   );
-  assert.equal(output.recommendation.model, "latest:luna");
+  assert.equal(output.recommendation.model, "latest:terra");
+  assert.equal(output.verifierPrefill.model, "latest:sol");
   const selected = f.run([
     "--agent",
     "codex",
     "--model",
-    "latest:luna",
+    "latest:terra",
+    "--verifier-model",
+    "latest:sol",
     "--harnesses",
     "codex",
   ]);
   assert.equal(selected.status, 0, selected.stdout);
-  assert.equal(f.config().model, "latest:luna");
+  assert.equal(f.config().model, "latest:terra");
+  assert.deepEqual(f.config().verifier, { model: "latest:sol" });
 });
 
-test("Codex latest choices keep variant families separate and recommend an unpinned Mini", (t) => {
+test("Codex latest choices keep variant families separate and recommend no light Mini", (t) => {
   const f = setup(t);
   f.setPlan({
     models: {
@@ -103,17 +160,44 @@ test("Codex latest choices keep variant families separate and recommend an unpin
   assert.equal(preview.status, 2, preview.stdout);
   const output = decode(preview.stdout) as {
     candidates: { model: string }[];
-    recommendation: { model: string };
+    recommendation: { model: string } | null;
   };
   assert.deepEqual(
     output.candidates.slice(0, 4).map((c) => c.model),
     ["latest:mini", "latest:codex-mini", "latest:codex", "latest:gpt"],
   );
-  assert.equal(output.recommendation.model, "latest:mini");
+  assert.equal(output.recommendation, null);
 });
 
+for (const [models, worker, verifier] of [
+  [
+    ["gpt-6-luna", "gpt-6-astra", "gpt-6-terra", "gpt-6-sol"],
+    "latest:terra",
+    "latest:sol",
+  ],
+  [["gpt-6-luna", "gpt-6-sol"], null, "latest:sol"],
+  [["gpt-6-luna", "gpt-6-terra"], "latest:terra", "latest:luna"],
+  [["gpt-6-astra", "gpt-6-luna"], null, "latest:astra"],
+  [["gpt-6-mini"], null, "latest:mini"],
+] as const)
+  test(`init recommends worker ${worker} and verifier ${verifier} from ${models.join(", ")}`, (t) => {
+    const f = setup(t);
+    f.setPlan({ models: { codex: [...models] } });
+    const preview = f.run(["--agent", "codex"]);
+    assert.equal(preview.status, 2, preview.stdout);
+    const output = decode(preview.stdout) as {
+      recommendation: { model: string } | null;
+      verifierPrefill: { model: string };
+    };
+    assert.equal(output.recommendation?.model ?? null, worker);
+    assert.equal(output.verifierPrefill.model, verifier);
+  });
+
 test("Codex latest upgrades on new reviews, pins resume and preserves explicit pins", (t) => {
-  const f = queueFixture(t, { model: "latest:luna" });
+  const f = queueFixture(t, {
+    model: "latest:luna",
+    verifier: { model: "latest:sol" },
+  });
   const review = () =>
     f.run([
       "review",
@@ -147,7 +231,7 @@ test("Codex latest upgrades on new reviews, pins resume and preserves explicit p
     started.stderr,
   );
   f.setPlan({
-    models: { codex: ["gpt-7-luna", "gpt-6.10-luna"] },
+    models: { codex: ["gpt-7-luna", "gpt-6.10-luna", "gpt-7-sol"] },
   });
   const resumed = f.run(["resume", first.id, "--wait", "20"]);
   assert.equal(resumed.status, 0, resumed.stdout);
@@ -181,7 +265,11 @@ test("Codex latest upgrades on new reviews, pins resume and preserves explicit p
   assert.deepEqual(readFileSync(join(f.root, ".degreaserrc.json")), rc);
   f.write(
     ".degreaserrc.json",
-    JSON.stringify({ agent: "codex", model: "gpt-6.10-luna" }),
+    JSON.stringify({
+      agent: "codex",
+      model: "gpt-6.10-luna",
+      verifier: { model: "gpt-7-sol" },
+    }),
   );
   const pinned = review();
   assert.equal(pinned.status, 0, pinned.stdout);
@@ -229,7 +317,11 @@ test("Codex latest overrides stay in their families and missing families refuse 
 });
 
 test("Claude native latest selection reaches the worker without replacing it with a pin", (t) => {
-  const f = queueFixture(t, { agent: "claude", model: "sonnet" });
+  const f = queueFixture(t, {
+    agent: "claude",
+    model: "sonnet",
+    verifier: { model: "sonnet" },
+  });
   f.setPlan({
     models: { claude: ["claude-sonnet-4-5-20250929", "sonnet"] },
   });

@@ -55,9 +55,10 @@ if (args.includes("--check-skill")) {
     "definitions.agent": { enum: AGENTS },
     "definitions.aspect": { enum: ASPECT_IDS },
   });
-  await catalogSchema("review/ingest/result", {
-    "properties.aspect": { enum: ASPECT_IDS },
-  });
+  for (const name of ["result", "find", "verify"])
+    await catalogSchema(`review/ingest/${name}`, {
+      "properties.aspect": { enum: ASPECT_IDS },
+    });
   await catalogSchema("review/input", {
     "properties.config.properties.assignments": { maxItems: ASPECT_IDS.length },
     "properties.workers": { maxItems: ASPECT_IDS.length },

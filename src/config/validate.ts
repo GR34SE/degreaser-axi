@@ -4,7 +4,10 @@ import type { ProjectConfig } from "./types.ts";
 
 const LEGACY_ASPECT_KEYS = ["enable", "disable", "overrides"];
 
-export function validateConfig(data: unknown): ProjectConfig {
+export function validateConfig(
+  data: unknown,
+  { requireVerifier = true } = {},
+): ProjectConfig {
   const aspects = (data as { aspects?: unknown } | null)?.aspects;
   if (
     aspects &&
@@ -23,5 +26,10 @@ export function validateConfig(data: unknown): ProjectConfig {
       .join("; ");
     throw new InputError(`.degreaserrc.json: ${details}`);
   }
+  if (requireVerifier && !data.verifier)
+    throw new InputError(
+      ".degreaserrc.json: verifier is required. Run degreaser-axi init to choose the verifier agent and model.",
+      ["degreaser-axi init"],
+    );
   return data;
 }

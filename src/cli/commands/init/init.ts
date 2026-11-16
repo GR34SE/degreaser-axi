@@ -5,6 +5,7 @@ import {
   confirmReplace,
   decisionRequired,
   installedView,
+  resolvedVerifier,
 } from "./presentation.ts";
 import { sameIdentity } from "./recommend.ts";
 
@@ -46,6 +47,35 @@ function agentChoice(value: string): Agent {
   return value;
 }
 
+function modelChoice(value: unknown, flag: string) {
+  if (value === undefined) return undefined;
+  const model = String(value);
+  if (!model || /[\s\0]/.test(model) || model.startsWith("-"))
+    throw new InputError(
+      `${flag} must be a nonempty model ID or latest selector.`,
+    );
+  return model;
+}
+
+function listedOrThrow(choices: Catalog, identity: Identity) {
+  if (choices.candidates.some((c) => sameIdentity(c, identity))) return;
+  const discovery = choices.discovery.find((d) => d.agent === identity.agent);
+  if (discovery?.status === "unavailable")
+    throw new StateError("environment-blocked", discovery.reason);
+  throw unsupportedModel(
+    identity,
+    choices.candidates
+      .filter((c) => c.agent === identity.agent)
+      .map((c) => c.model),
+  );
+}
+
+function verifierEntry(worker: Identity, verifier: Identity) {
+  return verifier.agent === worker.agent
+    ? { model: verifier.model }
+    : { agent: verifier.agent, model: verifier.model };
+}
+
 function harnessChoices(value: string): Agent[] {
   const selected = value.split(",").map((item) => agentChoice(item.trim()));
   if (new Set(selected).size !== selected.length)
@@ -62,14 +92,15 @@ export async function run(
   assertNotWorker(f.env, "initialize Degreaser");
   const agent =
     values.agent === undefined ? undefined : agentChoice(String(values.agent));
-  const model = values.model === undefined ? undefined : String(values.model);
-  if (
-    model !== undefined &&
-    (!model || /[\s\0]/.test(model) || model.startsWith("-"))
-  )
-    throw new InputError(
-      "--model must be a nonempty model ID or latest selector.",
-    );
+  const model = modelChoice(values.model, "--model");
+  const verifierAgent =
+    values["verifier-agent"] === undefined
+      ? undefined
+      : agentChoice(String(values["verifier-agent"]));
+  const verifierModel = modelChoice(
+    values["verifier-model"],
+    "--verifier-model",
+  );
   let harnesses =
     values.harnesses === undefined
       ? undefined
@@ -89,7 +120,9 @@ export async function run(
   let previous: ProjectConfig | undefined;
   if (before !== null) {
     try {
-      previous = validateConfig(JSON.parse(before));
+      previous = validateConfig(JSON.parse(before), {
+        requireVerifier: false,
+      });
     } catch (error) {
       if (error instanceof InputError) throw error;
       throw new InputError("Root .degreaserrc.json must contain valid JSON.");
@@ -97,8 +130,10 @@ export async function run(
   }
   const tty = f.io.interactive;
   let choices: Catalog;
+  const requested = { agent, model, verifierAgent, verifierModel };
   let identity: Identity | undefined =
     agent && model ? { agent, model } : undefined;
+  let verifier = resolvedVerifier(requested);
   if (tty) {
     const { configureTerminal } = await import("./prompts.ts");
     const selected = await configureTerminal(
@@ -106,6 +141,8 @@ export async function run(
       {
         agent,
         model,
+        verifierAgent,
+        verifierModel,
         previous,
         harnesses,
         scope,
@@ -116,45 +153,42 @@ export async function run(
     );
     if (!selected) return { output: "", exitCode: 2 };
     identity = selected.identity;
+    verifier = selected.verifier;
     harnesses = selected.harnesses;
     scope = selected.scope;
     skillInstall = selected.skillInstall;
     choices = selected.choices;
   } else {
-    choices = await catalog(f, repository, agent ? [agent] : agents);
+    choices = await catalog(
+      f,
+      repository,
+      agent ? [...new Set([agent, verifierAgent ?? agent])] : agents,
+    );
   }
-  if (!tty && (!agent || !model || !harnesses)) {
+  if (!tty && (!identity || !verifier || !harnesses)) {
     return {
       output: decisionRequired(
         choices,
         previous,
-        agent,
-        model,
-        harnesses,
+        { ...requested, harnesses },
         scope,
       ),
       exitCode: 2,
     };
   }
-  if (!identity || !harnesses)
-    throw new InputError("Explicit model and harness decisions are required.");
-  if (!choices.candidates.some((c) => sameIdentity(c, identity))) {
-    const discovery = choices.discovery.find((d) => d.agent === identity.agent);
-    if (discovery?.status === "unavailable")
-      throw new StateError("environment-blocked", discovery.reason);
-    throw unsupportedModel(
-      identity,
-      choices.candidates
-        .filter((c) => c.agent === identity.agent)
-        .map((c) => c.model),
+  if (!identity || !verifier || !harnesses)
+    throw new InputError(
+      "Explicit model, verifier and harness decisions are required.",
     );
-  }
+  listedOrThrow(choices, identity);
+  listedOrThrow(choices, verifier);
   const config = completeConfig(
     {
       ...previous,
       schemaVersion: 1,
       agent: identity.agent,
       model: identity.model,
+      verifier: verifierEntry(identity, verifier),
     },
     ASPECT_IDS,
   );
@@ -229,6 +263,7 @@ export async function run(
       integrations,
       ignore,
       identity,
+      verifier,
       harnesses,
       scope,
       choices,

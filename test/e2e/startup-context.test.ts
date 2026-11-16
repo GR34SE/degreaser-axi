@@ -38,7 +38,11 @@ test("native JSON cwd and plain mode discover project configuration", (t) => {
   const other = fixture(t);
   other.write(
     ".degreaserrc.json",
-    JSON.stringify({ agent: "claude", model: "different-model" }),
+    JSON.stringify({
+      agent: "claude",
+      model: "different-model",
+      verifier: { model: "different-verifier" },
+    }),
   );
   mkdirSync(join(f.root, "nested"));
   const output = hook(other.root, {
@@ -93,7 +97,11 @@ test("worker and corrupt history are silent; an invalid config gets one doctor l
   assert.equal(hook(f.root, { worker: "1" }), "");
   f.write(
     ".degreaserrc.json",
-    JSON.stringify({ agent: "codex", model: "gpt-6-luna" }),
+    JSON.stringify({
+      agent: "codex",
+      model: "gpt-6-luna",
+      verifier: { model: "gpt-6-sol" },
+    }),
   );
   f.write(".degreaser/state.json", "{");
   assert.equal(hook(f.root), "");

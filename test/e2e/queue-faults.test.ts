@@ -191,16 +191,18 @@ for (const [label, worker, expected, cancel, status] of [
 
 test("runtime passes supported maxTurns and reports unsupported enforcement in the result", (t) => {
   for (const agent of ["claude", "codex", "pi", "cursor"] as const) {
+    const model =
+      agent === "claude"
+        ? "claude-haiku-4-5-20251001"
+        : agent === "pi"
+          ? "openai/gpt-6-luna"
+          : agent === "cursor"
+            ? "composer-2.5-fast"
+            : "gpt-6-luna";
     const f = queueFixture(t, {
       agent,
-      model:
-        agent === "claude"
-          ? "claude-haiku-4-5-20251001"
-          : agent === "pi"
-            ? "openai/gpt-6-luna"
-            : agent === "cursor"
-              ? "composer-2.5-fast"
-              : "gpt-6-luna",
+      model,
+      verifier: { model },
       limits: { maxTurns: 3, workerTimeoutSeconds: 10, runTimeoutSeconds: 20 },
     });
     f.start(["--aspects", "low-value-comments"]);
@@ -250,12 +252,13 @@ test("a valid result followed by an attempt timeout remains useful but unresolve
   assert.ok(task);
   assert.equal(task.status, "incomplete");
   assert.equal(task.result?.findings.length, 1);
+  const finders = task.attempts.filter((a) => a.stage === "find");
   assert.equal(
-    task.attempts.length,
+    finders.length,
     1,
     "Valid incomplete evidence requires explicit resume",
   );
-  assert.equal(task.attempts[0]?.failure, "timeout");
+  assert.equal(finders[0]?.failure, "timeout");
 });
 
 test("a silent worker stops at the idle limit, long before its hard timeout", (t) => {

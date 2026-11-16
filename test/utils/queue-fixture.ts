@@ -30,6 +30,9 @@ const loader = fileURLToPath(
 export interface Event {
   type?: string;
   aspect: string;
+  stage?: "find" | "verify";
+  paths?: string[];
+  candidates?: { candidate: number; quote: string; title: string }[];
   pid: number;
   childPid?: number;
   reviewing?: boolean;
@@ -156,6 +159,7 @@ export function queueFixture(
     JSON.stringify({
       agent: "codex",
       model: "gpt-6-luna",
+      verifier: { model: "gpt-6-sol" },
       maxRetries: 0,
       limits: { workerTimeoutSeconds: 15, runTimeoutSeconds: 30 },
       ...config,

@@ -28,6 +28,7 @@ const all = [
   "low-value-comments",
 ];
 const identity = { agent: "codex", model: "gpt-6-luna" };
+const rcBase = { ...identity, verifier: { model: "gpt-6-sol" } };
 const args = ["--scope", "worktree", "--task", "Add CSV import"];
 
 test("invalid requests fail before creating run artifacts or changing the index", (t) => {
@@ -112,34 +113,34 @@ test("strict public RC schema rejects unknown fields and bounded invalid values 
     {},
     { agent: "codex" },
     { model: "gpt-6-luna" },
-    ...["droid", "grok", "unknown"].map((agent) => ({ ...identity, agent })),
+    ...["droid", "grok", "unknown"].map((agent) => ({ ...rcBase, agent })),
     ...[0, -1, 1.5, "2", Infinity, 9007199254740992].map((concurrency) => ({
-      ...identity,
+      ...rcBase,
       concurrency,
     })),
-    ...[-1, 1.5, null, 11].map((maxRetries) => ({ ...identity, maxRetries })),
+    ...[-1, 1.5, null, 11].map((maxRetries) => ({ ...rcBase, maxRetries })),
     ...[0, -1, null, "40", 1.5].map((maxTurns) => ({
-      ...identity,
+      ...rcBase,
       limits: { maxTurns },
     })),
     ...[0, -1, null, 2147484].map((workerTimeoutSeconds) => ({
-      ...identity,
+      ...rcBase,
       limits: { workerTimeoutSeconds },
     })),
-    { ...identity, schemaVersion: 2 },
-    { ...identity, caller: "claude" },
-    { ...identity, limits: { timeout: 1 } },
-    { ...identity, aspects: { custom: [] } },
-    { ...identity, aspects: { enable: ["missed-reuse"] } },
-    { ...identity, aspects: { "missed-reuse": "off" } },
-    { ...identity, aspects: { A17: { model: "x" } } },
+    { ...rcBase, schemaVersion: 2 },
+    { ...rcBase, caller: "claude" },
+    { ...rcBase, limits: { timeout: 1 } },
+    { ...rcBase, aspects: { custom: [] } },
+    { ...rcBase, aspects: { enable: ["missed-reuse"] } },
+    { ...rcBase, aspects: { "missed-reuse": "off" } },
+    { ...rcBase, aspects: { A17: { model: "x" } } },
     {
-      ...identity,
+      ...rcBase,
       aspects: { "missed-reuse": { agent: "claude" } },
     },
-    { ...identity, aspects: { "missed-reuse": {} } },
-    { ...identity, model: " " },
-    { agent: "pi", model: "unqualified" },
+    { ...rcBase, aspects: { "missed-reuse": {} } },
+    { ...rcBase, model: " " },
+    { agent: "pi", model: "unqualified", verifier: { model: "p/x" } },
     ...[
       "../outside",
       "/absolute",
@@ -149,13 +150,13 @@ test("strict public RC schema rejects unknown fields and bounded invalid values 
       "src/../x",
       "!src",
       "a\\b",
-    ].map((path) => ({ ...identity, exclude: [path] })),
+    ].map((path) => ({ ...rcBase, exclude: [path] })),
   ];
   for (const value of invalid) {
     assert.throws(() => resolveConfig(value), { name: /^(Input|Axi)Error$/ });
   }
   const bounded = resolveConfig({
-    ...identity,
+    ...rcBase,
     schemaVersion: 1,
     concurrency: 32,
     maxRetries: 0,
@@ -166,6 +167,7 @@ test("strict public RC schema rejects unknown fields and bounded invalid values 
     resolveConfig({
       agent: "cursor",
       model: "composer-2.5-fast",
+      verifier: { model: "composer-2.5-fast" },
     }).assignments[0],
     {
       aspect: "unnecessary-complexity",
@@ -174,18 +176,18 @@ test("strict public RC schema rejects unknown fields and bounded invalid values 
     },
   );
   assert.throws(
-    () => resolveConfig({ ...identity, limits: { workerTimeoutSecons: 300 } }),
+    () => resolveConfig({ ...rcBase, limits: { workerTimeoutSecons: 300 } }),
     /\.degreaserrc\.json: .*limits.*must NOT have additional properties/,
   );
 });
 
 test("selection narrows all eighteen defaults without re-enabling disabled aspects or mutating RC", () => {
   assert.deepEqual(
-    resolveConfig(identity).assignments.map((a) => a.aspect),
+    resolveConfig(rcBase).assignments.map((a) => a.aspect),
     all,
   );
   const rc = {
-    ...identity,
+    ...rcBase,
     concurrency: 2,
     aspects: {
       "unnecessary-layers": false,
@@ -217,7 +219,7 @@ test("selection narrows all eighteen defaults without re-enabling disabled aspec
     workerTimeoutSeconds: 300,
     workerIdleSeconds: 120,
     maxTurns: 40,
-    runTimeoutSeconds: 900,
+    runTimeoutSeconds: 7200,
   });
   assert.equal(JSON.stringify(rc), original);
   assert.equal(resolveConfig(rc).assignments.length, all.length - 1);
@@ -228,21 +230,21 @@ test("selection narrows all eighteen defaults without re-enabling disabled aspec
   assert.throws(
     () =>
       resolveConfig({
-        ...identity,
+        ...rcBase,
         aspects: Object.fromEntries(all.map((id) => [id, false])),
       }),
     /empty/,
   );
   assert.throws(
-    () => resolveConfig({ ...identity, aspects: { disable: ["scope-creep"] } }),
+    () => resolveConfig({ ...rcBase, aspects: { disable: ["scope-creep"] } }),
     /one entry per aspect/,
   );
-  assert.throws(() => resolveConfig(identity, { aspects: ["A99"] }), /aspect/);
-  assert.throws(() => resolveConfig(identity, { aspects: [] }), /empty/);
+  assert.throws(() => resolveConfig(rcBase, { aspects: ["A99"] }), /aspect/);
+  assert.throws(() => resolveConfig(rcBase, { aspects: [] }), /empty/);
   assert.throws(
     () =>
       resolveConfig({
-        ...identity,
+        ...rcBase,
         aspects: {
           "missed-reuse": { agent: "pi", model: "wrong" },
         },
@@ -254,6 +256,7 @@ test("selection narrows all eighteen defaults without re-enabling disabled aspec
       resolveConfig({
         agent: "pi",
         model: "openai/gpt-6-luna",
+        verifier: { model: "openai/gpt-6-sol" },
         aspects: { "missed-reuse": { model: "wrong" } },
       }),
     /provider/,

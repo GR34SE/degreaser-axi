@@ -1,18 +1,25 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { fixture } from "../../../test/utils/git-fixture.ts";
-
-import { prepareReview } from "../../../test/utils/input.ts";
-import { block, clean } from "../../../test/utils/result-fixture.ts";
-import { runtime } from "../../../test/utils/runtime.ts";
-
 import { ResultError } from "../../util/errors.ts";
-import { parseResult } from "./parse.ts";
-import { ingestResult } from "./verify-quotes.ts";
+import { parseFinder, parseVerifier } from "./parse.ts";
 
-test("only the last complete assistant block is eligible, with strict status and assignment contracts", () => {
+const clean = {
+  aspect: "low-value-comments",
+  status: "no-findings",
+  findings: [],
+  limitations: [],
+};
+const block = (data: unknown) =>
+  `<degreaser-result>${JSON.stringify(data)}</degreaser-result>`;
+const candidate = {
+  location: { path: "a.ts", side: "new", startLine: 1, endLine: 1 },
+  quote: "// note",
+  title: "Narrating comment",
+};
+
+test("only the last complete finder block is eligible, with strict status and assignment contracts", () => {
   assert.deepEqual(
-    parseResult(`Narrative ${block(clean)}`, "low-value-comments"),
+    parseFinder(`Narrative ${block(clean)}`, "low-value-comments"),
     clean,
   );
   for (const text of [
@@ -21,125 +28,132 @@ test("only the last complete assistant block is eligible, with strict status and
     `${block(clean)}<degreaser-result>bad</degreaser-result>`,
     block({ ...clean, aspect: "masked-errors" }),
     block({ ...clean, extra: true }),
+    block({ ...clean, examinedPaths: ["a.ts"] }),
+    block({ ...clean, unresolved: [] }),
     block({ ...clean, status: "not-applicable", reason: null }),
-    block({ ...clean, status: "not-applicable", reason: " " }),
-    block({ ...clean, reason: 5 }),
     block({ ...clean, status: "findings" }),
-    block({ ...clean, status: "not-applicable" }),
     block({ ...clean, status: "incomplete", limitations: [" "] }),
-  ]) {
+    block({
+      ...clean,
+      status: "findings",
+      findings: [{ ...candidate, evidence: "prose" }],
+    }),
+    block({ ...clean, kept: [{ location: candidate.location }] }),
+  ])
     assert.throws(
-      () => parseResult(text, "low-value-comments"),
+      () => parseFinder(text, "low-value-comments"),
       /result|aspect|schema/i,
     );
-  }
-  for (const result of [
-    { ...clean, status: "not-applicable", reason: "There are no comments." },
-    {
-      ...clean,
-      status: "incomplete",
-      limitations: ["Could not read the comment's caller."],
-    },
-  ])
-    assert.deepEqual(parseResult(block(result), "low-value-comments"), result);
+  const kept = {
+    ...clean,
+    status: "findings",
+    findings: [candidate],
+    kept: [{ location: candidate.location, quote: "// keep" }],
+  };
+  assert.deepEqual(parseFinder(block(kept), "low-value-comments"), kept);
 });
 
 test("a billing-only refusal is an account failure, not output text", () => {
   assert.throws(
     () =>
-      parseResult(
-        "\n\nAdd a payment method to continue\n",
-        "low-value-comments",
-      ),
+      parseFinder("\n\nAdd a payment method to continue\n", "masked-errors"),
     (error) =>
       error instanceof ResultError && error.failure === "account-disabled",
   );
   assert.throws(
     () =>
-      parseResult(
+      parseVerifier(
         "The comment says Add a payment method to continue.",
-        "low-value-comments",
+        "masked-errors",
       ),
     (error) => error instanceof ResultError && error.failure === undefined,
   );
-  assert.deepEqual(
-    parseResult(
-      `Add a payment method to continue\n${block(clean)}`,
-      "low-value-comments",
-    ),
-    clean,
-  );
-});
-
-test("examined paths keep only assessed files, and a clean result needs at least one", (t) => {
-  const f = fixture(t);
-  f.write("current.ts", "export const value = 2;\n");
-  const input = prepareReview(
-    [
-      "--scope",
-      "worktree",
-      "--task",
-      "Update value",
-      "--aspects",
-      "low-value-comments",
-    ],
-    f.root,
-  );
-  const covered = ingestResult(
-    runtime(),
-    block({
-      ...clean,
-      examinedPaths: [
-        "current.ts",
-        `${input.repository}/current.ts`,
-        "./current.ts",
-        "/elsewhere/outside.ts",
-      ],
-    }),
-    "low-value-comments",
-    input,
-  );
-  assert.equal(covered.result.status, "no-findings");
-  assert.deepEqual(covered.result.examinedPaths, ["current.ts"]);
-  const unexamined = ingestResult(
-    runtime(),
-    block({ ...clean, examinedPaths: ["outside.ts"] }),
-    "low-value-comments",
-    input,
-  );
-  assert.equal(unexamined.result.status, "incomplete");
-  assert.match(unexamined.result.limitations.join(" "), /without examining/);
 });
 
 test("semantically empty optional reason is omitted without inventing required content", () => {
   for (const reason of [null, "", "  \n"])
     assert.deepEqual(
-      parseResult(block({ ...clean, reason }), "low-value-comments"),
+      parseFinder(block({ ...clean, reason }), "low-value-comments"),
       clean,
     );
-  const incomplete = {
-    ...clean,
-    status: "incomplete",
-    limitations: ["Ran out of budget."],
+  assert.throws(
+    () =>
+      parseFinder(
+        block({ ...clean, status: "not-applicable", reason: " " }),
+        "low-value-comments",
+      ),
+    /schema/i,
+  );
+});
+
+test("finder and verifier paths are normalized inside the repository", () => {
+  const found = parseFinder(
+    block({
+      ...clean,
+      status: "findings",
+      findings: [
+        { ...candidate, location: { ...candidate.location, path: "/r/a.ts" } },
+      ],
+      kept: [
+        { location: { ...candidate.location, path: "./b.ts" }, quote: "x" },
+      ],
+    }),
+    "low-value-comments",
+    "/r",
+  );
+  assert.equal(found.findings[0]?.location.path, "a.ts");
+  assert.equal(found.kept?.[0]?.location.path, "b.ts");
+  const verdict = {
+    candidate: 1,
+    verdict: "upheld",
+    reason: "Restates the code.",
+    action: "Delete the comment.",
+    evidence: {
+      location: { ...candidate.location, path: "/r/c.ts" },
+      quote: "x",
+    },
   };
-  assert.deepEqual(
-    parseResult(block({ ...incomplete, reason: "" }), "low-value-comments"),
-    incomplete,
+  const verified = parseVerifier(
+    block({
+      aspect: "low-value-comments",
+      status: "verdicts",
+      verdicts: [verdict],
+      limitations: [],
+    }),
+    "low-value-comments",
+    "/r",
   );
+  assert.equal(verified.verdicts[0]?.evidence?.location.path, "c.ts");
+  for (const bad of [
+    { candidate: 0, verdict: "upheld", reason: "r" },
+    { candidate: 1, verdict: "maybe", reason: "r" },
+    { candidate: 1, verdict: "refuted" },
+    { ...verdict, extra: 1 },
+  ])
+    assert.throws(
+      () =>
+        parseVerifier(
+          block({
+            aspect: "low-value-comments",
+            status: "verdicts",
+            verdicts: [bad],
+            limitations: [],
+          }),
+          "low-value-comments",
+        ),
+      /schema/,
+    );
   assert.throws(
     () =>
-      parseResult(
-        block({ ...clean, status: "incomplete", reason: null }),
+      parseVerifier(
+        block({
+          aspect: "low-value-comments",
+          status: "incomplete",
+          verdicts: [],
+          limitations: [],
+        }),
         "low-value-comments",
       ),
-    /schema/i,
-  );
-  assert.throws(
-    () =>
-      parseResult(
-        block({ ...clean, unknown: null, reason: null }),
-        "low-value-comments",
-      ),
-    /schema/i,
+    /schema/,
   );
 });

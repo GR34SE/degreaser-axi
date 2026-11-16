@@ -8,13 +8,14 @@ export function completeConfig(data: unknown, aspectIds: readonly AspectId[]) {
     schemaVersion: 1 as const,
     agent: rc.agent,
     model: rc.model,
-    concurrency: rc.concurrency ?? null,
+    verifier: rc.verifier as NonNullable<ProjectConfig["verifier"]>,
+    concurrency: rc.concurrency === undefined ? 16 : rc.concurrency,
     maxRetries: rc.maxRetries ?? 1,
     limits: {
       workerTimeoutSeconds: 300,
       workerIdleSeconds: 120,
       maxTurns: 40,
-      runTimeoutSeconds: 900,
+      runTimeoutSeconds: 7200,
       ...rc.limits,
     },
     aspects: Object.fromEntries(

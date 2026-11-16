@@ -1,5 +1,4 @@
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { loadConfig } from "../../config/load.ts";
 import { resolveConfig } from "../../config/resolve.ts";
 import { ASPECT_IDS } from "../../modules/aspect/api.ts";
@@ -7,7 +6,7 @@ import { reviewIdentity } from "../../state/identity.ts";
 import type { Run } from "../../state/run.ts";
 import { InputError, StateError } from "../../util/errors.ts";
 import type { Runtime } from "../../util/exec/types.ts";
-import { assemblePrompt } from "../attempt/prompt/assemble.ts";
+import { promptIdentity } from "../attempt/prompt/assemble.ts";
 import type { ReviewInput } from "../types.ts";
 import { reviewCommand } from "./index.ts";
 import { resolveScope } from "./scope/resolve.ts";
@@ -34,6 +33,12 @@ export function assertFresh(runtime: Runtime, run: Run, input: ReviewInput) {
           }
         : assignment;
     });
+    const savedVerifier = input.config.verifier;
+    if (
+      savedVerifier.requestedModel === config.verifier.model &&
+      savedVerifier.agent === config.verifier.agent
+    )
+      config.verifier = savedVerifier;
     const fresh = {
       ...input,
       config,
@@ -52,13 +57,7 @@ export function assertFresh(runtime: Runtime, run: Run, input: ReviewInput) {
       ),
     };
     const prompts = run.tasks.map((t) =>
-      t.promptHash === null
-        ? null
-        : assemblePrompt(
-            fresh,
-            t.assignment.aspect,
-            join(run.repository, ".degreaser/runs", run.id, "input/patch.diff"),
-          ).promptHash,
+      t.promptHash === null ? null : promptIdentity(t.assignment.aspect),
     );
     if (reviewIdentity(fresh, prompts) === run.identity) return;
   } catch (error) {

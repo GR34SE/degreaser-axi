@@ -1,15 +1,18 @@
-import { type Run, resolved } from "../state/run.ts";
+import { type Run, resolved, sumUsage } from "../state/run.ts";
 import {
   coverage,
+  executionStart,
+  failedAttempt,
   harnessLimitations,
-  portions,
   shownLimitations,
-  sumUsage,
   taskLimitations,
   taskReason,
   taskUsage,
+  verdictCounts,
 } from "./details.ts";
-import { findings } from "./group.ts";
+import { findings } from "./findings.ts";
+import { present } from "./present.ts";
+import { upheldRows } from "./rows.ts";
 import type { ReportContext } from "./types.ts";
 
 export function renderReport(run: Run, context: ReportContext, full = false) {
@@ -18,20 +21,21 @@ export function renderReport(run: Run, context: ReportContext, full = false) {
   const failure = run.executions?.at(-1)?.failure;
   const stopReason = run.executions?.at(-1)?.stopReason;
   const unverifiedOwner = context.unverifiedOwner;
+  const since = executionStart(run);
   const canResume =
     status !== "completed" &&
     !unverifiedOwner &&
     failure?.code !== "input-changed";
-  const all = findings(run),
-    shown = full ? all : all.slice(0, 30);
+  const all = findings(run);
+  const counts = verdictCounts(run.tasks);
+  const hidden = counts.refuted + counts.unverified;
   const workers = run.tasks.filter((task) => task.promptHash !== null);
   const usage = sumUsage(workers.map(taskUsage));
-  const split = workers.some((task) => portions(task));
   const clipped =
     !full &&
     run.tasks.some((task) =>
       [
-        taskReason(task, status === "interrupted") ?? "",
+        taskReason(task, status === "interrupted", since) ?? "",
         ...taskLimitations(task),
       ].some((text) => text.length > 240),
     );
@@ -43,21 +47,12 @@ export function renderReport(run: Run, context: ReportContext, full = false) {
     evidence: "source-only",
     scope: input.scope,
     aspects: `${run.tasks.filter(resolved).length}/${run.tasks.length}`,
-    count: all.length,
-    shown: shown.length,
+    ...counts,
     rejected: run.tasks.reduce((n, t) => n + t.rejections.length, 0),
-    findings: full
-      ? shown
-      : shown.map((f) => ({
-          id: f.id,
-          group: f.group,
-          aspect: f.aspect,
-          location: `${f.location.path}:${f.location.side}:${f.location.startLine}-${f.location.endLine}`,
-          title: f.title,
-        })),
-    coverageBasis: "worker-declared",
+    findings: full ? all.map(present) : upheldRows(all),
+    coverageBasis: "coordinator-assigned",
     coverage: run.tasks.map((t) =>
-      coverage(t, context, status === "interrupted", full),
+      coverage(t, context, status === "interrupted", full, since),
     ),
     limitations: [
       ...shownLimitations(input, full),
@@ -102,13 +97,13 @@ export function renderReport(run: Run, context: ReportContext, full = false) {
       status === "running"
         ? [
             `degreaser-axi wait ${run.id}`,
-            ...(all.length > shown.length || clipped
+            ...(hidden || clipped
               ? [`degreaser-axi report ${run.id} --full`]
               : []),
             ...(all.length ? [`degreaser-axi finding F1 --run ${run.id}`] : []),
           ]
         : [
-            ...(!full && (all.length || clipped)
+            ...(!full && (hidden || clipped)
               ? [`degreaser-axi report ${run.id} --full`]
               : []),
             ...(unverifiedOwner ? [context.ownerRecovery] : []),
@@ -119,14 +114,10 @@ export function renderReport(run: Run, context: ReportContext, full = false) {
               : []),
             ...(all.length ? [`degreaser-axi finding F1 --run ${run.id}`] : []),
             context.reviewCommand,
-            ...(split
-              ? [
-                  "Large scopes are split into portions; narrow the next review with repeatable --path <pattern> or exclude generated files via exclude in .degreaserrc.json.",
-                ]
-              : []),
             ...(canResume &&
             run.tasks.some(
-              (task) => task.attempts.at(-1)?.failure === "account-disabled",
+              (task) =>
+                failedAttempt(task, since)?.failure === "account-disabled",
             )
               ? [
                   "Restore access to the selected account with its provider before resuming. A disabled or suspended account is not a transient rate limit; waiting or lowering concurrency does not restore access.",
@@ -134,7 +125,7 @@ export function renderReport(run: Run, context: ReportContext, full = false) {
               : []),
             ...(canResume &&
             run.tasks.some(
-              (task) => task.attempts.at(-1)?.failure === "rate-limited",
+              (task) => failedAttempt(task, since)?.failure === "rate-limited",
             )
               ? [
                   `After the selected account limit clears, keep the same model and run: degreaser-axi resume ${run.id} --concurrency 1${context.now >= run.deadline ? " --deadline 900" : ""}`,

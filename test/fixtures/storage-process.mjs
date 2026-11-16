@@ -3,6 +3,7 @@ import { setTimeout } from "node:timers/promises";
 import { createFactory } from "../../dist/cli/factory.js";
 import { ASPECT_IDS } from "../../dist/modules/aspect/api.js";
 import { ownRun } from "../../dist/review/owner/index.js";
+import { resolved } from "../../dist/state/run.js";
 import { loadInput, loadRun, saveRun } from "../../dist/state/store.js";
 
 const [mode, repository, id] = process.argv.slice(2);
@@ -31,7 +32,7 @@ try {
             task.attempts.slice(0, old.attempts.length),
             old.attempts,
           );
-          if (old.result) assert.deepEqual(task, old);
+          if (resolved(old)) assert.deepEqual(task, old);
         }
         if (task.attempts.every((a) => a.endedAt !== null))
           committed.set(task.assignment.aspect, task);

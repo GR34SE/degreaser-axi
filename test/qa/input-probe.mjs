@@ -19,7 +19,11 @@ assert.equal(spawnSync("git", ["init"], { cwd }).status, 0);
 writeFileSync(join(cwd, ".gitignore"), ".degreaserrc.json\n/.degreaser/\n");
 writeFileSync(
   join(cwd, ".degreaserrc.json"),
-  JSON.stringify({ agent: "codex", model: "exact-fixture-id" }),
+  JSON.stringify({
+    agent: "codex",
+    model: "exact-fixture-id",
+    verifier: { model: "exact-verifier-id" },
+  }),
 );
 writeFileSync(join(cwd, "source"), "installed input smoke\n");
 const input = prepareReview(

@@ -5,8 +5,8 @@ import type { ResumeControls } from "../types.ts";
 import { admitRun } from "./admission.ts";
 import { reviewAspect } from "./aspect.ts";
 import type { OwnerContext } from "./context.ts";
-import { schedule } from "./scheduler.ts";
 import { ownerControl } from "./signals.ts";
+import { slots } from "./slots.ts";
 
 export async function ownRun(
   runtime: Runtime,
@@ -22,7 +22,7 @@ export async function ownRun(
     controls,
   );
   const control = ownerControl(runtime, run, execution, dir);
-  const { abort, stopped, persist, fail } = control;
+  const { abort, persist, fail } = control;
   const active = new Set<Promise<void>>();
   let sizes: Map<string, number> | undefined;
   const context: OwnerContext = {
@@ -30,26 +30,29 @@ export async function ownRun(
     repository,
     input,
     dir,
+    startedAt: execution.startedAt,
     control,
+    slots: slots(input.config.concurrency ?? Number.POSITIVE_INFINITY),
     sizesOf: () => (sizes ??= pathSizes(runtime, input)),
   };
   try {
     ready();
-    await schedule(
-      run.tasks.filter((task) => !resolved(task)),
-      input.config.concurrency ?? run.tasks.length,
-      (task, started) => reviewAspect(context, task, started),
-      control,
-      active,
+    await Promise.all(
+      run.tasks
+        .filter((task) => !resolved(task))
+        .map((task) => {
+          const promise = reviewAspect(context, task)
+            .catch((error: unknown) => {
+              fail(
+                error,
+                `Aspect ${task.assignment.aspect} could not complete because of an unexpected owner task error.`,
+              );
+            })
+            .finally(() => active.delete(promise));
+          active.add(promise);
+          return promise;
+        }),
     );
-    if (stopped()) {
-      for (const task of run.tasks.filter(
-        (task) => task.status === "pending",
-      )) {
-        task.status = "cancelled";
-        task.limitations.push(`Unexamined aspect: ${control.stopReason}.`);
-      }
-    }
     if (control.fatalError) throw control.fatalError;
     run.status = terminalStatus(run.tasks);
     persist();

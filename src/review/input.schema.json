@@ -31,9 +31,20 @@
     "config": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["assignments", "concurrency", "maxRetries", "limits", "exclude"],
+      "required": ["assignments", "verifier", "concurrency", "maxRetries", "limits", "exclude"],
       "properties": {
         "assignments": { "type": "array", "minItems": 1, "maxItems": 18, "uniqueItems": true, "items": { "$ref": "#/definitions/assignment" } },
+        "verifier": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["agent", "model"],
+          "properties": {
+            "agent": { "$ref": "config-v1.json#/definitions/agent" },
+            "model": { "$ref": "config-v1.json#/definitions/model" },
+            "requestedModel": { "type": "string", "pattern": "^latest:[a-z][a-z0-9-]*$" }
+          },
+          "allOf": [{ "$ref": "config-v1.json#/definitions/piIdentity" }]
+        },
         "concurrency": { "anyOf": [{ "type": "null" }, { "$ref": "config-v1.json#/definitions/positiveInteger" }] },
         "maxRetries": { "$ref": "config-v1.json#/properties/maxRetries" },
         "limits": {

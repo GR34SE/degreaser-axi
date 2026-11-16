@@ -1,5 +1,5 @@
 import { defineHarness } from "../common/definition.ts";
-import { cheapModelRank } from "../common/recommend.ts";
+import { modelTier } from "../common/recommend.ts";
 
 export default defineHarness({
   id: "cursor",
@@ -33,7 +33,7 @@ export default defineHarness({
   subscription: () =>
     "Cursor native subscription; account identity unavailable",
   recommendationPriority: 2,
-  recommendationRank: cheapModelRank,
+  modelTier,
   modelError: () => undefined,
   session: {
     systemPrompt: false,

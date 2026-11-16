@@ -3,6 +3,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
 import test from "node:test";
+import { candidate } from "../utils/coverage-fixture.ts";
 import { alive, capture, queueFixture, until } from "../utils/queue-fixture.ts";
 
 const { decode } = createRequire(import.meta.resolve("axi-sdk-js"))(
@@ -88,26 +89,17 @@ test("resume retains successes, supersedes incomplete evidence and records only 
 test("resumed pre-result failure reports unknown aspect usage while retaining distinct attempt metadata and peer evidence", async (t) => {
   const f = queueFixture(t);
   const priorUsage = { inputTokens: 17, outputTokens: 3, totalTokens: 20 };
+  const verifyUsage = { inputTokens: 11, outputTokens: 2, totalTokens: 13 };
   const peerUsage = { inputTokens: 29, outputTokens: 5, totalTokens: 34 };
   const nextUsage = { inputTokens: 41, outputTokens: 7, totalTokens: 48 };
-  const evidence = {
-    location: {
-      path: "source.ts",
-      side: "new",
-      startLine: 1,
-      endLine: 1,
-    },
-    quote: "// redundant",
-    title: "Redundant comment",
-    evidence: "The comment repeats the following constant.",
-    consequence: "Extra text to maintain.",
-    countercheck: "The comment explains no constraint.",
-    recommendation: "Remove the redundant comment.",
-  };
+  const evidence = candidate("source.ts", "// redundant");
   f.setPlan({
     workers: {
       "masked-errors": { usage: peerUsage },
-      "low-value-comments": { usage: priorUsage },
+      "low-value-comments": {
+        usage: priorUsage,
+        verifier: { usage: verifyUsage },
+      },
     },
     results: {
       "low-value-comments": {
@@ -123,8 +115,15 @@ test("resumed pre-result failure reports unknown aspect usage while retaining di
   const old = f.state();
   assert.equal(old.status, "partial");
   assert.deepEqual(old.tasks[0]?.usage, peerUsage);
-  assert.deepEqual(old.tasks[1]?.usage, priorUsage);
-  assert.deepEqual(old.tasks[1]?.attempts[0]?.usage, priorUsage);
+  assert.deepEqual(old.tasks[1]?.usage, {
+    inputTokens: 28,
+    outputTokens: 5,
+    totalTokens: 33,
+  });
+  assert.deepEqual(
+    old.tasks[1]?.attempts.map((attempt) => attempt.usage),
+    [priorUsage, verifyUsage],
+  );
   const originalDetail = decode(
     f.run(["finding", "F1", "--run", old.id]).stdout,
   );
@@ -141,22 +140,23 @@ test("resumed pre-result failure reports unknown aspect usage while retaining di
   const running = f.state();
   assert.equal(f.finish().status, 1);
   const failed = f.state();
-  assert.equal(failed.id, old.id);
   assert.equal(failed.status, "partial");
   assert.deepEqual(failed.tasks[0], old.tasks[0]);
   assert.deepEqual(failed.tasks[1]?.result, old.tasks[1]?.result);
-  assert.deepEqual(failed.tasks[1]?.attempts[0], old.tasks[1]?.attempts[0]);
+  assert.deepEqual(
+    failed.tasks[1]?.attempts.slice(0, 2),
+    old.tasks[1]?.attempts,
+  );
   assert.equal(failed.tasks[1]?.usage, null);
-  assert.equal(failed.tasks[1]?.attempts[1]?.usage, null);
-  assert.equal(failed.tasks[1]?.attempts[1]?.sessionId, null);
-  assert.equal(failed.tasks[1]?.attempts[1]?.failure, "timeout");
-  assert.equal(running.tasks[1]?.attempts.length, 2);
+  const retry = failed.tasks[1]?.attempts[2];
+  assert.equal(retry?.stage, "find");
+  assert.equal(retry?.usage, null);
+  assert.equal(retry?.sessionId, null);
+  assert.equal(retry?.failure, "timeout");
+  assert.equal(running.tasks[1]?.attempts.length, 3);
   assert.equal(running.tasks[1]?.usage, null);
-  assert.equal(decode(resumed.stdout).usage, "unknown");
-  assert.equal(f.events().length, 2);
-  const short = f.run(["report", old.id]);
-  assert.equal(short.status, 1);
-  assert.equal(decode(short.stdout).usage, "unknown");
+  assert.equal(f.events().length, 3);
+  assert.equal(decode(f.run(["report", old.id]).stdout).usage, "unknown");
   const full = f.run(["report", old.id, "--full"]);
   assert.equal(full.status, 1);
   assert.equal(full.stderr, "");
@@ -169,26 +169,30 @@ test("resumed pre-result failure reports unknown aspect usage while retaining di
     report.execution[1].attempts.map(
       (attempt: { usage: unknown }) => attempt.usage,
     ),
-    [priorUsage, null],
+    [priorUsage, verifyUsage, null],
   );
   assert.equal(f.run(["report", old.id, "--full"]).stdout, full.stdout);
   const detail = decode(f.run(["finding", "F1", "--run", old.id]).stdout);
-  for (const key of ["id", "group", "quote", "evidence", "location"])
+  for (const key of ["id", "quote", "location", "verdict", "action"])
     assert.deepEqual(detail[key], originalDetail[key]);
+  assert.equal(detail.verdict, "upheld");
   assert.equal(detail.aspectStatus, "incomplete");
-  assert.ok(detail.limitations.includes("One construct remains."));
+  assert.ok(
+    detail.limitations.some((l: string) =>
+      l.endsWith("One construct remains."),
+    ),
+  );
 
   f.setPlan({ workers: { "low-value-comments": { usage: nextUsage } } });
   const completed = f.run(["resume", old.id, "--wait", "20"]);
   assert.equal(completed.status, 0, completed.stdout);
   const current = f.state();
-  assert.equal(current.id, old.id);
   assert.deepEqual(current.tasks[0], old.tasks[0]);
   assert.deepEqual(
-    current.tasks[1]?.attempts.slice(0, 2),
+    current.tasks[1]?.attempts.slice(0, 3),
     failed.tasks[1]?.attempts,
   );
-  assert.deepEqual(current.tasks[1]?.usage, nextUsage);
+  assert.equal(current.tasks[1]?.usage, null);
   const final = decode(f.run(["report", old.id, "--full"]).stdout);
   assert.equal(final.usageScope, "all-attempts-per-aspect");
   assert.equal(final.usage, "unknown");
@@ -199,14 +203,19 @@ test("resumed pre-result failure reports unknown aspect usage while retaining di
     final.execution[1].attempts.map(
       (attempt: { usage: unknown }) => attempt.usage,
     ),
-    [priorUsage, null, nextUsage],
+    [priorUsage, verifyUsage, null, nextUsage],
   );
   assert.deepEqual(
     f
       .events()
-      .map((event) => event.aspect)
+      .map((event) => `${event.aspect}:${event.stage}`)
       .sort(),
-    ["low-value-comments", "low-value-comments", "masked-errors"],
+    [
+      "masked-errors:find",
+      "low-value-comments:find",
+      "low-value-comments:verify",
+      "low-value-comments:find",
+    ].sort(),
   );
 });
 

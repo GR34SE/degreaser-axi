@@ -6,6 +6,8 @@
 
 **Applies when:** The assessed change contains added or edited explanatory comments or docstrings. In a repository audit, assess existing comments too. Otherwise return not-applicable.
 
+**Unit:** Each explanatory comment or docstring.
+
 **Rule:** Zero explanatory comments by default. Keep only the minimum warning needed to prevent a specific, non-obvious mistake whose cause is not recoverable from names, types, implementation or connected callers. Explaining what code does, why a developer likes it, or how an algorithm works does not meet this bar. Correctness, brevity and usefulness as a summary do not justify a comment. Extra narration creates a second, drifting description that developers and coding agents can mistake for authority.
 
 **Evidence:** Apply the trap test to every assessed explanatory comment, including one-line summaries on functions, fields and constants, not just long or inaccurate comments. Quote the comment and its code, then inspect the relevant implementation and callers. For preservation, identify the tempting wrong change or use, its concrete consequence, and the hidden fact the comment supplies. Check that fact against available source or an established external contract; the comment's own claim is not proof. If no such trap remains after that check, report the comment for removal and show which information is recoverable or irrelevant. Redundant narration is the defect; it need not cause a runtime bug. Group repeated instances and list their locations rather than silently ignoring short ones. Do not invent a trap to justify a comment or claim an external fact is false merely because its source is unavailable; state that uncertainty.

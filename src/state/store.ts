@@ -60,7 +60,7 @@ export function checked<T>(
   if (!schema(value))
     throw new StateError(
       "state-corrupt",
-      `Invalid or unsupported state: ${path}`,
+      `Invalid or unsupported state: ${path}. State saved by another Degreaser version is not migrated; remove that run directory, or the repository's .degreaser directory, to start a new history.`,
     );
   return value;
 }
@@ -137,7 +137,8 @@ function checkedRun(
         (t.result &&
           (t.result.aspect !== t.assignment.aspect ||
             (t.result.status !== t.status &&
-              !(t.result.status === "incomplete" && !resolved(t))))),
+              t.status !== "running" &&
+              t.status !== "pending"))),
     ) ||
     (run.status !== "running" && run.status !== terminalStatus(run.tasks))
   )

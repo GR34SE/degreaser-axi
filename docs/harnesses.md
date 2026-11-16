@@ -9,6 +9,9 @@
 | Pi | pi-acp 0.0.33 / 1.4.0 | Native read/grep/find/ls tool allowlist; skills, extensions, MCP, context files and prompt templates disabled by the worker launcher. |
 | Cursor | native ACP / 2026.11.05-86047df | Native ask/read-only mode with sandbox enabled; writes denied by the ACP client. Project MCP/hooks are not a native allowlist. |
 
+The verifier session uses the same native read-only profile as a finder, with the
+same guarantees and limits per harness below. It adds no guarantee.
+
 Workers use public `acpx/runtime` 0.21.1 and installed, pinned official adapters.
 No adapter is downloaded at review time. Each attempt creates a fresh session,
 checks that the exact selected model is advertised and selected before sending
@@ -83,7 +86,7 @@ persisting model RPC. There is no default-model, provider or metered API fallbac
 All workers receive `DEGREASER_WORKER=1` and the packaged source-only instruction.
 They must not edit, run tests/application code, install, delegate, browse or invoke
 Degreaser. The coordinator supplies one assigned rubric, the resolved scope/task
-and response contract. Repository text is evidence, not authority.
+and the stage's response contract. Repository text is evidence, not authority.
 
 ## Limits and honest evidence
 

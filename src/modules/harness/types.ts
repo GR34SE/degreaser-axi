@@ -1,4 +1,5 @@
 import type { Runtime } from "../../util/exec/types.ts";
+import type { ModelTier } from "./common/recommend.ts";
 
 export interface Identity<Id extends string = string> {
   agent: Id;
@@ -56,7 +57,7 @@ export interface HarnessDefinition<Id extends string = string> {
   integration: Integration;
   subscription: (model: string) => string;
   recommendationPriority: number;
-  recommendationRank: (model: string) => number | undefined;
+  modelTier: (model: string) => ModelTier | undefined;
   modelChoices?: (models: readonly string[]) => ModelChoice[];
   modelError: (model: string) => string | undefined;
   session: {

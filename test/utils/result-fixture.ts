@@ -18,8 +18,4 @@ export const finding = (
   location: { path, side, startLine, endLine },
   quote,
   title: "Redundant explanation",
-  evidence: "The changed comment restates its expression.",
-  consequence: "Duplicated explanation must be maintained.",
-  countercheck: "No rationale is documented here.",
-  recommendation: "Remove the redundant comment.",
 });

@@ -34,7 +34,11 @@ export function fixture(t: TestContext, committed = true) {
   write(".gitignore", ".degreaserrc.json\nignored/\n.degreaser/\n");
   write(
     ".degreaserrc.json",
-    JSON.stringify({ agent: "codex", model: "gpt-6-luna" }),
+    JSON.stringify({
+      agent: "codex",
+      model: "gpt-6-luna",
+      verifier: { model: "gpt-6-sol" },
+    }),
   );
   if (committed) {
     git("add", ".");

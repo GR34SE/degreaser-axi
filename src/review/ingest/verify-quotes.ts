@@ -2,16 +2,8 @@ import type { AspectId } from "../../modules/aspect/api.ts";
 import type { Runtime } from "../../util/exec/types.ts";
 import { git } from "../../util/git/exec.ts";
 import type { ReviewInput } from "../types.ts";
-import { parseResult } from "./parse.ts";
-import type { Finding, Rejection } from "./types.ts";
-
-const repositoryRelative = (repository: string, path: string) => {
-  const root = `${repository}/`;
-  return (path.startsWith(root) ? path.slice(root.length) : path).replace(
-    /^(\.\/)+/,
-    "",
-  );
-};
+import { parseFinder, parseVerifier } from "./parse.ts";
+import type { Quoted, Rejection } from "./types.ts";
 
 const lineEndings = (text: string) => text.replaceAll("\r\n", "\n");
 const trimLines = (text: string) =>
@@ -35,22 +27,23 @@ function quoteMatches(
   const lines = lineEndings(quote)
     .replace(/^\n+|\n+$/g, "")
     .split("\n");
-  const marker = side === "old" ? /^[- ]/ : /^[+ ]/;
   const filled = lines.filter((line) => line.trim() !== "");
-  if (!filled.length || !filled.every((line) => marker.test(line)))
-    return false;
-  const stripped = trimLines(
-    lines.map((line) => (marker.test(line) ? line.slice(1) : line)).join("\n"),
+  return [side === "old" ? /^[- ]/ : /^[+ ]/, /^\d+\t/].some(
+    (prefix) =>
+      filled.length > 0 &&
+      filled.every((line) => prefix.test(line)) &&
+      found(
+        trimLines(lines.map((line) => line.replace(prefix, "")).join("\n")),
+      ),
   );
-  return found(stripped);
 }
 
-function omittedFinalLine(source: string, finding: Finding): boolean {
-  const quote = lineEndings(finding.quote).replace(/\n$/, "").split("\n");
-  const { startLine, endLine } = finding.location;
+function omittedFinalLine(source: string, quoted: Quoted): boolean {
+  const quote = lineEndings(quoted.quote).replace(/\n$/, "").split("\n");
+  const { startLine, endLine } = quoted.location;
   if (
     quote.filter((line) => line.trim() !== "").length < 2 ||
-    finding.quote.replace(/\s/g, "").length < 3 ||
+    quoted.quote.replace(/\s/g, "").length < 3 ||
     startLine + quote.length - 1 !== endLine + 1
   )
     return false;
@@ -63,107 +56,151 @@ function omittedFinalLine(source: string, finding: Finding): boolean {
   );
 }
 
-const beforeEndLineCorrection = (finding: Finding): Finding => ({
-  ...finding,
-  location: { ...finding.location, endLine: finding.location.endLine - 1 },
-});
+type Blobs = Map<string, string | null>;
 
-export function ingestResult(
+function blob(runtime: Runtime, input: ReviewInput, blobs: Blobs, id: string) {
+  if (!blobs.has(id)) {
+    try {
+      blobs.set(
+        id,
+        git(runtime, input.repository, ["cat-file", "blob", id], {
+          allowFailure: () => true,
+        }),
+      );
+    } catch {
+      blobs.set(id, null);
+    }
+  }
+  return blobs.get(id) ?? null;
+}
+
+const entryAt = (input: ReviewInput, { path, side }: Quoted["location"]) =>
+  input.paths.find((p) =>
+    side === "old" ? p.oldPath === path : p.path === path,
+  );
+
+function locate(
+  input: ReviewInput,
+  location: Quoted["location"],
+  anyPath: boolean,
+): { id?: string; reason?: Rejection["reason"] } {
+  const { path, side } = location;
+  const entry = entryAt(input, location);
+  if (!entry) {
+    const commit = side === "old" ? input.base : input.tree;
+    return anyPath && commit
+      ? { id: `${commit}:${path}` }
+      : { reason: anyPath ? "side-unavailable" : "path-not-assessed" };
+  }
+  const oid = side === "old" ? entry.oldOid : entry.newOid;
+  const mode = side === "old" ? entry.oldMode : entry.newMode;
+  if (!oid || (side === "old" && input.scope === "repository"))
+    return { reason: "side-unavailable" };
+  if (entry.binary || mode === "160000")
+    return { reason: "source-unavailable" };
+  return { id: oid };
+}
+
+function checkQuote(
+  runtime: Runtime,
+  input: ReviewInput,
+  quoted: Quoted,
+  blobs: Blobs,
+  anyPath = false,
+): Rejection["reason"] | undefined {
+  const located = locate(input, quoted.location, anyPath);
+  if (!located.id) return located.reason;
+  const source = blob(runtime, input, blobs, located.id);
+  if (source === null) return "source-unavailable";
+  const { startLine, endLine, side } = quoted.location;
+  const lines = source.match(/[^\n]*\n|[^\n]+$/g) ?? [];
+  if (endLine < startLine || endLine > lines.length)
+    return "range-out-of-bounds";
+  if (
+    quoteMatches(
+      lines.slice(startLine - 1, endLine).join(""),
+      quoted.quote,
+      side,
+    )
+  )
+    return undefined;
+  if (!omittedFinalLine(source, quoted)) return "quote-mismatch";
+  quoted.location.endLine++;
+  return undefined;
+}
+
+const plural = (count: number, noun: string) =>
+  `${count} ${noun}${count === 1 ? "" : "s"}`;
+
+export function ingestFinder(
   runtime: Runtime,
   text: string,
   aspect: AspectId,
   input: ReviewInput,
-  established: readonly Finding[] = [],
 ) {
-  const result = parseResult(text, aspect, input.repository);
-  const known = new Set(
-    established
-      .flatMap((f) => [f, beforeEndLineCorrection(f)])
-      .map((f) => JSON.stringify(f)),
-  );
+  const result = parseFinder(text, aspect, input.repository);
+  const blobs: Blobs = new Map();
   const rejections: Rejection[] = [];
-  const blobs = new Map<string, string | null>();
-  const unjudged: string[] = [];
+  const unexamined = new Set<string>();
+  const seen = new Set<string>();
   result.findings = result.findings.filter((finding, index) => {
-    if (known.has(JSON.stringify(finding))) return false;
-    const { path, side, startLine, endLine } = finding.location;
-    const entry = input.paths.find((p) =>
-      side === "old" ? p.oldPath === path : p.path === path,
-    );
-    let reason: Rejection["reason"] | undefined;
-    const oid = side === "old" ? entry?.oldOid : entry?.newOid;
-    const mode = side === "old" ? entry?.oldMode : entry?.newMode;
-    if (!entry) reason = "path-not-assessed";
-    else if (!oid || (side === "old" && input.scope === "repository"))
-      reason = "side-unavailable";
-    else if (entry.binary || mode === "160000") reason = "source-unavailable";
-    else {
-      if (!blobs.has(oid)) {
-        try {
-          blobs.set(
-            oid,
-            git(runtime, input.repository, ["cat-file", "blob", oid], {
-              allowFailure: () => true,
-            }),
-          );
-        } catch {
-          blobs.set(oid, null);
-        }
-      }
-      const source = blobs.get(oid);
-      if (source === null || source === undefined)
-        reason = "source-unavailable";
-      else {
-        const lines = source.match(/[^\n]*\n|[^\n]+$/g) ?? [];
-        if (endLine < startLine || endLine > lines.length)
-          reason = "range-out-of-bounds";
-        else if (
-          !quoteMatches(
-            lines.slice(startLine - 1, endLine).join(""),
-            finding.quote,
-            side,
-          )
-        ) {
-          if (omittedFinalLine(source, finding)) finding.location.endLine++;
-          else reason = "quote-mismatch";
-        }
-      }
-    }
+    const reason = checkQuote(runtime, input, finding, blobs);
     if (reason) {
       rejections.push({ index: index + 1, reason });
-      if (entry) unjudged.push(entry.path, entry.oldPath ?? entry.path);
+      const entry = entryAt(input, finding.location);
+      if (entry) unexamined.add(entry.path);
     }
-    return !reason;
+    const key = JSON.stringify(finding);
+    if (reason || seen.has(key)) return false;
+    seen.add(key);
+    return true;
   });
-  if (
-    result.status === "findings" &&
-    !result.findings.length &&
-    !rejections.length
-  )
-    result.status = "no-findings";
-  if (result.examinedPaths) {
-    const assessed = new Set(
-      input.paths.flatMap((p) => [p.path, p.oldPath].filter(Boolean)),
+  if (result.kept) {
+    const kept = result.kept.filter(
+      (unit) => !checkQuote(runtime, input, unit, blobs),
     );
-    result.examinedPaths = [
-      ...new Set(
-        result.examinedPaths.map((p) =>
-          repositoryRelative(input.repository, p),
-        ),
-      ),
-    ].filter((p) => assessed.has(p) && !unjudged.includes(p));
-    if (result.status === "no-findings" && !result.examinedPaths.length) {
-      result.status = "incomplete";
+    const dropped = result.kept.length - kept.length;
+    if (dropped)
       result.limitations.push(
-        "Reported no findings without examining any assessed path; this aspect remains unresolved.",
+        `Dropped ${plural(dropped, "kept unit")} whose quote did not match the source.`,
       );
-    }
+    result.kept = kept;
   }
-  if (rejections.length && !result.findings.length) {
-    result.status = "incomplete";
+  if (result.status === "findings" && !result.findings.length) {
+    result.status = rejections.length ? "incomplete" : "no-findings";
+    if (rejections.length)
+      result.limitations.push(
+        "All proposed findings were rejected by literal source validation; this shard remains unresolved.",
+      );
+  }
+  return { result, rejections, unexamined };
+}
+
+export function ingestVerifier(
+  runtime: Runtime,
+  text: string,
+  aspect: AspectId,
+  input: ReviewInput,
+  candidates: number,
+) {
+  const result = parseVerifier(text, aspect, input.repository);
+  const blobs: Blobs = new Map();
+  const judged = new Set<number>();
+  const verdicts = result.verdicts.filter((verdict) => {
+    const valid =
+      verdict.candidate <= candidates &&
+      !judged.has(verdict.candidate) &&
+      (verdict.verdict === "refuted" || verdict.action !== undefined) &&
+      (!verdict.evidence ||
+        !checkQuote(runtime, input, verdict.evidence, blobs, true));
+    if (valid) judged.add(verdict.candidate);
+    return valid;
+  });
+  const dropped = result.verdicts.length - verdicts.length;
+  if (dropped)
     result.limitations.push(
-      "All proposed findings were rejected by literal source validation; this aspect remains unresolved.",
+      `Discarded ${plural(dropped, "verdict")} with an unknown or repeated candidate, a missing action or an unmatched evidence quote.`,
     );
-  }
-  return { result, rejections };
+  result.verdicts = verdicts;
+  return result;
 }

@@ -31,10 +31,11 @@ export interface RunTask {
     rejections?: Rejection[];
     limitations?: string[];
     usage?: Record<string, number> | null;
-    portion?: { index: number; paths: number };
+    portion?: { index: number };
+    stage?: "find" | "verify";
   }[];
   limitations: string[];
-  unresolved?: { cause: string; paths: string[]; stuck?: string[] };
+  unresolved?: { cause: string; paths: string[] };
   usage: Record<string, number> | null;
 }
 export interface Run {
@@ -63,10 +64,37 @@ export interface Run {
 }
 export const resolved = (task: RunTask) =>
   ["findings", "no-findings", "not-applicable"].includes(task.status);
+const portionKey = (a: RunTask["attempts"][number]) =>
+  `${a.stage}:${a.portion?.index ?? 0}`;
+export function openFailure(task: RunTask, since: number) {
+  const current = task.attempts.filter((a) => a.startedAt >= since);
+  return current.findLast(
+    (a, i) =>
+      a.failure &&
+      !current.slice(i + 1).some((b) => portionKey(b) === portionKey(a)),
+  );
+}
 export function terminalStatus(tasks: RunTask[]): Run["status"] {
   return tasks.every(resolved)
     ? "completed"
     : tasks.some((t) => t.promptHash !== null && t.result)
       ? "partial"
       : "failed";
+}
+
+export function sumUsage(
+  usages: readonly (Record<string, number> | null | undefined)[],
+) {
+  const known = usages.filter(
+    (u): u is Record<string, number> => !!u && Object.keys(u).length > 0,
+  );
+  if (!usages.length || known.length !== usages.length) return null;
+  const keys = Object.keys(known[0] ?? {}).filter((key) =>
+    known.every((u) => key in u),
+  );
+  return keys.length
+    ? Object.fromEntries(
+        keys.map((key) => [key, known.reduce((n, u) => n + (u[key] ?? 0), 0)]),
+      )
+    : null;
 }

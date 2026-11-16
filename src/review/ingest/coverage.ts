@@ -1,25 +1,23 @@
 import type { Runtime } from "../../util/exec/types.ts";
 import { git } from "../../util/git/exec.ts";
+import { compareText } from "../../util/text.ts";
 import type { ReviewInput } from "../types.ts";
-import type { Unresolved, WorkerResult } from "./types.ts";
+import type { Finding } from "./types.ts";
+
+export const SHARD_BYTES = 40_000;
+export const VERIFY_BATCH = 20;
 
 type PathRecord = ReviewInput["paths"][number];
 
-export const readable = (p: PathRecord) =>
+const readable = (p: PathRecord) =>
   !p.binary && p.oldMode !== "160000" && p.newMode !== "160000";
 
 export function uncovered(input: ReviewInput, examined: readonly string[]) {
   const seen = new Set(examined);
   return input.paths
     .filter(readable)
-    .filter((p) => !seen.has(p.path) && !(p.oldPath && seen.has(p.oldPath)))
+    .filter((p) => !seen.has(p.path))
     .map((p) => p.path);
-}
-
-// Whole-repository assignments previously exhausted worker turns before covering all paths.
-export function portionBounds(maxTurns: number) {
-  const paths = Math.max(1, Math.floor(maxTurns / 2));
-  return { paths, bytes: paths * 32 * 1024 };
 }
 
 export function pathSizes(runtime: Runtime, input: ReviewInput) {
@@ -46,159 +44,35 @@ export function pathSizes(runtime: Runtime, input: ReviewInput) {
   return sizes;
 }
 
-export function takePortion(
+export function packShards(
   paths: readonly string[],
   sizes: ReadonlyMap<string, number>,
-  maxPaths: number,
-  maxBytes: number,
+  budgetBytes: number,
 ) {
-  const portion: string[] = [];
+  const shards: string[][] = [];
+  let current: string[] = [];
   let bytes = 0;
   for (const path of paths) {
-    const size = sizes.get(path) ?? maxBytes;
-    if (portion.length >= maxPaths) break;
-    if (portion.length && bytes + size > maxBytes) break;
-    portion.push(path);
+    const size = sizes.get(path) ?? budgetBytes;
+    if (current.length && bytes + size > budgetBytes) {
+      shards.push(current);
+      current = [];
+      bytes = 0;
+    }
+    current.push(path);
     bytes += size;
   }
-  return portion;
+  if (current.length) shards.push(current);
+  return shards;
 }
 
-export const nextLimit = (portionSize: number) =>
-  portionSize <= 1 ? 0 : Math.floor(portionSize / 2);
-
-const UNEXAMINED = "Unexamined assessed paths (";
-
-export function mergePass(
-  input: ReviewInput,
-  prior: WorkerResult | null,
-  pass: WorkerResult,
-  earlierApplicable = false,
-  resolving = false,
-  portion?: { index: number; paths: number },
-): WorkerResult {
-  const label = portion
-    ? `Portion ${portion.index} (${portion.paths} path${portion.paths === 1 ? "" : "s"}): `
-    : "";
-  const current = new Set(input.paths.map((p) => p.path));
-  const renamed = new Map(
-    input.paths.flatMap((p) =>
-      p.oldPath && !current.has(p.oldPath)
-        ? [[p.oldPath, p.path] as const]
-        : [],
-    ),
+export function verifyBatches(findings: readonly Finding[], size: number) {
+  const ordered = findings.toSorted(
+    (a, b) =>
+      compareText(a.location.path, b.location.path) ||
+      a.location.startLine - b.location.startLine,
   );
-  const examined = [
-    ...new Set(
-      [...(prior?.examinedPaths ?? []), ...(pass.examinedPaths ?? [])].map(
-        (path) => renamed.get(path) ?? path,
-      ),
-    ),
-  ];
-  const seen = new Set<string>();
-  const findings = [...(prior?.findings ?? []), ...pass.findings].filter(
-    (f) => !seen.has(JSON.stringify(f)) && Boolean(seen.add(JSON.stringify(f))),
-  );
-  const taskScoped =
-    pass.aspect === "scope-creep" &&
-    pass.status === "not-applicable" &&
-    !earlierApplicable;
-  const missing = taskScoped ? [] : uncovered(input, examined);
-  const assessed = new Set(input.paths.map((p) => p.path));
-  let outside = 0;
-  const named = (items: Unresolved[]) =>
-    items.map((u) => {
-      if (!u.paths) return u;
-      const mapped = [...new Set(u.paths.map((p) => renamed.get(p) ?? p))];
-      const inside = mapped.filter((p) => assessed.has(p));
-      outside += mapped.length - inside.length;
-      return { ...u, paths: inside };
-    });
-  const answered = resolving && pass.status !== "incomplete";
-  const carried = answered
-    ? []
-    : resolving && pass.unresolved?.length
-      ? []
-      : (prior?.unresolved ?? []).filter(
-          (u) =>
-            !(
-              u.scope === "paths" &&
-              u.paths?.length &&
-              u.paths.every((path) =>
-                examined.includes(renamed.get(path) ?? path),
-              )
-            ),
-        );
-  const open = new Map(
-    [...carried, ...named(pass.unresolved ?? [])].map(
-      (u) => [JSON.stringify(u), u] as const,
-    ),
-  );
-  const merged: WorkerResult = {
-    aspect: pass.aspect,
-    status:
-      missing.length || pass.status === "incomplete" || open.size
-        ? "incomplete"
-        : findings.length
-          ? "findings"
-          : pass.status === "not-applicable" && !earlierApplicable
-            ? "not-applicable"
-            : "no-findings",
-    findings,
-    limitations: [],
-    examinedPaths: examined,
-  };
-  const passReason = pass.reason && `${label}${pass.reason}`;
-  const reason =
-    prior?.reason &&
-    passReason &&
-    prior.reason !== pass.reason &&
-    !prior.reason.includes(`): ${pass.reason}`)
-      ? `${prior.reason} ${passReason}`
-      : (prior?.reason ?? passReason);
-  if (reason && ["not-applicable", "incomplete"].includes(merged.status))
-    merged.reason = reason;
-  if (merged.status === "incomplete" && !missing.length && !open.size)
-    open.set("unspecified", {
-      scope: "unspecified",
-      reason:
-        "Reported incomplete without naming what remains unresolved; see limitations.",
-    });
-  if (open.size) merged.unresolved = [...open.values()];
-  const passLimitations = [
-    ...(outside
-      ? [
-          `Ignored ${outside} unresolved path(s) named outside the assessed set.`,
-        ]
-      : []),
-    ...pass.limitations,
-  ];
-  const kept = (prior?.limitations ?? []).filter(
-    (l) => !l.startsWith(UNEXAMINED),
-  );
-  if (missing.length) {
-    const shown = missing.slice(0, 20).join(", ");
-    const more = missing.length > 20 ? ` and ${missing.length - 20} more` : "";
-    merged.limitations.push(
-      `${UNEXAMINED}${missing.length}): ${shown}${more}.`,
-    );
-  }
-  merged.limitations = [
-    ...new Set([
-      ...merged.limitations,
-      ...kept,
-      ...passLimitations.map((l) => `${label}${l}`),
-    ]),
-  ];
-  if (merged.status === "incomplete" && !merged.limitations.length)
-    merged.limitations.push(
-      `${label}Reported ${pass.status} with ${open.size} unresolved item(s); this aspect remains incomplete.`,
-    );
-  return merged;
-}
-
-export function progressed(prior: WorkerResult | null, next: WorkerResult) {
-  return (
-    (next.examinedPaths?.length ?? 0) > (prior?.examinedPaths?.length ?? 0)
+  return Array.from({ length: Math.ceil(ordered.length / size) }, (_, i) =>
+    ordered.slice(i * size, (i + 1) * size),
   );
 }
