@@ -225,7 +225,7 @@ test("the concurrency cap holds across finder and verifier workers", (t) => {
   const f = queueFixture(t, { concurrency: 2 });
   const aspects = ["masked-errors", "convention-drift", ASPECT];
   f.setPlan({
-    delayMs: 300,
+    delayMs: 1500,
     results: Object.fromEntries(
       aspects.map((aspect) => [
         aspect,
