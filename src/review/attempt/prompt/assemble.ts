@@ -9,8 +9,16 @@ import type { ReviewInput } from "../../types.ts";
 
 type PathRecord = ReviewInput["paths"][number];
 
-const asset = (path: string) =>
-  readFileSync(new URL(path, import.meta.url), "utf8");
+const assets = new Map<string, string>();
+const asset = (path: string | URL) => {
+  const url = new URL(path, import.meta.url);
+  let text = assets.get(url.href);
+  if (text === undefined) {
+    text = readFileSync(url, "utf8");
+    assets.set(url.href, text);
+  }
+  return text;
+};
 
 const STAGES = {
   find: ["./finder.md", "./find-response.md", "../../ingest/find.schema.json"],
@@ -36,7 +44,7 @@ export const promptIdentity = (aspect: AspectId) =>
       ...parts("find"),
       asset(FOLLOW_UP),
       ...parts("verify"),
-      readFileSync(ASPECTS[aspect].rubric, "utf8"),
+      asset(ASPECTS[aspect].rubric),
     ]),
   );
 
@@ -135,7 +143,7 @@ export function assembleFinder(
     untrusted,
     fenced("degreaser-input", encode(evidence)),
     `Assigned aspect: ${aspect}`,
-    readFileSync(ASPECTS[aspect].rubric, "utf8"),
+    asset(ASPECTS[aspect].rubric),
   ].join("\n\n");
 }
 
@@ -191,6 +199,6 @@ export function assembleVerifier(
     untrusted,
     fenced("degreaser-input", encode(evidence)),
     `Assigned aspect: ${aspect}`,
-    readFileSync(ASPECTS[aspect].rubric, "utf8"),
+    asset(ASPECTS[aspect].rubric),
   ].join("\n\n");
 }

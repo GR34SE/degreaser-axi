@@ -46,7 +46,10 @@ fs.readFileSync = (path, ...args) => {
       pause(fault);
     if (fault.mode === "prompt-mismatch") return `${value}\nChanged rubric.`;
     if (fault.mode === "prompt-error")
-      throw new Error("Synthetic unexpected task error with SECRET-canary");
+      throw Object.assign(
+        new Error("Synthetic unexpected task error\nsecond-line-canary"),
+        { code: "EIO" },
+      );
   }
   return value;
 };

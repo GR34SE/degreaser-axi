@@ -1,5 +1,6 @@
 import { resumable, terminalStatus } from "../../state/run.ts";
 import type { Runtime } from "../../util/exec/types.ts";
+import { loadResultSchemas } from "../ingest/parse.ts";
 import type { ResumeControls } from "../types.ts";
 import { admitRun } from "./admission.ts";
 import { reviewAspect } from "./aspect.ts";
@@ -33,6 +34,7 @@ export async function ownRun(
     slots: slots(execution.concurrency ?? run.tasks.length),
   };
   try {
+    loadResultSchemas();
     ready();
     await Promise.all(
       run.tasks.filter(resumable).map((task) => {

@@ -11,3 +11,5 @@ dist/
 !.env.example
 coverage/
 .claude/worktrees/
+
+.degreaser-build-*/

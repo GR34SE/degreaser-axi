@@ -68,7 +68,16 @@ test("help, version and strict routing work without repo, credentials or side ef
     for (const flag of ["--version", "-v", "-V", "version"]) {
       const result = run([flag]);
       assert.equal(result.status, 0);
-      assert.equal(result.stdout, `${version}\n`);
+      if (flag === "version") {
+        const commit = spawnSync("git", ["rev-parse", "--short=12", "HEAD"], {
+          cwd: root,
+          encoding: "utf8",
+        });
+        assert.equal(
+          result.stdout,
+          `${version} (commit ${commit.stdout.trim()})\n`,
+        );
+      } else assert.equal(result.stdout, `${version}\n`);
     }
     for (const args of [[], ["--help"], ["help"], ["home", "--help"]]) {
       const result = run(args);

@@ -23,7 +23,9 @@ import type { Run } from "../../src/state/run.ts";
 import { fixture } from "./git-fixture.ts";
 import { stopRuns } from "./stop-runs.ts";
 
-const cli = fileURLToPath(new URL("../../dist/main.js", import.meta.url));
+const defaultCli = fileURLToPath(
+  new URL("../../dist/main.js", import.meta.url),
+);
 const loader = fileURLToPath(
   new URL("../utils/synthetic-runtime.mjs", import.meta.url),
 );
@@ -91,6 +93,7 @@ export function capture(child: ChildProcessWithoutNullStreams) {
 export function queueFixture(
   t: TestContext,
   config: Partial<ProjectConfig> = {},
+  cli = defaultCli,
 ) {
   // Node runs after hooks in registration order; failure skips later hooks.
   let cleanup = async () => {};

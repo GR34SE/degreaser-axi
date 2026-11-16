@@ -1,15 +1,17 @@
 import { spawnSync } from "node:child_process";
+import { existsSync, renameSync } from "node:fs";
 import {
   chmod,
   copyFile,
   mkdir,
+  mkdtemp,
   readdir,
   readFile,
   rm,
   writeFile,
 } from "node:fs/promises";
 import { dirname, relative } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { renderSkill } from "../src/install/skill/guidance.ts";
 import { VERSION } from "../src/version.ts";
 
@@ -49,7 +51,7 @@ if (args.includes("--check-skill")) {
   );
   if (manifest.version !== VERSION)
     throw new Error("Package and CLI versions differ.");
-  const { HARNESSES, AGENTS } = await import("../src/modules/harness/api.ts");
+  const { AGENTS } = await import("../src/modules/harness/api.ts");
   const { ASPECT_IDS } = await import("../src/modules/aspect/api.ts");
   await catalogSchema("config/config", {
     "definitions.agent": { enum: AGENTS },
@@ -66,26 +68,57 @@ if (args.includes("--check-skill")) {
   await catalogSchema("state/run", {
     "properties.tasks": { maxItems: ASPECT_IDS.length },
   });
-  await rm(new URL("dist/", root), { recursive: true, force: true });
+  const staging = await mkdtemp(
+    fileURLToPath(new URL(".degreaser-build-", root)),
+  );
+  const stagingUrl = pathToFileURL(`${staging}/`);
+  const output = new URL("dist/", stagingUrl);
+  try {
+    await buildDistribution(output);
+    const installed = new URL("dist/", root);
+    const previous = new URL("previous/", stagingUrl);
+    const replacing = existsSync(installed);
+    if (replacing) renameSync(installed, previous);
+    try {
+      renameSync(output, installed);
+    } catch (error) {
+      if (replacing) renameSync(previous, installed);
+      throw error;
+    }
+  } finally {
+    await rm(staging, { recursive: true, force: true });
+  }
+}
+
+async function buildDistribution(output: URL) {
+  const { HARNESSES } = await import("../src/modules/harness/api.ts");
   const compile = spawnSync(
     "pnpm",
-    ["exec", "tsc", "-p", "tsconfig.build.json"],
+    [
+      "exec",
+      "tsc",
+      "-p",
+      "tsconfig.build.json",
+      "--outDir",
+      fileURLToPath(output),
+    ],
     {
       cwd: root,
       stdio: "inherit",
     },
   );
   if (compile.error) throw compile.error;
-  if (compile.status !== 0) process.exit(compile.status ?? 1);
+  if (compile.status !== 0) throw new Error("TypeScript compilation failed.");
   const source = new URL("src/", root);
   for (const file of await readdir(source, { recursive: true })) {
     if (!/\.(md|json|mjs)$/.test(file)) continue;
-    const target = new URL(`dist/${file}`, root);
+    const target = new URL(file, output);
     await mkdir(dirname(fileURLToPath(target)), { recursive: true });
     await copyFile(new URL(file, source), target);
   }
-  await mkdir(new URL(".", skill), { recursive: true });
-  await writeFile(skill, renderSkill());
+  const generatedSkill = new URL("install/skill/SKILL.md", output);
+  await mkdir(new URL(".", generatedSkill), { recursive: true });
+  await writeFile(generatedSkill, renderSkill());
   const docs = spawnSync(
     process.execPath,
     ["tools/generate-docs.ts", "--check"],
@@ -95,13 +128,25 @@ if (args.includes("--check-skill")) {
     },
   );
   if (docs.error) throw docs.error;
-  if (docs.status !== 0) process.exit(docs.status ?? 1);
-  await chmod(new URL("dist/main.js", root), 0o755);
+  if (docs.status !== 0) throw new Error("Generated documentation is stale.");
+  const commit = spawnSync("git", ["rev-parse", "--short=12", "HEAD"], {
+    cwd: root,
+    encoding: "utf8",
+  });
+  const revision =
+    commit.status === 0 && /^[a-f0-9]{12}$/.test(commit.stdout.trim())
+      ? commit.stdout.trim()
+      : null;
+  await writeFile(
+    new URL("version.js", output),
+    `export const VERSION = ${JSON.stringify(VERSION)};\nexport const BUILD_COMMIT = ${JSON.stringify(revision)};\n`,
+  );
+  await chmod(new URL("main.js", output), 0o755);
   for (const harness of Object.values(HARNESSES)) {
     const path = relative(
       fileURLToPath(source),
       fileURLToPath(harness.launcher),
     );
-    await chmod(new URL(`dist/${path}`, root), 0o755);
+    await chmod(new URL(path, output), 0o755);
   }
 }

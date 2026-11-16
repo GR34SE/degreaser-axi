@@ -146,8 +146,10 @@ are stored by Degreaser. Native harness session/cache behavior is separate.
 Diagnostics use fixed failure categories and repair guidance. Native version
 output is restricted to bounded numeric major/minor/patch tokens; other text
 is reported as unrecognized. Configuration errors identify schema constraints,
-not unknown input keys or values. Unexpected local exceptions do not expose their
-messages or stacks. Selected model IDs and local paths remain visible, so never
+not unknown input keys or values. Unexpected internal review errors retain their
+error type, system code when available, and first message line (up to 300
+characters) in local state and reports. Stacks and provider error payloads are
+not stored. Selected model IDs and local paths remain visible, so never
 use them to carry credentials. This is not a general secret scanner: validated
 result text and source evidence are intentionally retained, not scrubbed.
 
@@ -189,13 +191,19 @@ further state writes. Previously committed results and attempts remain intact.
 Owner loss leaves the last committed progress visible as interrupted, without
 inventing an attempt ending or a result. A process killed before rename can leave
 an ignored `.tmp` file; it is not authoritative and is never used for recovery.
-Prompt-identity changes and unexpected owner-task errors remain distinct from
-persistence failures. With writable storage, the owner joins active work, saves
-the sanitized fatal code/message in its `executions` entry and publishes
-partial/failed coverage. Short reports show the latest execution failure; full
-reports retain earlier failures after resume. Error messages do not include raw
-worker output, exception payloads or stacks. No second error store is used when
-the authoritative store fails.
+Prompt-identity changes and unexpected aspect errors mark that aspect
+`incomplete`; other aspects continue independently. The diagnostic remains in
+the aspect limitations, including after resume. An input mismatch requires a
+new review. A persistence failure stops the owner and joins active workers; no
+second error store is used when the authoritative store fails. Reports retain
+execution failures and earlier aspect diagnostics. Worker output and stacks
+are not included in error diagnostics.
+
+The owner loads both response schemas and each selected aspect's instructions,
+response contracts and rubric before starting its worker. These resources stay
+in process memory until that owner exits, so a subsequent checkout build does
+not remove resources from an admitted review. Resume checks the currently
+installed resources against the saved prompt identity.
 
 `review`, `wait` and `resume` block until the run ends and return completed/0
 or partial, failed or interrupted/1. Only with an explicit `--wait <seconds>` can

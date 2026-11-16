@@ -10,17 +10,18 @@ Code review for coding agents. Degreaser checks for unnecessary complexity, brok
 
 Requires Linux or macOS, Node 24+, Git, pnpm, and a logged-in Codex, Claude Code, Pi or Cursor. Linux needs a procps-compatible `/bin/ps` (minimal images such as Debian slim need the `procps` package). Claude Code, Pi and Cursor must be on PATH; the Codex worker is bundled.
 
-The package is not published to npm yet. Build a checkout and register its commands globally:
+The package is not published to npm yet. Build a checkout, then install its packed archive globally:
 
 ```sh
 git clone https://github.com/GR34SE/degreaser-axi.git
 cd degreaser-axi
 pnpm install --frozen-lockfile --ignore-scripts
 pnpm build
-pnpm add --global .
+pnpm pack --pack-destination /tmp
+pnpm add --global /tmp/degreaser-axi-1.0.0.tgz
 ```
 
-Keep the checkout at a stable path. (`pnpm link --global` no longer exists in pnpm 11 and later.)
+The archive installation is independent of later checkout builds. `degreaser-axi version` shows its build commit.
 
 ## Use
 

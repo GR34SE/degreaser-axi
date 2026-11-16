@@ -5,6 +5,7 @@ import {
   recoveryFor,
 } from "../../review/attempt/failure.ts";
 import { type RunTask, sumUsage } from "../../state/run.ts";
+import { errorSummary } from "../../util/error-summary.ts";
 import { ResultError } from "../../util/errors.ts";
 import { executionFailure } from "../../util/exec/failure.ts";
 import type { Rejection, WorkerResult } from "../ingest/types.ts";
@@ -269,7 +270,7 @@ async function runOnce<T>(
       error instanceof ResultError
         ? error.message
         : profiled
-          ? "Review stopped on an unexpected internal error; its details are not recorded."
+          ? `Review stopped on an unexpected internal error: ${errorSummary(error)}`
           : "Worker could not start or complete safely. Check the selected harness installation, subscription and native policy.",
     );
   } finally {

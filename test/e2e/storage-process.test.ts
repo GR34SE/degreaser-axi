@@ -180,46 +180,6 @@ test("the real owner rejects damaged input before writing a heartbeat or startin
   }
 });
 
-for (const [mode, code] of [
-  ["prompt-mismatch", "input-changed"],
-  ["prompt-error", "owner-failed"],
-] as const) {
-  test(`${mode} stops every aspect under its own code, not as a storage heartbeat failure`, async (t) => {
-    const f = queueFixture(t, { concurrency: 1 });
-    createRun(
-      runtime(),
-      prepareReview(
-        [
-          "--scope",
-          "worktree",
-          "--task",
-          "Update",
-          "--aspects",
-          "masked-errors,low-value-comments",
-        ],
-        f.root,
-      ),
-    );
-    writeFileSync(f.gate("fault.json"), JSON.stringify({ mode }));
-    const owner = processFixture(t, f, "owner");
-    const done = await owner.done;
-    assert.equal(done.code, 1, done.stdout + done.stderr);
-    const error = JSON.parse(done.stdout);
-    assert.equal(error.code, code, done.stdout);
-    assert.doesNotMatch(done.stdout, /heartbeat|SECRET-canary/i);
-    if (mode === "prompt-mismatch") assert.match(error.message, /run\.json/);
-    const state = f.state();
-    assert.equal(state.executions?.at(-1)?.failure?.code, code);
-    assert.ok(state.tasks.every((task) => task.result === null));
-    assert.deepEqual(state.tasks[1]?.attempts, []);
-    assert.equal(f.events().length, 0);
-    const report = f.run(["report", state.id]);
-    assert.equal(report.status, 1, report.stdout);
-    assert.match(report.stdout, /status: failed/);
-    assert.match(report.stdout, new RegExp(code));
-  });
-}
-
 test("one heartbeat replacement failure stops later writes, names run.json and preserves the last committed peer/history", async (t) => {
   const f = queueFixture(t, { concurrency: 1 });
   f.setPlan({

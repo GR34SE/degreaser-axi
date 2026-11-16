@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import type { Assignment } from "../../config/types.ts";
 import { openFailure, type RunTask } from "../../state/run.ts";
+import { errorSummary } from "../../util/error-summary.ts";
 import { StateError } from "../../util/errors.ts";
 import { executeAttempt } from "../attempt/index.ts";
 import {
@@ -27,6 +28,8 @@ import { ingestFinder, ingestVerifier } from "../ingest/verify-quotes.ts";
 import type { OwnerContext } from "./context.ts";
 
 function finderStatus(task: RunTask): FinderResult["status"] {
+  if (task.status === "incomplete" && task.unresolved?.cause === "owner-failed")
+    return "incomplete";
   const last = task.attempts.findLast((a) => a.stage === "find" && a.result);
   return last?.result && !last.failure ? last.result.status : "incomplete";
 }
@@ -46,22 +49,29 @@ const patchFile = (context: OwnerContext) =>
 
 export async function reviewAspect(context: OwnerContext, task: RunTask) {
   const aspect = task.assignment.aspect;
-  if (promptIdentity(aspect) !== task.promptHash)
-    throw new StateError(
-      "input-changed",
-      `Prompt identity for ${aspect} differs from ${join(context.dir, "run.json")}. Start a new review with the current package.`,
-    );
   try {
+    if (promptIdentity(aspect) !== task.promptHash)
+      throw new StateError(
+        "input-changed",
+        `Prompt identity for ${aspect} differs from ${join(context.dir, "run.json")}. Start a new review with the current package.`,
+      );
     if (finderStatus(task) === "incomplete") await find(context, task);
     const pending = unverified(task.result?.findings ?? []);
     if (pending.length) await verify(context, task, pending);
   } catch (error) {
-    context.control.fail(
-      error,
-      `Aspect ${aspect} could not complete because of an unexpected owner task error.`,
-    );
-    if (!context.control.persistenceError) finish(context, task);
-    throw error;
+    if (context.control.persistenceError) throw error;
+    const cause = error instanceof StateError ? error.code : "owner-failed";
+    const message = `Aspect failed (${cause}): ${errorSummary(error)}`;
+    task.result = {
+      ...(task.result ?? emptyResult(aspect)),
+      status: "incomplete",
+      limitations: [...(task.result?.limitations ?? []), message],
+    };
+    task.status = "incomplete";
+    task.unresolved = { cause };
+    task.limitations.push(message);
+    context.control.persist();
+    return;
   }
   finish(context, task);
 }
