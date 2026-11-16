@@ -5,7 +5,7 @@ export const spec: CommandSpec = {
   description:
     "Choose the review and verifier models and install agent integrations",
   usage:
-    "init --agent <agent> --model <model> --verifier-model <model> --harnesses <targets>",
+    "init --agent <agent> --model <model> [--verifier-model <model>] --harnesses <targets>",
   flags: {
     agent: {
       type: "string",
@@ -23,7 +23,7 @@ export const spec: CommandSpec = {
     "verifier-model": {
       type: "string",
       description:
-        "Confirmed verifier model ID or listed latest selector; required on every init",
+        "Optional verifier model ID or latest selector; omit verifier flags to inherit the finder model",
     },
     harnesses: {
       type: "string",

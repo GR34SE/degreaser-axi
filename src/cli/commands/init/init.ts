@@ -176,20 +176,20 @@ export async function run(
   }
   if (!identity || !verifier || !harnesses)
     throw new InputError(
-      "Explicit model, verifier and harness decisions are required.",
+      "Explicit finder model and harness decisions are required; a verifier model is required when selecting another verifier agent.",
     );
   listedOrThrow(choices, identity);
   listedOrThrow(choices, verifier);
-  const config = completeConfig(
-    {
-      ...previous,
-      schemaVersion: 1,
-      agent: identity.agent,
-      model: identity.model,
-      verifier: verifierEntry(identity, verifier),
-    },
-    ASPECT_IDS,
-  );
+  const nextConfig: ProjectConfig = {
+    ...previous,
+    schemaVersion: 1,
+    agent: identity.agent,
+    model: identity.model,
+    verifier: verifierEntry(identity, verifier),
+  };
+  if (!tty && verifierAgent === undefined && verifierModel === undefined)
+    delete nextConfig.verifier;
+  const config = completeConfig(nextConfig, ASPECT_IDS);
   resolveConfig(config, {}, ASPECT_IDS);
   if (readConfigText(path) !== before)
     throw new StateError(

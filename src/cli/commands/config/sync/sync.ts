@@ -8,6 +8,7 @@ import {
   completeConfig,
   missingConfigFields,
 } from "../../../../config/defaults.ts";
+import { lowerConfiguredLimits } from "../../../../config/limits.ts";
 import { readConfigText } from "../../../../config/load.ts";
 import { resolveConfig } from "../../../../config/resolve.ts";
 import { validateConfig } from "../../../../config/validate.ts";
@@ -36,8 +37,12 @@ export function run(f: Factory) {
   }
   const previous = validateConfig(data);
   const config = completeConfig(previous, ASPECT_IDS);
-  resolveConfig(config, {}, ASPECT_IDS);
+  const effective = resolveConfig(config, {}, ASPECT_IDS);
   const added = missingConfigFields(previous, ASPECT_IDS);
+  const suggestedRemovals = lowerConfiguredLimits(
+    previous,
+    effective.assignments.length,
+  );
   if (added.length) {
     if (readConfigText(path) !== before)
       throw new StateError(
@@ -51,6 +56,12 @@ export function run(f: Factory) {
       status: added.length ? "synchronized" : "unchanged",
       file: path,
       added,
+      ...(suggestedRemovals.length
+        ? {
+            suggestedRemovals,
+            help: "Remove the listed fields from .degreaserrc.json to use defaults, or retain your explicit limits. No limit was removed.",
+          }
+        : {}),
     },
   };
 }

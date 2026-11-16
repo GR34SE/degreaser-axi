@@ -205,6 +205,8 @@ in process memory until that owner exits, so a subsequent checkout build does
 not remove resources from an admitted review. Resume checks the currently
 installed resources against the saved prompt identity.
 
+`review`, `wait` and `resume` write progress to stderr whenever an aspect ends and at least every 30 seconds while waiting: finished/total aspects, candidates, verdicts and elapsed time. Structured results stay on stdout.
+
 `review`, `wait` and `resume` block until the run ends and return completed/0
 or partial, failed or interrupted/1. Only with an explicit `--wait <seconds>` can
 they return running/3 when that time passes; the run continues in its own

@@ -24,12 +24,14 @@ export interface Requested {
 
 export function resolvedVerifier({
   agent,
+  model,
   verifierAgent,
   verifierModel,
 }: Requested): Identity | undefined {
   const owner = verifierAgent ?? agent;
-  return owner && verifierModel
-    ? { agent: owner, model: verifierModel }
+  const selectedModel = verifierModel ?? (!verifierAgent ? model : undefined);
+  return owner && selectedModel
+    ? { agent: owner, model: selectedModel }
     : undefined;
 }
 
@@ -80,7 +82,10 @@ export function decisionRequired(
   );
   const missing = [
     ...(!agent || !model ? ["model"] : []),
-    ...(!resolvedVerifier(requested) ? ["verifier-model"] : []),
+    ...((requested.verifierAgent || requested.verifierModel) &&
+    !resolvedVerifier(requested)
+      ? ["verifier-model"]
+      : []),
     ...(!harnesses ? ["harnesses"] : []),
   ];
   if (missing.length) {
@@ -111,7 +116,7 @@ export function decisionRequired(
     return {
       code: "decision-required",
       error:
-        "Ask the user to confirm or change the worker model, the verifier model and the harness selection, then rerun with explicit flags. Existing RC and recommendations are only prefill. No product files were written.",
+        "Ask the user to confirm or change the finder model and harness selection, then rerun with explicit flags. A separate verifier is optional; omit both verifier flags to use the finder model. Existing RC and recommendations are only prefill. No product files were written.",
       missing,
       ...choices,
       prefill: prefill ? { agent: prefill.agent, model: prefill.model } : null,
@@ -120,7 +125,7 @@ export function decisionRequired(
       installationScope: scope,
       notice: metadataNotice,
       actions:
-        "Commands below are choices to show the user, not authorization to select for them. Use a listed model ID or latest selector; combine confirmed harnesses with commas. The verifier defaults to the strongest listed model; it needs --verifier-agent only when it differs from --agent.",
+        "Commands below are choices to show the user, not authorization to select for them. Use a listed model ID or latest selector; combine confirmed harnesses with commas. The suggested separate verifier uses the strongest listed model; omit both verifier flags to use the finder model. A separate verifier needs --verifier-agent only when it differs from --agent.",
       help: commands.length ? commands : ["degreaser-axi init"],
     };
   }
