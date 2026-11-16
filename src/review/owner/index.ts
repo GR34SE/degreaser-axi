@@ -27,6 +27,7 @@ export async function ownRun(
   const active = new Set<Promise<void>>();
   const verifierSlots = slots(run.tasks.length);
   verifierSlots.warm();
+  const fleet = DEFAULT_SESSIONS_PER_ASPECT * run.tasks.length;
   const context: OwnerContext = {
     runtime,
     repository,
@@ -34,9 +35,7 @@ export async function ownRun(
     dir,
     execution,
     control,
-    slots: slots(
-      execution.concurrency ?? DEFAULT_SESSIONS_PER_ASPECT * run.tasks.length,
-    ),
+    slots: slots(Math.min(execution.concurrency ?? fleet, fleet)),
     verifierSlots,
   };
   try {

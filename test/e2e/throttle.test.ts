@@ -70,6 +70,7 @@ for (const recovers of [true, false])
 
 test("a temporarily throttled later round recovers automatically from its saved finder coverage", (t) => {
   const f = queueFixture(t, { maxRetries: 1 });
+  const limitation = "a.ts was only partly readable.";
   f.write("a.ts", "export const a = 1;\n");
   f.setPlan({
     workers: {
@@ -79,6 +80,7 @@ test("a temporarily throttled later round recovers automatically from its saved 
             rounds: [
               found("findings", [candidate("a.ts", "export const a = 1;")], {
                 examinedPaths: ["a.ts"],
+                limitations: [limitation],
               }),
               throttled,
             ],
@@ -104,6 +106,7 @@ test("a temporarily throttled later round recovers automatically from its saved 
     [["a.ts", "source.ts"], ["source.ts"], ["source.ts"]],
   );
   assert.equal(f.state().tasks[0]?.result?.findings[0]?.verdict, "upheld");
+  assert.deepEqual(f.state().tasks[0]?.result?.limitations, [limitation]);
   assert.equal(
     new Set(stage(f, "find").map((event) => event.sessionId)).size,
     2,
@@ -150,4 +153,68 @@ test("temporary verifier throttling retries the missing candidates in smaller ba
   );
   assert.equal(f.state().executions?.at(-1)?.concurrency, 1);
   assert.ok(stage(f, "verify").every((event) => event.model === "gpt-6-sol"));
+});
+
+test("a throttled verifier of a single aspect retries only after its finder frees the halved session capacity", async (t) => {
+  const f = queueFixture(t, {
+    concurrency: 16,
+    limits: { workerTimeoutSeconds: 30, runTimeoutSeconds: 60 },
+  });
+  const quotes = Array.from({ length: 5 }, (_, i) => `// note ${i + 1}`);
+  f.write("a.ts", `${quotes.join("\n")}\nexport const a = 1;\n`);
+  f.setPlan({
+    workers: {
+      [ASPECT]: {
+        rounds: [
+          found(
+            "findings",
+            quotes.map((quote, i) => candidate("a.ts", quote, i + 1)),
+            { examinedPaths: ["a.ts"] },
+          ),
+          {
+            ...found("no-findings", [], { examinedPaths: ["source.ts"] }),
+            resultGate: f.gate("finder"),
+          },
+        ],
+        verifier: { attempts: [throttled] },
+      },
+    },
+  });
+  f.start(["--aspects", ASPECT]);
+  await until(
+    () => f.state().executions?.at(-1)?.concurrency === 1,
+    "One finder and one verifier are the whole fleet, so its half is one session",
+    6000,
+  );
+  const endedAt = f
+    .state()
+    .tasks[0]?.attempts.find((attempt) => attempt.stage === "verify")?.endedAt;
+  assert.ok(endedAt);
+  await until(
+    () => Date.now() - endedAt >= 2200,
+    "The bounded backoff elapsed while the finder is still gated",
+    5000,
+  );
+  assert.equal(f.state().tasks[0]?.attempts[0]?.endedAt, null);
+  assert.equal(
+    stage(f, "verify").length,
+    1,
+    "The retry cannot start while the finder holds the only session",
+  );
+  f.release("finder");
+  const done = f.finish();
+  assert.equal(done.status, 0, done.stdout);
+  assert.equal(f.state().status, "completed");
+  assert.deepEqual(
+    stage(f, "verify").map((event) => event.candidates?.length),
+    [5, 2, 2, 1],
+  );
+  assert.deepEqual(
+    f.state().tasks[0]?.result?.findings.map((finding) => finding.verdict),
+    Array(5).fill("upheld"),
+  );
+  assert.equal(stage(f, "find").length, 2);
+  assert.ok(stage(f, "find").every((event) => event.model === "gpt-6-luna"));
+  assert.ok(stage(f, "verify").every((event) => event.model === "gpt-6-sol"));
+  assert.ok(f.events().every((event) => event.agent === "codex"));
 });

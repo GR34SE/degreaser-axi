@@ -81,7 +81,7 @@ async function find(
   const aspect = task.assignment.aspect;
   const saved = task.result?.examinedPaths?.length ? task.result : undefined;
   let rejections: Rejection[] = saved ? task.rejections : [];
-  const earlier = saved
+  let earlier = saved
     ? notesOfOtherStage(saved, "verify").filter(
         (note) => note !== rejectedNote(rejections.length),
       )
@@ -120,6 +120,7 @@ async function find(
     },
     record: (value, complete) => {
       checkpoint(value);
+      earlier = [...earlier, ...value.limitations];
       return finderRecord(value, complete);
     },
     follow: (round, prior) => {
@@ -142,10 +143,7 @@ async function find(
   const merged = merge({
     ...outcome.value,
     status: outcome.complete ? outcome.value.status : "incomplete",
-    limitations: [
-      ...outcome.value.limitations,
-      ...(rejections.length ? [rejectedNote(rejections.length)] : []),
-    ],
+    limitations: rejections.length ? [rejectedNote(rejections.length)] : [],
   });
   const left = remaining(context, merged.examinedPaths ?? []).length;
   task.result =
