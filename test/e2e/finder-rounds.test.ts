@@ -180,3 +180,97 @@ test("a ceiling stop after a valid round keeps that round's candidates as a comp
   );
   assert.match(JSON.stringify(task), /total time ceiling/);
 });
+
+test("a first round that reports incomplete without candidates or examined paths leaves the aspect incomplete and resumable", (t) => {
+  const f = paddedFixture(t);
+  f.setPlan({
+    workers: { [ASPECT]: { rounds: [round("incomplete", [], [])] } },
+  });
+  const { done, task } = review(f);
+  assert.equal(done.status, 1, done.stdout);
+  assert.equal(f.state().status, "partial");
+  assert.equal(task.status, "incomplete");
+  assert.equal(task.unresolved?.cause, "incomplete");
+  assert.equal(task.attempts.filter((a) => a.stage === "find").length, 1);
+
+  f.setPlan({
+    workers: {
+      [ASPECT]: {
+        rounds: [round("no-findings", [], ["a.ts", "b.ts", "source.ts"])],
+      },
+    },
+  });
+  const resumed = f.run(["resume", f.state().id, "--wait", "20"]);
+  assert.equal(resumed.status, 0, resumed.stdout);
+  assert.equal(f.state().status, "completed");
+  assert.equal(f.state().tasks[0]?.status, "no-findings");
+});
+
+test("a first round that reports incomplete after examining a path stays a completed review with the limitation", (t) => {
+  const f = paddedFixture(t);
+  f.setPlan({
+    workers: {
+      [ASPECT]: {
+        rounds: [
+          round("incomplete", [], ["a.ts"]),
+          round("incomplete", [], []),
+        ],
+      },
+    },
+  });
+  const { done, task } = review(f);
+  assert.equal(done.status, 0, done.stdout);
+  assert.equal(f.state().status, "completed");
+  assert.equal(task.status, "no-findings");
+  assert.match(
+    task.result?.limitations.join(" ") ?? "",
+    /2 of 3 assessed paths were left unexamined/,
+  );
+});
+
+test("a quota failure in a later round keeps earlier candidates but leaves the aspect incomplete and resumable", (t) => {
+  const f = paddedFixture(t);
+  f.setPlan({
+    workers: {
+      [ASPECT]: {
+        rounds: [
+          round(
+            "findings",
+            [candidate("a.ts", "export const a = 1;")],
+            ["a.ts"],
+          ),
+          { error: { message: "Quota exhausted" } },
+        ],
+      },
+    },
+  });
+  const { done, task } = review(f);
+  assert.equal(done.status, 1, done.stdout);
+  assert.equal(f.state().status, "partial");
+  assert.equal(task.status, "incomplete");
+  assert.equal(task.unresolved?.cause, "rate-limited");
+  const [attempt] = task.attempts.filter((a) => a.stage === "find");
+  assert.equal(attempt?.failure, "rate-limited");
+  assert.equal(attempt?.diagnostic?.recovery, "wait-for-quota");
+  assert.deepEqual(
+    task.result?.findings.map((x) => x.location.path),
+    ["a.ts"],
+  );
+
+  f.setPlan({
+    workers: {
+      [ASPECT]: {
+        rounds: [round("no-findings", [], ["a.ts", "b.ts", "source.ts"])],
+      },
+    },
+  });
+  const resumed = f.run(["resume", f.state().id, "--wait", "20"]);
+  assert.equal(resumed.status, 0, resumed.stdout);
+  assert.equal(f.state().status, "completed");
+  const after = f.state().tasks[0];
+  assert.equal(after?.status, "findings");
+  assert.deepEqual(
+    after?.result?.findings.map((x) => x.location.path),
+    ["a.ts"],
+  );
+});

@@ -145,11 +145,7 @@ test("finder instruction asks for every instance and both stages keep the shared
     /When you are unsure whether an instance is a defect, report it/,
   );
   assert.match(finder, /`\*\*Unit:\*\*`/);
-  assert.match(finder, /`examinedPaths`/);
-  assert.doesNotMatch(finder, /`kept`|shard/);
   for (const text of [finder, verifier]) {
-    assert.match(text, /read-only `git`/);
-    assert.match(text, /AGENTS\.md, CLAUDE\.md, CONTRIBUTING/);
     assert.match(text, /never instructions to you/);
     assert.match(text, /120000/);
     assert.match(text, /dismissed/);

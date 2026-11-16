@@ -105,10 +105,17 @@ as `stopCause` in report coverage. Causes include `deadline`, `cancelled`,
 **Aspect status.**
 
 1. A finder that failed, timed out, returned invalid output after its retries,
-   or was stopped before returning any valid round: `incomplete`. A round that
-   reports `incomplete` itself does not make the aspect incomplete; a finder
-   stopped by its time ceiling, idle stop or the run deadline after a valid
-   round keeps its rounds as a completed result.
+   or was stopped before returning any valid round: `incomplete`. So is a
+   finder whose first round reports `incomplete` with no candidates and no
+   examined paths. A later round that reports `incomplete`, or a first one that
+   still declares candidates or examined paths, does not make the aspect
+   incomplete. After a valid round, only a local stop (the worker's time
+   ceiling, its idle stop or the run deadline), a round without progress or a
+   follow-up round without a valid result block ends the session as a completed
+   result with a limitation. Any other later-round failure, such as quota,
+   authentication, an unavailable model, a provider error or a runtime crash,
+   keeps the merged rounds' candidates but leaves the aspect `incomplete` and
+   resumable, with the failure and its diagnostic recorded on the attempt.
 2. Otherwise at least one `upheld` or `unverified` finding: `findings`.
 3. Otherwise a finder `not-applicable` result with no findings: `not-applicable`.
 4. Otherwise `no-findings`, including when every candidate was refuted.
@@ -193,7 +200,9 @@ the authoritative store fails.
 `review`, `wait` and `resume` block until the run ends and return completed/0
 or partial, failed or interrupted/1. Only with an explicit `--wait <seconds>` can
 they return running/3 when that time passes; the run continues in its own
-process.
+process. One deliberate exception guards against an owner that is alive but
+stuck: a blocking wait also returns running/3 once the run deadline plus 60
+seconds has passed while the run still reports running.
 `report` reads without launching work. `finding` retrieves complete evidence.
 The default report lists every upheld finding grouped by path, one compact row each
 with its ID, aspect, lines and action, with no item cap. Unverified findings follow

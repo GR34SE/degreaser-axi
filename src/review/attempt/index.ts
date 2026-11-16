@@ -208,7 +208,11 @@ async function runOnce<T>(
         const complete =
           !cleanupFailed &&
           (gathered
-            ? !runStopped || control.stopReason === "deadline"
+            ? runStopped
+              ? control.stopReason === "deadline"
+              : !record.failure ||
+                outcome.diagnostic?.stop === "idle" ||
+                outcome.diagnostic?.stop === "ceiling"
             : !runStopped &&
               (!record.failure || record.failure === "environment-blocked"));
         if (complete && gathered && record.failure) {

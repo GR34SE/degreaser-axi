@@ -5,7 +5,7 @@
 | Harness | Adapter / verified native version | Effective restriction |
 | --- | --- | --- |
 | Codex | @agentclientprotocol/codex-acp 2.5.0 / 0.165.0 | Native read-only filesystem sandbox with never approval; shell/code mode remains for reads. Project docs/hooks/delegation/apps/web/MCP are disabled by the worker profile. |
-| Claude Code | @agentclientprotocol/claude-agent-acp 0.95.0 / 2.1.317 | Native Read/Grep/Glob/Bash tool allowlist; Bash limited by native allow rules and dontAsk mode to read-only git subcommands, with deny rules for git output and pager options and for quoting, escapes, expansions and redirection. Settings sources, skills, hooks and MCP disabled by the worker launcher. Managed policy is retained. |
+| Claude Code | @agentclientprotocol/claude-agent-acp 0.95.0 / 2.1.317 | Native Read/Grep/Glob/Bash tool allowlist; Bash limited by native allow rules and dontAsk mode to read-only git subcommands, with deny rules for git output, pager and --no-index options and for quoting, escapes, expansions and redirection. Settings sources, skills, hooks and MCP disabled by the worker launcher. Managed policy is retained. |
 | Pi | pi-acp 0.0.33 / 1.4.0 | Native read/grep/find/ls/bash tool allowlist; bash limited by the launcher's own extension, which blocks any call that is not a read-only git subcommand with plain arguments. Skills, other extensions, MCP, context files and prompt templates disabled by the worker launcher. |
 | Cursor | native ACP / 2026.11.05-86047df | Native ask/read-only mode with sandbox enabled; writes denied by the ACP client. Project MCP/hooks are not a native allowlist. |
 
@@ -106,8 +106,8 @@ and the stage's response contract. Repository text is evidence, not authority.
   Claude's Bash is limited by native permission rules matched against command
   text; Pi's bash by the launcher's extension, which accepts only a read-only git
   subcommand with plain arguments (no quotes, globs, variables, redirection or
-  command separators) and rejects git options that write files or start a pager
-  program. Neither is a sandbox around the git process.
+  command separators) and rejects git options that write files, start a pager
+  program or read outside the repository (`--no-index`). Neither is a sandbox around the git process.
 - Cursor ask mode is native read-only behavior plus client-side deny-writes, not
   a tool allowlist. Repository rules (AGENTS.md, CLAUDE.md), project MCP, hooks,
   plugins and skills may remain visible; the `native-worker` pilot records an
@@ -170,7 +170,7 @@ Native read-only filesystem sandbox with never approval; shell/code mode remains
 
 ## Claude Code
 
-Native Read/Grep/Glob/Bash tool allowlist; Bash limited by native allow rules and dontAsk mode to read-only git subcommands, with deny rules for git output and pager options and for quoting, escapes, expansions and redirection. Settings sources, skills, hooks and MCP disabled by the worker launcher. Managed policy is retained.
+Native Read/Grep/Glob/Bash tool allowlist; Bash limited by native allow rules and dontAsk mode to read-only git subcommands, with deny rules for git output, pager and --no-index options and for quoting, escapes, expansions and redirection. Settings sources, skills, hooks and MCP disabled by the worker launcher. Managed policy is retained.
 
 - Native tool allowlist and Bash permission rules are not an OS sandbox for the adapter or for the commands Bash runs.
 - Bash rules match command text with Claude Code's own parser; commands Claude Code classifies as read-only may also run. git keeps user and repository configuration, including diff drivers and textconv filters.

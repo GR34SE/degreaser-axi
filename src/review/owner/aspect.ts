@@ -137,7 +137,8 @@ function gather(round: FinderResult, prior?: FinderResult): FinderResult {
     status: merged.findings.length
       ? "findings"
       : round.status === "incomplete"
-        ? (prior?.status ?? "no-findings")
+        ? (prior?.status ??
+          (merged.examinedPaths?.length ? "no-findings" : "incomplete"))
         : round.status,
   };
 }

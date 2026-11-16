@@ -54,7 +54,7 @@ test("other programs, subcommands, global options and shell syntax are rejected"
     assert.ok(readOnlyGitViolation(command), String(command));
 });
 
-test("options that write files or start programs are rejected", () => {
+test("options that write files, start programs or read outside the repository are rejected", () => {
   for (const command of [
     "git diff --output=x.patch",
     "git diff --output x.patch",
@@ -65,6 +65,9 @@ test("options that write files or start programs are rejected", () => {
     "git grep -Osh x",
     "git grep -nOsh x",
     "git grep -O x",
+    "git diff --no-index /etc/hosts /etc/passwd",
+    "git grep --no-index -n root /etc",
+    "git grep --no-i root /etc",
   ])
     assert.ok(readOnlyGitViolation(command), command);
 });

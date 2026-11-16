@@ -11,7 +11,7 @@ export const READ_ONLY_GIT_SUBCOMMANDS = [
   "rev-parse",
 ] as const;
 
-export const UNSAFE_GIT_OPTION_PREFIXES = ["--ou", "--op"] as const;
+export const UNSAFE_GIT_OPTION_PREFIXES = ["--ou", "--op", "--no-i"] as const;
 
 const plainWord = /^[\w./:@^~=,+%-]+$/;
 
@@ -30,7 +30,7 @@ export function readOnlyGitViolation(command: unknown): string | undefined {
       UNSAFE_GIT_OPTION_PREFIXES.some((prefix) => arg.startsWith(prefix)) ||
       (subcommand === "grep" && /^-[^-]*O/.test(arg))
     )
-      return "Options that write files or start programs are not allowed.";
+      return "Options that write files, start programs or read outside the repository are not allowed.";
   }
   return undefined;
 }

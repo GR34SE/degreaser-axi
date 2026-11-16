@@ -95,8 +95,8 @@ and the stage's response contract. Repository text is evidence, not authority.
   Claude's Bash is limited by native permission rules matched against command
   text; Pi's bash by the launcher's extension, which accepts only a read-only git
   subcommand with plain arguments (no quotes, globs, variables, redirection or
-  command separators) and rejects git options that write files or start a pager
-  program. Neither is a sandbox around the git process.
+  command separators) and rejects git options that write files, start a pager
+  program or read outside the repository (`--no-index`). Neither is a sandbox around the git process.
 - Cursor ask mode is native read-only behavior plus client-side deny-writes, not
   a tool allowlist. Repository rules (AGENTS.md, CLAUDE.md), project MCP, hooks,
   plugins and skills may remain visible; the `native-worker` pilot records an
