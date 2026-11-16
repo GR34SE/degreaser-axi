@@ -332,7 +332,10 @@ test("an alternate installed package refuses independently changed instruction, 
   const before = readFileSync(path);
   const install = mkdtempSync(join(tmpdir(), "degreaser-freshness-"));
   t.after(() => rmSync(install, { recursive: true, force: true }));
-  cpSync(join(root, "dist"), join(install, "dist"), { recursive: true });
+  cpSync(join(root, "dist"), join(install, "dist"), {
+    recursive: true,
+    dereference: true,
+  });
   symlinkSync(join(root, "node_modules"), join(install, "node_modules"), "dir");
   writeFileSync(join(install, "package.json"), '{"type":"module"}');
   for (const asset of [

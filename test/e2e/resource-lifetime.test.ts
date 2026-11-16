@@ -21,7 +21,10 @@ test("an admitted review keeps its instructions, rubric and schemas when package
   const installed = realpathSync(
     mkdtempSync(join(tmpdir(), "degreaser-resource-lifetime-")),
   );
-  cpSync(join(root, "dist"), join(installed, "dist"), { recursive: true });
+  cpSync(join(root, "dist"), join(installed, "dist"), {
+    recursive: true,
+    dereference: true,
+  });
   cpSync(join(root, "package.json"), join(installed, "package.json"));
   symlinkSync(
     join(root, "node_modules"),

@@ -1,13 +1,15 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, renameSync } from "node:fs";
+import { existsSync, lstatSync, renameSync } from "node:fs";
 import {
   chmod,
   copyFile,
+  cp,
   mkdir,
   mkdtemp,
   readdir,
   readFile,
   rm,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import { dirname, relative } from "node:path";
@@ -46,9 +48,10 @@ if (args.includes("--check-skill")) {
   await mkdir(new URL(".", skill), { recursive: true });
   await writeFile(skill, renderSkill());
 } else {
-  const manifest: { version: string } = JSON.parse(
-    await readFile(new URL("package.json", root), "utf8"),
-  );
+  const manifest: {
+    version: string;
+    publishConfig: { access: string; directory?: string };
+  } = JSON.parse(await readFile(new URL("package.json", root), "utf8"));
   if (manifest.version !== VERSION)
     throw new Error("Package and CLI versions differ.");
   const { AGENTS } = await import("../src/modules/harness/api.ts");
@@ -68,25 +71,40 @@ if (args.includes("--check-skill")) {
   await catalogSchema("state/run", {
     "properties.tasks": { maxItems: ASPECT_IDS.length },
   });
-  const staging = await mkdtemp(
-    fileURLToPath(new URL(".degreaser-build-", root)),
-  );
+  const builds = new URL(".degreaser-build/", root);
+  await mkdir(builds, { recursive: true });
+  const staging = await mkdtemp(fileURLToPath(new URL("revision-", builds)));
   const stagingUrl = pathToFileURL(`${staging}/`);
   const output = new URL("dist/", stagingUrl);
+  let published = false;
+  const next = new URL(
+    `${relative(fileURLToPath(builds), staging)}.next`,
+    builds,
+  );
   try {
     await buildDistribution(output);
-    const installed = new URL("dist/", root);
-    const previous = new URL("previous/", stagingUrl);
-    const replacing = existsSync(installed);
-    if (replacing) renameSync(installed, previous);
-    try {
-      renameSync(output, installed);
-    } catch (error) {
-      if (replacing) renameSync(previous, installed);
-      throw error;
-    }
+    const packedManifest = structuredClone(manifest);
+    delete packedManifest.publishConfig.directory;
+    await writeFile(
+      new URL("package.json", stagingUrl),
+      `${JSON.stringify(packedManifest, null, 2)}\n`,
+    );
+    for (const path of ["docs", "README.md", "LICENSE"])
+      await cp(new URL(path, root), new URL(path, stagingUrl), {
+        recursive: true,
+      });
+    await symlink(relative(fileURLToPath(builds), staging), next, "dir");
+    renameSync(next, new URL("current", builds));
+    published = true;
+    const installed = new URL("dist", root);
+    if (existsSync(installed) && !lstatSync(installed).isSymbolicLink())
+      renameSync(installed, new URL("legacy-dist", stagingUrl));
+    if (!existsSync(installed))
+      await symlink(".degreaser-build/current/dist", installed, "dir");
+    // Retain revisions: active processes resolve their modules and launchers there.
   } finally {
-    await rm(staging, { recursive: true, force: true });
+    await rm(next, { force: true });
+    if (!published) await rm(staging, { recursive: true, force: true });
   }
 }
 
