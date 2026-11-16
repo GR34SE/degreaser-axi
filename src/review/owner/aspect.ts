@@ -34,6 +34,8 @@ function finderStatus(task: RunTask): FinderResult["status"] {
 const unverified = (findings: readonly Finding[]) =>
   findings.filter((f) => f.verdict === "unverified");
 
+const VERIFIER = "Verifier: ";
+
 const patchFile = (context: OwnerContext) =>
   join(context.dir, "input", "patch.diff");
 
@@ -89,21 +91,28 @@ async function find(context: OwnerContext, task: RunTask) {
   });
   if (!outcome) return;
   task.rejections = rejections;
-  const merged = mergeFinder(task.result ?? emptyResult(aspect), {
-    ...outcome.value,
-    status: outcome.complete ? outcome.value.status : "incomplete",
-    limitations: [
-      ...outcome.value.limitations,
-      ...(rejections.length
-        ? [
-            `${rejections.length} candidate(s) were rejected by literal source validation.`,
-          ]
-        : []),
-    ],
-  });
+  const prior = task.result ?? emptyResult(aspect);
+  const merged = mergeFinder(
+    {
+      ...prior,
+      limitations: prior.limitations.filter((l) => l.startsWith(VERIFIER)),
+    },
+    {
+      ...outcome.value,
+      status: outcome.complete ? outcome.value.status : "incomplete",
+      limitations: [
+        ...outcome.value.limitations,
+        ...(rejections.length
+          ? [
+              `${rejections.length} candidate(s) were rejected by literal source validation.`,
+            ]
+          : []),
+      ],
+    },
+  );
   const left = remaining(context, merged.examinedPaths ?? []).length;
   task.result =
-    outcome.complete && left
+    outcome.complete && outcome.value.status !== "incomplete" && left
       ? {
           ...merged,
           limitations: [
@@ -189,11 +198,11 @@ async function verify(
     findings: task.result.findings.map((f) => replaced.get(f) ?? f),
     limitations: [
       ...task.result.limitations,
-      ...outcome.value.limitations.map((l) => `Verifier: ${l}`),
+      ...outcome.value.limitations.map((l) => `${VERIFIER}${l}`),
       ...(outcome.complete
         ? []
         : [
-            "Verifier: worker lifecycle did not finish successfully; its verdicts were not applied.",
+            `${VERIFIER}worker lifecycle did not finish successfully; its verdicts were not applied.`,
           ]),
     ],
   };

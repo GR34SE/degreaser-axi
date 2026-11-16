@@ -191,6 +191,10 @@ test("a first round that reports incomplete without candidates or examined paths
   assert.equal(f.state().status, "partial");
   assert.equal(task.status, "incomplete");
   assert.equal(task.unresolved?.cause, "incomplete");
+  assert.doesNotMatch(
+    task.result?.limitations.join(" ") ?? "",
+    /left unexamined/,
+  );
   assert.equal(task.attempts.filter((a) => a.stage === "find").length, 1);
 
   f.setPlan({
@@ -204,6 +208,7 @@ test("a first round that reports incomplete without candidates or examined paths
   assert.equal(resumed.status, 0, resumed.stdout);
   assert.equal(f.state().status, "completed");
   assert.equal(f.state().tasks[0]?.status, "no-findings");
+  assert.deepEqual(f.state().tasks[0]?.result?.limitations, []);
 });
 
 test("a first round that reports incomplete after examining a path stays a completed review with the limitation", (t) => {
