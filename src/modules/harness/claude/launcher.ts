@@ -1,9 +1,30 @@
 #!/usr/bin/env node
 import {
+  READ_ONLY_GIT_SUBCOMMANDS,
+  UNSAFE_GIT_OPTION_PREFIXES,
+} from "../common/git-command.ts";
+import {
   launchNative,
   replaceOptions,
   selectedModel,
 } from "../common/launch.ts";
+
+const permissions = {
+  allow: READ_ONLY_GIT_SUBCOMMANDS.flatMap((name) => [
+    `Bash(git ${name})`,
+    `Bash(git ${name} *)`,
+  ]),
+  deny: [
+    ...UNSAFE_GIT_OPTION_PREFIXES.map((prefix) => `Bash(git * ${prefix}*)`),
+    "Bash(git grep *-*O*)",
+    // Quoting, escapes and expansions could hide an option from the prefix
+    // rules above; both spellings deny a backslash whether or not the rule
+    // parser treats it as an escape.
+    ...["'", '"', "\\", "\\\\", "$", "`", "{", "<", ">"].map(
+      (character) => `Bash(git *${character}*)`,
+    ),
+  ],
+};
 
 try {
   const args = replaceOptions(process.argv.slice(2), {
@@ -35,16 +56,16 @@ try {
         ? []
         : ["--model", selectedModel(process.env)]),
       "--tools",
-      "Read,Grep,Glob",
+      "Read,Grep,Glob,Bash",
       "--setting-sources",
       "",
       "--strict-mcp-config",
       "--mcp-config",
       '{"mcpServers":{}}',
       "--settings",
-      '{"disableAllHooks":true,"apiKeyHelper":""}',
+      JSON.stringify({ disableAllHooks: true, apiKeyHelper: "", permissions }),
       "--permission-mode",
-      "default",
+      "dontAsk",
       "--disable-slash-commands",
       "--safe-mode",
     ],

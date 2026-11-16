@@ -11,7 +11,7 @@
     "agent": { "$ref": "#/definitions/agent" },
     "model": { "$ref": "#/definitions/model" },
     "verifier": {
-      "description": "Required by the CLI (init chooses it): the agent/model that verifies findings. A model-only entry inherits the top-level agent; an agent requires an explicit model.",
+      "description": "The agent/model that verifies findings; absent means the top-level agent/model. A model-only entry inherits the top-level agent; an agent requires an explicit model.",
       "type": "object",
       "additionalProperties": false,
       "required": ["model"],
@@ -21,7 +21,10 @@
       },
       "allOf": [{ "$ref": "#/definitions/piIdentity" }]
     },
-    "concurrency": { "anyOf": [{ "type": "null" }, { "$ref": "#/definitions/positiveInteger" }] },
+    "concurrency": {
+      "description": "Optional cap on simultaneous workers. Absent means one per selected aspect.",
+      "$ref": "#/definitions/positiveInteger"
+    },
     "maxRetries": { "type": "integer", "minimum": 0, "maximum": 10 },
     "limits": {
       "type": "object",

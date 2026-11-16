@@ -31,6 +31,7 @@ export interface Event {
   type?: string;
   aspect: string;
   stage?: "find" | "verify";
+  round?: number;
   paths?: string[];
   candidates?: { candidate: number; quote: string; title: string }[];
   pid: number;

@@ -4,10 +4,7 @@ import type { ProjectConfig } from "./types.ts";
 
 const LEGACY_ASPECT_KEYS = ["enable", "disable", "overrides"];
 
-export function validateConfig(
-  data: unknown,
-  { requireVerifier = true } = {},
-): ProjectConfig {
+export function validateConfig(data: unknown): ProjectConfig {
   const aspects = (data as { aspects?: unknown } | null)?.aspects;
   if (
     aspects &&
@@ -16,6 +13,10 @@ export function validateConfig(
   )
     throw new InputError(
       '.degreaserrc.json: aspects.enable/disable/overrides were replaced by one entry per aspect, e.g. "aspects": { "scope-creep": false, "low-value-comments": { "model": "<model>" } }. Omitted aspects are on.',
+    );
+  if ((data as { concurrency?: unknown } | null)?.concurrency === null)
+    throw new InputError(
+      ".degreaserrc.json: concurrency null is no longer supported. Remove it to run one worker per selected aspect, or set a positive cap.",
     );
   const validate = schema<ProjectConfig>(
     new URL("./config.schema.json", import.meta.url),
@@ -26,10 +27,5 @@ export function validateConfig(
       .join("; ");
     throw new InputError(`.degreaserrc.json: ${details}`);
   }
-  if (requireVerifier && !data.verifier)
-    throw new InputError(
-      ".degreaserrc.json: verifier is required. Run degreaser-axi init to choose the verifier agent and model.",
-      ["degreaser-axi init"],
-    );
   return data;
 }

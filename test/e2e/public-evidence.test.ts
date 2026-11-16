@@ -8,6 +8,7 @@ import test from "node:test";
 
 import { decode } from "@toon-format/toon";
 
+import { UNFINISHED } from "../utils/coverage-fixture.ts";
 import { fixture } from "../utils/git-fixture.ts";
 
 import { args, setup } from "../utils/public-review-fixture.ts";
@@ -109,7 +110,7 @@ test("detached public review persists immutable input and source evidence for re
   assert.equal(f.events().length, 2);
 });
 
-test("public malformed/tool-only/all-rejected output never becomes a clean result", (t) => {
+test("public malformed or tool-only output never becomes a clean result, and an all-rejected result keeps its rejections", (t) => {
   const f = setup(t);
   f.write("source", "literal\n");
   f.write(
@@ -164,10 +165,21 @@ test("public malformed/tool-only/all-rejected output never becomes a clean resul
     },
   });
   const rejected = f.run(args);
-  assert.equal(rejected.status, 1, rejected.stdout);
-  assert.match(rejected.stdout, /status: partial/);
-  assert.match(rejected.stdout, /incomplete/);
-  assert.match(f.run(["report", "--full"]).stdout, /quote-mismatch/);
+  assert.equal(rejected.status, 0, rejected.stdout);
+  assert.match(rejected.stdout, /status: completed/);
+  const { latestRunId } = JSON.parse(
+    readFileSync(join(f.root, ".degreaser/state.json"), "utf8"),
+  );
+  const run = JSON.parse(
+    readFileSync(
+      join(f.root, ".degreaser/runs", latestRunId, "run.json"),
+      "utf8",
+    ),
+  );
+  assert.equal(run.tasks[0].status, "no-findings");
+  assert.deepEqual(run.tasks[0].rejections, [
+    { index: 1, reason: "quote-mismatch" },
+  ]);
 });
 
 test("usable assistant result survives permission-denial transport termination", (t) => {
@@ -239,6 +251,7 @@ test("compiled audit disclosures include binary/gitlink/filter limits and unexam
     "module",
   );
   f.setPlan({
+    workers: { "low-value-comments": UNFINISHED },
     results: {
       "low-value-comments": {
         aspect: "low-value-comments",

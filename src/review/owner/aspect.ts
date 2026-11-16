@@ -5,16 +5,10 @@ import { StateError } from "../../util/errors.ts";
 import { executeAttempt } from "../attempt/index.ts";
 import {
   assembleFinder,
+  assembleFollowUp,
   assembleVerifier,
   promptIdentity,
 } from "../attempt/prompt/assemble.ts";
-import {
-  packShards,
-  SHARD_BYTES,
-  uncovered,
-  VERIFY_BATCH,
-  verifyBatches,
-} from "../ingest/coverage.ts";
 import {
   applyVerdicts,
   emptyResult,
@@ -32,187 +26,184 @@ import type {
 import { ingestFinder, ingestVerifier } from "../ingest/verify-quotes.ts";
 import type { OwnerContext } from "./context.ts";
 
-const nextIndex = (task: RunTask, stage: "find" | "verify") =>
-  Math.max(
-    0,
-    ...task.attempts
-      .filter((a) => a.stage === stage)
-      .map((a) => a.portion?.index ?? 0),
-  );
-
-const finderStatuses = (task: RunTask) =>
-  task.attempts.flatMap((a) =>
-    a.stage === "find" && !a.failure && a.result ? [a.result.status] : [],
-  );
+function finderStatus(task: RunTask): FinderResult["status"] {
+  const last = task.attempts.findLast((a) => a.stage === "find" && a.result);
+  return last?.result && !last.failure ? last.result.status : "incomplete";
+}
 
 const unverified = (findings: readonly Finding[]) =>
   findings.filter((f) => f.verdict === "unverified");
 
+const patchFile = (context: OwnerContext) =>
+  join(context.dir, "input", "patch.diff");
+
 export async function reviewAspect(context: OwnerContext, task: RunTask) {
-  const { input, sizesOf } = context;
   const aspect = task.assignment.aspect;
   if (promptIdentity(aspect) !== task.promptHash)
     throw new StateError(
       "input-changed",
       `Prompt identity for ${aspect} differs from ${join(context.dir, "run.json")}. Start a new review with the current package.`,
     );
-  const pending = unverified(task.result?.findings ?? []);
-  const shards = packShards(
-    uncovered(input, task.result?.examinedPaths ?? []),
-    sizesOf(),
-    SHARD_BYTES,
-  );
-  if (!shards.length) task.result ??= emptyResult(aspect);
-  const findBase = nextIndex(task, "find");
-  let batchIndex = nextIndex(task, "verify");
-  const guard = <T>(work: Promise<T>) =>
-    work.catch((error: unknown) => {
-      context.control.fail(
-        error,
-        `Aspect ${aspect} could not complete because of an unexpected owner task error.`,
-      );
-      throw error;
-    });
-  const verify = (findings: Finding[]) =>
-    settleAll(
-      verifyBatches(findings, VERIFY_BATCH).map((batch) =>
-        guard(verifyBatch(context, task, batch, ++batchIndex)),
-      ),
-    );
-  const chains = [
-    ...shards.map((shard, i) =>
-      guard(findShard(context, task, shard, findBase + i + 1)).then(verify),
-    ),
-    verify(pending),
-  ];
   try {
-    await settleAll(chains);
+    if (finderStatus(task) === "incomplete") await find(context, task);
+    const pending = unverified(task.result?.findings ?? []);
+    if (pending.length) await verify(context, task, pending);
   } catch (error) {
+    context.control.fail(
+      error,
+      `Aspect ${aspect} could not complete because of an unexpected owner task error.`,
+    );
     if (!context.control.persistenceError) finish(context, task);
     throw error;
   }
   finish(context, task);
 }
 
-async function settleAll(work: readonly Promise<unknown>[]) {
-  const failed = (await Promise.allSettled(work)).find(
-    (outcome) => outcome.status === "rejected",
-  );
-  if (failed) throw failed.reason;
-}
-
-async function findShard(
-  context: OwnerContext,
-  task: RunTask,
-  shard: string[],
-  index: number,
-) {
-  const { runtime, input, dir } = context;
+async function find(context: OwnerContext, task: RunTask) {
+  const { runtime, input } = context;
   const aspect = task.assignment.aspect;
-  const members = new Set(shard);
-  const shardInput = {
-    ...input,
-    paths: input.paths.filter((p) => members.has(p.path)),
-  };
   let rejections: Rejection[] = [];
-  let covered: string[] = shard;
   const outcome = await executeAttempt<FinderResult>(context, task, {
     stage: "find",
-    portion: { index },
     identity: task.assignment,
-    prompt: assembleFinder(
-      runtime,
-      input,
-      aspect,
-      join(dir, "input", "patch.diff"),
-      shard,
-    ),
+    prompt: assembleFinder(input, aspect, patchFile(context)),
     ingest: (output) => {
-      const ingested = ingestFinder(runtime, output, aspect, shardInput);
-      rejections = ingested.rejections;
-      covered = shard.filter((p) => !ingested.unexamined.has(p));
-      return { value: ingested.result, rejections };
+      const ingested = ingestFinder(runtime, output, aspect, input);
+      rejections = [...rejections, ...ingested.rejections];
+      return { value: ingested.result, rejections: ingested.rejections };
     },
-    record: (found, complete) => finderRecord(found, complete, covered),
+    record: finderRecord,
+    follow: (round, prior) => {
+      const value = gather(round, prior);
+      const progress =
+        value.examinedPaths.length > (prior?.examinedPaths.length ?? 0) ||
+        value.findings.length > (prior?.findings.length ?? 0);
+      const left = remaining(context, value.examinedPaths);
+      return {
+        value,
+        ...(progress && left.length
+          ? { prompt: assembleFollowUp(input, left) }
+          : {}),
+      };
+    },
   });
-  if (!outcome) return [];
-  const found: FinderResult = outcome.complete
-    ? outcome.value
-    : { ...outcome.value, status: "incomplete" };
-  task.result ??= emptyResult(aspect);
-  task.rejections.push(...rejections);
-  const added = mergeFinder(task.result, found, shard, covered, index);
+  if (!outcome) return;
+  task.rejections = rejections;
+  const merged = mergeFinder(task.result ?? emptyResult(aspect), {
+    ...outcome.value,
+    status: outcome.complete ? outcome.value.status : "incomplete",
+    limitations: [
+      ...outcome.value.limitations,
+      ...(rejections.length
+        ? [
+            `${rejections.length} candidate(s) were rejected by literal source validation.`,
+          ]
+        : []),
+    ],
+  });
+  const left = remaining(context, merged.examinedPaths ?? []).length;
+  task.result =
+    outcome.complete && left
+      ? {
+          ...merged,
+          limitations: [
+            ...merged.limitations,
+            `${left} of ${input.paths.length} assessed paths were left unexamined.`,
+          ],
+        }
+      : merged;
   update(context, task);
-  return added;
 }
 
-function finderRecord(
-  found: FinderResult,
-  complete: boolean,
-  covered: readonly string[],
-): WorkerResult {
+const remaining = (context: OwnerContext, examined: readonly string[]) =>
+  context.input.paths.filter((p) => !examined.includes(p.path));
+
+function gather(round: FinderResult, prior?: FinderResult): FinderResult {
+  const merged = prior
+    ? mergeFinder(
+        {
+          ...prior,
+          findings: prior.findings.map((c) => ({
+            ...c,
+            verdict: "unverified",
+          })),
+        },
+        round,
+      )
+    : round;
+  return {
+    ...merged,
+    examinedPaths: merged.examinedPaths ?? [],
+    status: merged.findings.length
+      ? "findings"
+      : round.status === "incomplete"
+        ? (prior?.status ?? "no-findings")
+        : round.status,
+  };
+}
+
+function finderRecord(found: FinderResult, complete: boolean): WorkerResult {
   const status = complete ? found.status : "incomplete";
   return {
     aspect: found.aspect,
     status,
     findings: found.findings.map((c) => ({ ...c, verdict: "unverified" })),
-    ...(found.kept ? { kept: found.kept } : {}),
     limitations:
       status === "incomplete" && !found.limitations.length
         ? ["Worker lifecycle did not finish successfully."]
         : found.limitations,
     ...(found.reason ? { reason: found.reason } : {}),
-    examinedPaths: status === "incomplete" ? [] : [...covered],
+    examinedPaths: found.examinedPaths,
   };
 }
 
-async function verifyBatch(
+async function verify(
   context: OwnerContext,
   task: RunTask,
-  batch: Finding[],
-  index: number,
+  pending: readonly Finding[],
 ) {
-  const { runtime, input, dir } = context;
+  const { runtime, input } = context;
   const aspect = task.assignment.aspect;
   const verifier: Assignment = { ...input.config.verifier, aspect };
   const outcome = await executeAttempt<VerifierResult>(context, task, {
     stage: "verify",
-    portion: { index },
     identity: verifier,
-    prompt: assembleVerifier(
-      input,
-      aspect,
-      join(dir, "input", "patch.diff"),
-      batch,
-    ),
+    prompt: assembleVerifier(input, aspect, patchFile(context), pending),
     ingest: (output) => ({
-      value: ingestVerifier(runtime, output, aspect, input, batch.length),
+      value: ingestVerifier(runtime, output, aspect, input, pending.length),
     }),
     record: (verified, complete) =>
       verifierRecord(
-        batch,
+        pending,
         complete ? verified : { ...verified, verdicts: [] },
       ),
   });
   if (!outcome || !task.result) return;
-  if (outcome.complete) applyVerdicts(batch, outcome.value.verdicts);
-  task.result.limitations.push(
-    ...outcome.value.limitations.map((l) => `Verifier batch ${index}: ${l}`),
-    ...(outcome.complete
-      ? []
-      : [
-          `Verifier batch ${index}: worker lifecycle did not finish successfully; its verdicts were not applied.`,
-        ]),
-  );
+  const judged = outcome.complete
+    ? applyVerdicts(pending, outcome.value.verdicts)
+    : pending;
+  const replaced = new Map(pending.map((f, i) => [f, judged[i] ?? f]));
+  task.result = {
+    ...task.result,
+    findings: task.result.findings.map((f) => replaced.get(f) ?? f),
+    limitations: [
+      ...task.result.limitations,
+      ...outcome.value.limitations.map((l) => `Verifier: ${l}`),
+      ...(outcome.complete
+        ? []
+        : [
+            "Verifier: worker lifecycle did not finish successfully; its verdicts were not applied.",
+          ]),
+    ],
+  };
   update(context, task);
 }
 
 function verifierRecord(
-  batch: readonly Finding[],
+  pending: readonly Finding[],
   verified: VerifierResult,
 ): WorkerResult {
-  const findings = structuredClone([...batch]);
-  applyVerdicts(findings, verified.verdicts);
+  const findings = applyVerdicts(pending, verified.verdicts);
   const open = unverified(findings).length;
   return {
     aspect: verified.aspect,
@@ -226,15 +217,20 @@ function verifierRecord(
 }
 
 function update(context: OwnerContext, task: RunTask) {
-  if (task.result) settle(context.input, task.result, finderStatuses(task));
+  if (task.result) task.result = settle(task.result, finderStatus(task));
   context.control.persist();
 }
 
+function unresolvedCause(context: OwnerContext, task: RunTask) {
+  const { control, startedAt } = context;
+  if (control.stopped()) return control.stopReason;
+  return openFailure(task, startedAt)?.failure ?? "incomplete";
+}
+
 function finish(context: OwnerContext, task: RunTask) {
-  const { control, input } = context;
-  const status = task.result
-    ? settle(input, task.result, finderStatuses(task))
-    : null;
+  const { control } = context;
+  if (task.result) task.result = settle(task.result, finderStatus(task));
+  const status = task.result?.status;
   if (status && status !== "incomplete") {
     task.status = status;
     delete task.unresolved;
@@ -246,15 +242,7 @@ function finish(context: OwnerContext, task: RunTask) {
         : "failed";
     if (task.status === "cancelled")
       task.limitations.push(`Unexamined aspect: ${control.stopReason}.`);
-    task.unresolved = {
-      cause: control.stopped()
-        ? control.stopReason
-        : (openFailure(task, context.startedAt)?.failure ??
-          (task.result?.findings.some((f) => f.verdict === "unverified")
-            ? "unverified"
-            : "incomplete")),
-      paths: uncovered(input, task.result?.examinedPaths ?? []),
-    };
+    task.unresolved = { cause: unresolvedCause(context, task) };
   }
   control.persist();
 }

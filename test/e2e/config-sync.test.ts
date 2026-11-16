@@ -40,13 +40,12 @@ const full = {
   agent: "codex",
   model: "gpt-6-luna",
   verifier: { model: "gpt-6-sol" },
-  concurrency: 16,
   maxRetries: 1,
   limits: {
-    workerTimeoutSeconds: 300,
-    workerIdleSeconds: 120,
+    workerTimeoutSeconds: 900,
+    workerIdleSeconds: 180,
     maxTurns: 40,
-    runTimeoutSeconds: 7200,
+    runTimeoutSeconds: 1800,
   },
   aspects: Object.fromEntries(allAspects.map((id) => [id, true])),
   exclude: [],
@@ -107,9 +106,9 @@ test("sync fills only absent nested settings, retaining explicit aspect settings
     ...full,
     ...previous,
     limits: {
-      workerTimeoutSeconds: 300,
-      workerIdleSeconds: 120,
-      runTimeoutSeconds: 7200,
+      workerTimeoutSeconds: 900,
+      workerIdleSeconds: 180,
+      runTimeoutSeconds: 1800,
       maxTurns: 12,
     },
     aspects: { ...full.aspects, ...previous.aspects },
@@ -143,7 +142,7 @@ test("home, doctor and empty review disclose missing fields without modifying RC
     ".degreaserrc.json",
     JSON.stringify({
       ...full,
-      limits: { workerTimeoutSeconds: 300, runTimeoutSeconds: 7200 },
+      limits: { workerTimeoutSeconds: 900, runTimeoutSeconds: 1800 },
     }),
   );
   const path = join(f.root, ".degreaserrc.json");
@@ -193,7 +192,7 @@ test("sync rejects invalid, future, missing and symlinked RC without replacing i
   assert.equal(readFileSync(path, "utf8"), JSON.stringify(full));
 });
 
-test("sync does not invent a verifier: it points to init and leaves the RC untouched", (t) => {
+test("sync does not invent a verifier: an RC without one stays without one", (t) => {
   const f = fixture(t);
   const path = join(f.root, ".degreaserrc.json");
   const { verifier: _omitted, ...withoutVerifier } = full;
@@ -203,10 +202,9 @@ test("sync does not invent a verifier: it points to init and leaves the RC untou
   ]) {
     f.write(".degreaserrc.json", text);
     const result = run(f.root);
-    assert.equal(result.status, 2, result.stdout);
-    assert.match(result.stdout, /verifier is required/);
-    assert.match(result.stdout, /degreaser-axi init/);
-    assert.equal(readFileSync(path, "utf8"), text);
+    assert.equal(result.status, 0, result.stdout);
+    const saved = JSON.parse(readFileSync(path, "utf8"));
+    assert.equal(Object.hasOwn(saved, "verifier"), false);
   }
 });
 

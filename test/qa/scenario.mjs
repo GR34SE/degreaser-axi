@@ -178,7 +178,7 @@ export async function runScenario(node, packageRoot) {
       unresolved.attempts.map((attempt) => attempt.failure),
       ["invalid-output", "invalid-output"],
     );
-    assert.equal(unverified.status, "incomplete");
+    assert.equal(unverified.status, "findings");
     assert.deepEqual(unverified.result.findings, [
       { ...finding, verdict: "unverified" },
     ]);
@@ -186,7 +186,7 @@ export async function runScenario(node, packageRoot) {
     assert.equal(partialReport.run, partial.id);
     assert.equal(partialReport.status, "partial");
     assert.equal(partialReport.evidence, "source-only");
-    assert.equal(partialReport.aspects, "0/2");
+    assert.equal(partialReport.aspects, "1/2");
     assert.equal(partialReport.unverified, 1);
     assert.deepEqual(
       partialReport.findings.map((f) => [f.id, f.verdict]),
@@ -196,7 +196,7 @@ export async function runScenario(node, packageRoot) {
       partialReport.coverage.map(({ aspect, status }) => [aspect, status]),
       [
         ["unjustified-defense", "failed"],
-        ["low-value-comments", "incomplete"],
+        ["low-value-comments", "findings"],
       ],
     );
     assert.ok(

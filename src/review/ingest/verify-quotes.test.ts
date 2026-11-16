@@ -25,6 +25,7 @@ const clean = {
   aspect: "low-value-comments",
   status: "no-findings",
   findings: [],
+  examinedPaths: [],
   limitations: [],
 };
 const block = (data: unknown) =>
@@ -77,7 +78,7 @@ test("a unique whole-line quote corrects only an omitted final line", (t) => {
   );
 });
 
-test("literal persisted old/new quotes survive mixed rejection, which leaves the rejected paths unexamined", (t) => {
+test("literal persisted old/new quotes survive mixed rejection, and an all-rejected result has no findings", (t) => {
   const f = fixture(t);
   f.write("removed.ts", "// removed explanation\nexport const old = 1;\n");
   f.write("current.ts", "export const value = 1;\n");
@@ -127,16 +128,15 @@ test("literal persisted old/new quotes survive mixed rejection, which leaves the
       "quote-mismatch",
     ],
   );
-  assert.deepEqual([...result.unexamined].sort(), ["current.ts", "removed.ts"]);
   const rejected = ingestFinder(
     runtime(),
     block({ ...clean, status: "findings", findings: proposed.slice(2) }),
     "low-value-comments",
     input,
   );
-  assert.equal(rejected.result.status, "incomplete");
+  assert.equal(rejected.result.status, "no-findings");
   assert.equal(rejected.result.findings.length, 0);
-  assert.match(rejected.result.limitations.join(" "), /rejected/i);
+  assert.equal(rejected.rejections.length, 5);
 });
 
 test("quotes tolerate CRLF, copied diff markers and repo-path spellings but never absent or trivial text", (t) => {
@@ -255,7 +255,7 @@ test("symlink quotes validate against the link blob", (t) => {
   assert.equal(dir?.newLink, "../skills/real");
 });
 
-test("a finding outside the shard is not assessed, exact repeats collapse and kept quotes are checked", (t) => {
+test("a finding outside the assessed paths is rejected, exact repeats collapse and examined paths are limited to assessed ones", (t) => {
   const f = fixture(t);
   f.write("a.ts", "// first\nexport const a = 1;\n");
   f.write("b.ts", "// second\n");
@@ -270,7 +270,7 @@ test("a finding outside the shard is not assessed, exact repeats collapse and ke
     ],
     f.root,
   );
-  const shard = {
+  const assessed = {
     ...input,
     paths: input.paths.filter((p) => p.path === "a.ts"),
   };
@@ -281,20 +281,15 @@ test("a finding outside the shard is not assessed, exact repeats collapse and ke
       ...clean,
       status: "findings",
       findings: [first, first, finding("b.ts", "new", "// second")],
-      kept: [
-        { location: first.location, quote: "// first" },
-        { location: first.location, quote: "invented text" },
-      ],
+      examinedPaths: ["a.ts", "b.ts", "a.ts"],
     }),
     "low-value-comments",
-    shard,
+    assessed,
   );
   assert.deepEqual(result.findings, [first]);
   assert.deepEqual(rejections, [{ index: 3, reason: "path-not-assessed" }]);
-  assert.deepEqual(result.kept, [
-    { location: first.location, quote: "// first" },
-  ]);
-  assert.match(result.limitations.join(" "), /Dropped 1 kept unit/);
+  assert.deepEqual(result.examinedPaths, ["a.ts"]);
+  assert.match(result.limitations.join(" "), /Ignored 1 examined path/);
   assert.equal(result.status, "findings");
 });
 

@@ -29,6 +29,15 @@ export function taskReason(task: RunTask, interrupted: boolean, since: number) {
         undefined);
 }
 
+function notExamined(task: RunTask, context: ReportContext, full: boolean) {
+  if (task.promptHash === null || !task.result) return {};
+  const examined = new Set(task.result.examinedPaths ?? []);
+  const missed = context.input.paths
+    .map((p) => p.path)
+    .filter((path) => !examined.has(path));
+  if (!missed.length) return {};
+  return { notExamined: full ? missed : missed.length };
+}
 const preview = (text: string, full: boolean) =>
   full || text.length <= 240
     ? text
@@ -59,11 +68,9 @@ export function coverage(
     rejected: task.rejections.length,
     ...counts(task),
     ...(stages ? { stages } : {}),
+    ...notExamined(task, context, full),
     ...(task.unresolved && !resolved(task)
-      ? {
-          stopCause: task.unresolved.cause,
-          pending: task.unresolved.paths.length,
-        }
+      ? { stopCause: task.unresolved.cause }
       : {}),
     ...(task.status === "running" && task.attempts.at(-1)?.lastActivityAt
       ? {
@@ -80,13 +87,14 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 export function stageSummary(task: RunTask) {
   const parts = (["find", "verify"] as const).flatMap((stage) => {
-    const shards = new Set(
-      task.attempts.flatMap((a) =>
-        a.stage === stage ? [a.portion?.index ?? 0] : [],
-      ),
-    );
-    return shards.size
-      ? [plural(shards.size, stage === "find" ? "finder" : "verifier")]
+    const sessions = task.attempts.filter((a) => a.stage === stage).length;
+    return sessions
+      ? [
+          plural(
+            sessions,
+            stage === "find" ? "finder session" : "verifier session",
+          ),
+        ]
       : [];
   });
   return parts.length ? parts.join(", ") : null;

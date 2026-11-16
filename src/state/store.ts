@@ -4,6 +4,7 @@ import {
   existsSync,
   lstatSync,
   openSync,
+  readdirSync,
   readFileSync,
 } from "node:fs";
 import { join, relative } from "node:path";
@@ -112,12 +113,20 @@ export function loadRun(repository: string, requested?: string): Run {
     throw new StateError("run-not-found", `Run not found: ${path}`);
   return checkedRun(readState(path), path, repository, id);
 }
+const RUN_VERSION: Run["schemaVersion"] = 2;
+
 function checkedRun(
   value: unknown,
   path: string,
   repository: string,
   id: string,
 ): Run {
+  const version = (value as { schemaVersion?: unknown } | null)?.schemaVersion;
+  if (typeof version === "number" && version !== RUN_VERSION)
+    throw new StateError(
+      "state-incompatible",
+      `Run ${id} was saved by another Degreaser version (run state v${version}; this version reads v${RUN_VERSION}) and is not migrated: ${path}. Start a new review.`,
+    );
   const run = checked(value, runSchema(), path);
   if (run.repository !== repository)
     throw new StateError(
@@ -203,12 +212,49 @@ export function loadInput(run: Run): ReviewInput {
     throw new StateError("state-corrupt", `Invalid persisted input: ${path}`);
   }
 }
+const skippable = (error: unknown) =>
+  error instanceof StateError &&
+  (error.code === "foreign-run" || error.code === "state-incompatible");
+
 export function checkHistory(repository: string) {
   if (!existsSync(statePath(repository, "state.json"))) return;
   try {
     loadInput(loadRun(repository));
   } catch (error) {
-    if (!(error instanceof StateError && error.code === "foreign-run"))
+    if (!skippable(error)) throw error;
+  }
+}
+
+const compatible = (repository: string, id: string) => {
+  try {
+    return loadRun(repository, id);
+  } catch (error) {
+    if (error instanceof StateError && error.code === "state-incompatible")
+      return null;
+    throw error;
+  }
+};
+
+export function loadLatestRun(repository: string): {
+  run: Run | null;
+  skipped: number;
+} {
+  try {
+    return { run: loadRun(repository), skipped: 0 };
+  } catch (error) {
+    if (!(error instanceof StateError && error.code === "state-incompatible"))
       throw error;
   }
+  const ids = readdirSync(statePath(repository, "runs")).filter((id) =>
+    /^r-\d{8}-\d{4}-[a-f0-9]{4}$/.test(id),
+  );
+  const runs = ids.flatMap((id) => compatible(repository, id) ?? []);
+  return {
+    run: runs.reduce<Run | null>(
+      (latest, run) =>
+        latest && latest.createdAt >= run.createdAt ? latest : run,
+      null,
+    ),
+    skipped: ids.length - runs.length,
+  };
 }

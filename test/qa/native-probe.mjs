@@ -66,7 +66,7 @@ for (const agent of ["codex", "claude", "pi", "cursor"]) {
     } else {
       assert.equal(
         args[args.indexOf("--tools") + 1],
-        agent === "claude" ? "Read,Grep,Glob" : "read,grep,find,ls",
+        agent === "claude" ? "Read,Grep,Glob,Bash" : "read,grep,find,ls,bash",
       );
     }
   }

@@ -4,6 +4,10 @@ import { queueFixture } from "./queue-fixture.ts";
 
 export const ASPECT = "low-value-comments";
 
+export const UNFINISHED = {
+  finderCloseError: { message: "Synthetic close failure", code: -32603 },
+};
+
 export const candidate = (path: string, quote: string, line = 1) => ({
   location: { path, side: "new", startLine: line, endLine: line },
   quote,
@@ -26,7 +30,7 @@ export const found = (
 
 const PAD = "export const pad = 0;\n".repeat(1200);
 
-export function shardedFixture(
+export function paddedFixture(
   t: Parameters<typeof queueFixture>[0],
   config: Parameters<typeof queueFixture>[1] = {},
 ) {

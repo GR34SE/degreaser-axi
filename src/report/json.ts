@@ -27,7 +27,7 @@ export function exportRun(run: Run, context: ReportContext) {
             }
           : {}),
       })),
-      coverageBasis: "coordinator-assigned",
+      coverageBasis: "worker-declared",
       coverage: run.tasks.map((t) =>
         coverage(
           t,

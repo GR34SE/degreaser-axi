@@ -1,16 +1,17 @@
 # Finder response contract
 
-Return one JSON object inside `<degreaser-result>` and `</degreaser-result>`.
-The coordinator consumes the last such assistant block. Do not include Markdown
-fences inside the block.
+Return one JSON object inside `<degreaser-result>` and `</degreaser-result>`
+at the end of each round. The coordinator consumes the last such block of the
+round. Do not include Markdown fences inside the block.
 
 - `aspect`: the assigned aspect ID.
 - `status`: `findings`, `no-findings`, `not-applicable` or `incomplete`.
-- `findings`: an array of candidates. Nonempty for `findings`; empty for
-  `no-findings` and `not-applicable`. An incomplete result may retain the
-  candidates found so far.
-- `kept`: optional array, only for rubrics with a `**Unit:**` line: every unit
-  in the shard that you did not report, each with `location` and `quote`.
+- `findings`: an array of the candidates new in this round. Nonempty for
+  `findings`; empty for `no-findings` and `not-applicable`. An incomplete
+  result may retain the candidates found so far.
+- `examinedPaths`: an array of the assessed paths you accounted for in this
+  round (examined, or ruled out as unable to contain the aspect), exactly as
+  listed in the input. Other paths are ignored.
 - `limitations`: an array of explicit limitations. Required and nonempty for
   `incomplete`.
 - `reason`: required nonempty explanation for `not-applicable`; omit it
@@ -18,7 +19,7 @@ fences inside the block.
 
 Each candidate contains:
 
-- `location`: repository-relative `path` of a shard path, `side` (`old` for the
+- `location`: repository-relative `path` of an assessed path, `side` (`old` for the
   base, `new` for the resolved review tree), positive `startLine` and `endLine`
   in that coordinate space. End must not precede start.
 - `quote`: an exact excerpt of the cited source lines, not a paraphrase, with

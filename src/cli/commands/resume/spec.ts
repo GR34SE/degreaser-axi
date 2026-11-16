@@ -11,7 +11,8 @@ export const spec: CommandSpec = {
     },
     wait: {
       type: "string",
-      description: "Seconds to wait (default 480)",
+      description:
+        "Return status running after this many seconds (default: block until the run ends)",
     },
     deadline: {
       type: "string",

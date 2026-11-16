@@ -1,4 +1,4 @@
-import { type Run, resolved, sumUsage } from "../state/run.ts";
+import { type Run, resolved, resumable, sumUsage } from "../state/run.ts";
 import {
   coverage,
   executionStart,
@@ -12,7 +12,7 @@ import {
 } from "./details.ts";
 import { findings } from "./findings.ts";
 import { present } from "./present.ts";
-import { upheldRows } from "./rows.ts";
+import { unverifiedRows, upheldRows } from "./rows.ts";
 import type { ReportContext } from "./types.ts";
 
 export function renderReport(run: Run, context: ReportContext, full = false) {
@@ -23,12 +23,12 @@ export function renderReport(run: Run, context: ReportContext, full = false) {
   const unverifiedOwner = context.unverifiedOwner;
   const since = executionStart(run);
   const canResume =
-    status !== "completed" &&
+    (status !== "completed" || run.tasks.some(resumable)) &&
     !unverifiedOwner &&
     failure?.code !== "input-changed";
   const all = findings(run);
   const counts = verdictCounts(run.tasks);
-  const hidden = counts.refuted + counts.unverified;
+  const hidden = counts.refuted;
   const workers = run.tasks.filter((task) => task.promptHash !== null);
   const usage = sumUsage(workers.map(taskUsage));
   const clipped =
@@ -50,7 +50,10 @@ export function renderReport(run: Run, context: ReportContext, full = false) {
     ...counts,
     rejected: run.tasks.reduce((n, t) => n + t.rejections.length, 0),
     findings: full ? all.map(present) : upheldRows(all),
-    coverageBasis: "coordinator-assigned",
+    ...(!full && counts.unverified
+      ? { unverifiedFindings: unverifiedRows(all) }
+      : {}),
+    coverageBasis: "worker-declared",
     coverage: run.tasks.map((t) =>
       coverage(t, context, status === "interrupted", full, since),
     ),

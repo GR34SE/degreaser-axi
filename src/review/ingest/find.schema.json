@@ -4,12 +4,12 @@
   "title": "Finder result v1",
   "type": "object",
   "additionalProperties": false,
-  "required": ["aspect", "status", "findings", "limitations"],
+  "required": ["aspect", "status", "findings", "examinedPaths", "limitations"],
   "properties": {
     "aspect": { "type": "string", "enum": ["unnecessary-complexity", "masked-errors", "verification-theater", "contract-bypass", "incomplete-integration", "stale-references", "low-value-tests", "scope-creep", "reinvented-infrastructure", "missed-reuse", "wrong-abstraction", "structural-erosion", "speculative-flexibility", "unnecessary-layers", "unjustified-defense", "convention-drift", "unidiomatic-code", "low-value-comments"] },
     "status": { "enum": ["findings", "no-findings", "not-applicable", "incomplete"] },
     "findings": { "type": "array", "items": { "$ref": "#/definitions/candidate" } },
-    "kept": { "type": "array", "items": { "$ref": "#/definitions/quoted" } },
+    "examinedPaths": { "type": "array", "items": { "$ref": "#/definitions/path" } },
     "limitations": { "type": "array", "items": { "$ref": "#/definitions/text" } },
     "reason": { "$ref": "#/definitions/text" }
   },
@@ -32,11 +32,6 @@
         "startLine": { "$ref": "#/definitions/line" },
         "endLine": { "$ref": "#/definitions/line" }
       }
-    },
-    "quoted": {
-      "type": "object", "additionalProperties": false,
-      "required": ["location", "quote"],
-      "properties": { "location": { "$ref": "#/definitions/location" }, "quote": { "$ref": "#/definitions/text" } }
     },
     "candidate": {
       "type": "object", "additionalProperties": false,

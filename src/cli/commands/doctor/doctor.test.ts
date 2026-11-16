@@ -108,5 +108,8 @@ test("doctor inspects the verifier identity beside the workers, once per distinc
     ["codex:gpt-6-luna"],
   );
   rc(undefined);
-  await assert.rejects(run_(), /verifier.*init/s);
+  assert.deepEqual((await run_()).verifier, {
+    agent: "codex",
+    model: "gpt-6-luna",
+  });
 });

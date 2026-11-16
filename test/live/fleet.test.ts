@@ -19,7 +19,7 @@ import {
 
 for (const retry of [false, true]) {
   test(`fleet observation preserves default admission and bounded retry=${retry}`, async (t) => {
-    const f = queueFixture(t, { maxRetries: 1, concurrency: null });
+    const f = queueFixture(t, { maxRetries: 1 });
     const trace = f.gate("trace.jsonl");
     const observer = fileURLToPath(
       new URL("./support/fleet-observer.mjs", import.meta.url),

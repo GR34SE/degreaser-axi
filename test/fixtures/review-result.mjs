@@ -24,24 +24,32 @@ const verdicts = (step, aspect, candidates) => ({
   limitations: [],
 });
 
+const examined = (result, stage, paths) =>
+  stage === "find" && typeof result === "object" && !("examinedPaths" in result)
+    ? { ...result, examinedPaths: paths }
+    : result;
+
 export async function sendResult(
   connection,
   sessionId,
   plan,
   step,
   aspect,
-  { stage, candidates },
+  { stage, candidates, paths },
 ) {
-  const result =
+  const result = examined(
     step.result ??
-    (stage === "verify"
-      ? verdicts(step, aspect, candidates)
-      : (plan.results?.[aspect] ?? {
-          aspect,
-          status: "no-findings",
-          findings: [],
-          limitations: [],
-        }));
+      (stage === "verify"
+        ? verdicts(step, aspect, candidates)
+        : (plan.results?.[aspect] ?? {
+            aspect,
+            status: "no-findings",
+            findings: [],
+            limitations: [],
+          })),
+    stage,
+    paths,
+  );
   const text =
     typeof result === "string"
       ? result

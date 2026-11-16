@@ -10,17 +10,17 @@ Code review for coding agents. Degreaser checks for unnecessary complexity, brok
 
 Requires Linux or macOS, Node 24+, Git, pnpm, and a logged-in Codex, Claude Code, Pi or Cursor. Linux needs a procps-compatible `/bin/ps` (minimal images such as Debian slim need the `procps` package). Claude Code, Pi and Cursor must be on PATH; the Codex worker is bundled.
 
-The package is not published to npm yet. Build and link a checkout:
+The package is not published to npm yet. Build a checkout and register its commands globally:
 
 ```sh
 git clone https://github.com/GR34SE/degreaser-axi.git
 cd degreaser-axi
 pnpm install --frozen-lockfile --ignore-scripts
 pnpm build
-pnpm link --global
+pnpm add --global .
 ```
 
-Keep the linked checkout at a stable path.
+Keep the checkout at a stable path. (`pnpm link --global` no longer exists in pnpm 11 and later.)
 
 ## Use
 
@@ -41,9 +41,9 @@ degreaser-axi review --scope worktree --task "Add CSV import"
 degreaser-axi report
 ```
 
-If the review returns `running`, follow its `degreaser-axi wait <run-id>` command. Keep the code unchanged until it finishes. A partial review is not a clean result.
+`review` waits until the review ends. If your terminal or tool call stops first, the review keeps running: `degreaser-axi wait <run-id>` reattaches. Keep the code unchanged until it finishes. A partial review is not a clean result.
 
-Reviews read source; they do not run tests or apply fixes. Review context goes to your selected model provider, uses its quota, and is saved locally in ignored `.degreaser/` files. All 18 reviewers run by default, each in two stages, so a review takes longer than a single pass; use `--aspects` to select fewer or `--concurrency` to limit simultaneous calls.
+Reviews read source; they do not run tests or apply fixes. Review context goes to your selected model provider, uses its quota, and is saved locally in ignored `.degreaser/` files. All 18 reviewers run in parallel by default, each as one agent that explores the change itself and one that verifies its findings; use `--aspects` to select fewer or `--concurrency` to limit simultaneous sessions.
 
 See `degreaser-axi --help` for commands and options, or `degreaser-axi doctor` for setup diagnostics. Details: [configuration and scopes](https://github.com/GR34SE/degreaser-axi/blob/main/docs/input-contract.md), [results and limitations](https://github.com/GR34SE/degreaser-axi/blob/main/docs/result-contract.md), [worker restrictions](https://github.com/GR34SE/degreaser-axi/blob/main/docs/harnesses.md).
 
@@ -82,7 +82,7 @@ degreaser-axi review --scope worktree --task "Add CSV import" --aspects missed-r
 
 ## Configuration
 
-`init` writes `.degreaserrc.json` at the Git root. Keep the `agent`, `model` (finder) and `verifier` you confirmed there; the verifier is required. `model` is a version pin, like the Codex example below, or a `(latest)` choice that tracks the newest version your installed harness offers; neither guarantees availability. See [latest models and version pins](https://github.com/GR34SE/degreaser-axi/blob/main/docs/input-contract.md).
+`init` writes `.degreaserrc.json` at the Git root. Keep the `agent`, `model` (finder) and `verifier` you confirmed there; without `verifier`, the finder model also verifies. `model` is a version pin, like the Codex example below, or a `(latest)` choice that tracks the newest version your installed harness offers; neither guarantees availability. See [latest models and version pins](https://github.com/GR34SE/degreaser-axi/blob/main/docs/input-contract.md).
 
 ```json
 {
@@ -93,10 +93,10 @@ degreaser-axi review --scope worktree --task "Add CSV import" --aspects missed-r
   "concurrency": 4,
   "maxRetries": 1,
   "limits": {
-    "workerTimeoutSeconds": 300,
-    "workerIdleSeconds": 120,
+    "workerTimeoutSeconds": 900,
+    "workerIdleSeconds": 180,
     "maxTurns": 40,
-    "runTimeoutSeconds": 7200
+    "runTimeoutSeconds": 1800
   },
   "aspects": {
     "low-value-comments": true,
@@ -106,7 +106,7 @@ degreaser-axi review --scope worktree --task "Add CSV import" --aspects missed-r
 }
 ```
 
-- `concurrency: 4` caps simultaneous finder and verifier workers; the default is 16, and `null` leaves them uncapped.
+- `concurrency: 4` caps simultaneous finder and verifier sessions, for example to stay under a provider rate limit. Without it, every selected aspect runs at once.
 - `aspects` accepts `true` (enabled), `false` (disabled), or `{ "model": "<model>" }` to override the finder model for one aspect. Omitted aspects stay enabled. Changing its agent also requires an explicit compatible model.
 - `maxRetries` counts extra attempts. The limits above are defaults; `maxTurns` is enforced natively only by Claude and is advisory for other workers.
 - `exclude` adds literal repository-relative files or directory prefixes, not globs. It narrows assessed coverage, not worker read access.

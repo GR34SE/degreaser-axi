@@ -132,7 +132,7 @@ export function inspectNativeProfile(
       (e) => e.type === "system" && e.subtype === "init",
     );
     assert.ok(init);
-    assert.deepEqual([...init.tools].sort(), ["Glob", "Grep", "Read"]);
+    assert.deepEqual([...init.tools].sort(), ["Bash", "Glob", "Grep", "Read"]);
     assert.equal(init.skills.length, 0);
     assert.equal(init.mcp_servers.length, 0);
     assertClaudeModel(profile.model, init.model);
@@ -162,7 +162,7 @@ export function inspectNativeProfile(
       ),
     ),
   ].sort();
-  assert.deepEqual(names, ["find", "grep", "ls", "read"]);
+  assert.deepEqual(names, ["bash", "find", "grep", "ls", "read"]);
   return {
     tools: names,
     readNonceVerified: true,

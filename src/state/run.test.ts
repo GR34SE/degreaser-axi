@@ -19,12 +19,11 @@ const result = {
   aspect: "low-value-comments",
   status: "findings",
   findings: [finding],
-  kept: [{ location: finding.location, quote: "// keep" }],
   limitations: [],
   examinedPaths: ["a.ts"],
 };
 const run = () => ({
-  schemaVersion: 1,
+  schemaVersion: 2,
   id: "r-20261115-1200-abcd",
   repository: "/repo",
   createdAt: 0,
@@ -50,7 +49,11 @@ const run = () => ({
           sessionId: null,
           failure: null,
           stage: "verify",
-          portion: { index: 1 },
+          diagnostic: {
+            stage: "turn-stream",
+            recovery: "resume",
+            stop: "idle",
+          },
           result,
         },
       ],

@@ -62,7 +62,7 @@ export function createRun(
   const patchFile = join(dir, "input", "patch.diff");
   const tasks = prepareTasks(patchFile);
   const run: Run = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     id,
     repository: input.repository,
     createdAt: runtime.now(),

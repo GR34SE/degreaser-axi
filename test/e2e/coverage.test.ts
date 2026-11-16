@@ -5,8 +5,8 @@ import {
   ASPECT,
   candidate,
   found,
+  paddedFixture,
   review,
-  shardedFixture,
   stage,
 } from "../utils/coverage-fixture.ts";
 import { queueFixture } from "../utils/queue-fixture.ts";
@@ -15,15 +15,12 @@ import { decode } from "../utils/report-fixture.ts";
 const sorted = (paths: readonly string[] | undefined) =>
   [...(paths ?? [])].sort();
 
-test("a scope larger than one shard runs one finder per shard, covers every path and counts retries as one finder", (t) => {
-  const f = shardedFixture(t, { maxRetries: 1 });
+test("one finder session reviews the whole scope with tools, nothing inline, and a retry counts as a new attempt of the same session", (t) => {
+  const f = paddedFixture(t, { maxRetries: 1 });
   const usage = { inputTokens: 10, outputTokens: 2 };
   f.setPlan({
     workers: {
-      [ASPECT]: {
-        usage,
-        paths: { "a.ts": { attempts: [{ result: "", usage }, { usage }] } },
-      },
+      [ASPECT]: { attempts: [{ result: "", usage }, { usage }] },
     },
   });
   const { done, task } = review(f);
@@ -35,21 +32,39 @@ test("a scope larger than one shard runs one finder per shard, covers every path
     "source.ts",
   ]);
   const finders = stage(f, "find");
-  assert.deepEqual(finders.map((e) => e.paths).sort(), [
-    ["a.ts"],
-    ["a.ts"],
-    ["b.ts", "source.ts"],
-  ]);
-  const first = finders.find((e) => e.paths?.[0] === "a.ts")?.prompt ?? "";
-  const second = finders.find((e) => e.paths?.[0] === "b.ts")?.prompt ?? "";
-  assert.match(first, /export const a = 1;/);
-  assert.doesNotMatch(first, /export const b = 2;/);
-  assert.match(second, /export const b = 2;/);
-  assert.doesNotMatch(second, /export const a = 1;/);
+  assert.deepEqual(
+    finders.map((e) => sorted(e.paths)),
+    [
+      ["a.ts", "b.ts", "source.ts"],
+      ["a.ts", "b.ts", "source.ts"],
+    ],
+  );
+  for (const finder of finders) {
+    assert.doesNotMatch(finder.prompt ?? "", /export const (a|b) = /);
+    assert.match(finder.prompt ?? "", /patch\.diff/);
+  }
   assert.deepEqual(stage(f, "verify"), []);
-  const report = decode(f.run(["report"]).stdout);
-  assert.equal(report.coverage[0].stages, "2 finders");
-  assert.deepEqual(report.usage, { inputTokens: 30, outputTokens: 6 });
+  assert.deepEqual(task.usage, { inputTokens: 20, outputTokens: 4 });
+  assert.equal(f.state().status, "completed");
+});
+
+test("paths the finder did not examine are recorded, not a reason for an incomplete aspect", (t) => {
+  const f = paddedFixture(t);
+  f.setPlan({
+    workers: {
+      [ASPECT]: found("no-findings", [], {
+        examinedPaths: ["source.ts", "elsewhere.ts"],
+      }),
+    },
+  });
+  const { done, task } = review(f);
+  assert.equal(done.status, 0, done.stdout);
+  assert.equal(task.status, "no-findings");
+  assert.deepEqual(task.result?.examinedPaths, ["source.ts"]);
+  assert.match(
+    task.result?.limitations.join(" ") ?? "",
+    /Ignored 1 examined path/,
+  );
   assert.equal(f.state().status, "completed");
 });
 
@@ -134,7 +149,7 @@ for (const [name, verifier, cause, trace] of [
     /unmatched evidence quote/,
   ],
 ] as const) {
-  test(`${name} leaves the finding unverified, the aspect incomplete and the run partial`, (t) => {
+  test(`${name} leaves the finding unverified without making the run partial`, (t) => {
     const f = queueFixture(t);
     f.setPlan({
       workers: {
@@ -145,10 +160,15 @@ for (const [name, verifier, cause, trace] of [
       },
     });
     const { done, task } = review(f);
-    assert.equal(done.status, 1, done.stdout);
-    assert.equal(f.state().status, "partial");
-    assert.equal(task.status, "incomplete");
-    assert.deepEqual(task.unresolved, { cause, paths: [] });
+    assert.equal(done.status, 0, done.stdout);
+    assert.equal(f.state().status, "completed");
+    assert.equal(task.status, "findings");
+    assert.equal(task.unresolved, undefined);
+    assert.equal(
+      task.attempts.filter((a) => a.stage === "verify").at(-1)?.failure ??
+        "unverified",
+      cause,
+    );
     assert.deepEqual(
       task.result?.findings.map((x) => x.verdict),
       ["unverified"],
@@ -159,7 +179,6 @@ for (const [name, verifier, cause, trace] of [
       [short.upheld, short.refuted, short.unverified],
       [0, 0, 1],
     );
-    assert.deepEqual(short.findings, {});
     const full = decode(f.run(["report", "--full"]).stdout);
     assert.equal(full.findings[0].verdict, "unverified");
     const home = decode(f.run(["home"]).stdout);
@@ -170,128 +189,121 @@ for (const [name, verifier, cause, trace] of [
   });
 }
 
-test("resume reruns only uncovered shards and unverified findings and never replays a settled verdict", (t) => {
-  const f = shardedFixture(t);
+test("resume re-verifies only unverified candidates of a completed run and reruns only failed finders", (t) => {
+  const f = queueFixture(t);
+  const aspects = [ASPECT, "masked-errors"];
   f.setPlan({
     workers: {
       [ASPECT]: {
-        paths: {
-          "a.ts": found("findings", [
-            candidate("a.ts", "export const a = 1;", 1),
-            candidate("a.ts", "export const pad = 0;", 2),
-          ]),
-          "b.ts": { error: { message: "Cannot decode provider response" } },
-        },
+        ...found("findings", [
+          candidate("source.ts", "// redundant", 1),
+          candidate("source.ts", "export const value = 1;", 2),
+        ]),
         verifier: { verdicts: ["upheld", "omit"] },
+      },
+      "masked-errors": {
+        error: { message: "Cannot decode provider response" },
       },
     },
   });
-  const { done, task: old } = review(f);
+  f.start(["--aspects", aspects.join(",")]);
+  const done = f.finish();
   assert.equal(done.status, 1, done.stdout);
-  assert.equal(old.status, "incomplete");
-  assert.deepEqual(sorted(old.unresolved?.paths), ["b.ts", "source.ts"]);
+  const old = f.state();
+  const [kept, failed] = aspects.map((aspect) =>
+    old.tasks.find((t) => t.assignment.aspect === aspect),
+  );
+  assert.equal(kept?.status, "findings");
   assert.deepEqual(
-    old.result?.findings.map((x) => x.verdict),
+    kept?.result?.findings.map((x) => x.verdict),
     ["upheld", "unverified"],
   );
+  assert.equal(failed?.status, "failed");
   const before = f.events().length;
   f.setPlan();
-  const resumed = f.run(["resume", f.state().id, "--wait", "20"]);
+  const resumed = f.run(["resume", old.id, "--wait", "20"]);
   assert.equal(resumed.status, 0, resumed.stdout);
   const fresh = f.events().slice(before);
   assert.deepEqual(
-    fresh.filter((e) => e.stage === "find").map((e) => e.paths),
-    [["b.ts", "source.ts"]],
+    fresh.filter((e) => e.stage === "find").map((e) => e.aspect),
+    ["masked-errors"],
   );
   assert.deepEqual(
     fresh
       .filter((e) => e.stage === "verify")
-      .map((e) => e.candidates?.map((c) => c.quote)),
-    [["export const pad = 0;"]],
+      .map((e) => [e.aspect, e.candidates?.map((c) => c.quote)]),
+    [[ASPECT, ["export const value = 1;"]]],
   );
-  const task = f.state().tasks[0];
-  assert.equal(task?.status, "findings");
-  assert.deepEqual(task?.result?.findings[0], old.result?.findings[0]);
+  const task = f.state().tasks.find((t) => t.assignment.aspect === ASPECT);
+  assert.deepEqual(task?.result?.findings[0], kept?.result?.findings[0]);
   assert.equal(task?.result?.findings[1]?.verdict, "upheld");
-  assert.deepEqual(sorted(task?.result?.examinedPaths), [
-    "a.ts",
-    "b.ts",
-    "source.ts",
-  ]);
-  assert.deepEqual(task?.attempts.slice(0, old.attempts.length), old.attempts);
+  assert.deepEqual(
+    task?.attempts.slice(0, kept?.attempts.length),
+    kept?.attempts,
+  );
+  assert.equal(f.state().status, "completed");
+  const again = f.run(["resume", old.id, "--wait", "20"]);
+  assert.equal(again.status, 0, again.stdout);
+  assert.equal(f.events().length, fresh.length + before);
 });
 
-test("the concurrency cap holds across finder and verifier workers", (t) => {
-  const f = queueFixture(t, { concurrency: 2 });
-  const aspects = ["masked-errors", "convention-drift", ASPECT];
-  f.setPlan({
-    delayMs: 300,
-    results: Object.fromEntries(
-      aspects.map((aspect) => [
-        aspect,
-        {
-          ...found("findings", [candidate("source.ts", "// redundant")]).result,
-          aspect,
-        },
-      ]),
-    ),
-  });
-  f.start(["--aspects", aspects.join(",")]);
-  assert.equal(f.finish().status, 0);
-  assert.equal(stage(f, "find").length, 3);
-  assert.equal(stage(f, "verify").length, 3);
-  const spans = [...Map.groupBy(f.lifecycle(), (e) => e.pid).values()].map(
-    (events) => [
-      events.find((e) => e.type === "prompt")?.time ?? Number.NaN,
-      events.find((e) => e.type === "result")?.time ?? Number.NaN,
-    ],
-  );
-  assert.equal(spans.length, 6);
-  const peak = Math.max(
-    ...spans.map(
-      ([start = 0]) =>
-        spans.filter(([from = 0, to = 0]) => from <= start && start < to)
-          .length,
-    ),
-  );
-  assert.ok(peak >= 1 && peak <= 2, `peak ${peak}`);
-});
-
-test("a run deadline is reported as its own cause, keeps the pending shard and resume finishes only that shard", (t) => {
-  const f = shardedFixture(t, {
+test("a run deadline is reported as its own local stop and a blocking resume reruns that aspect's finder", (t) => {
+  const f = queueFixture(t, {
     concurrency: 1,
     limits: { workerTimeoutSeconds: 60, runTimeoutSeconds: 6 },
   });
-  f.setPlan({ workers: { [ASPECT]: { paths: { "b.ts": { hang: true } } } } });
+  f.setPlan({ workers: { [ASPECT]: { hang: true } } });
   const { task } = review(f);
   const old = f.state();
   assert.equal(old.executions?.at(-1)?.stopReason, "deadline");
-  assert.equal(task.status, "incomplete");
-  assert.deepEqual(task.result?.examinedPaths, ["a.ts"]);
-  assert.deepEqual(task.unresolved, {
-    cause: "deadline",
-    paths: ["b.ts", "source.ts"],
-  });
+  assert.notEqual(task.status, "no-findings");
+  assert.deepEqual(task.unresolved, { cause: "deadline" });
+  const attempt = task.attempts.at(-1);
+  assert.equal(attempt?.diagnostic?.stop, "run");
+  assert.equal(attempt?.diagnostic?.code, undefined);
   const report = f.run(["report", old.id]);
   assert.match(report.stdout, /stopCause: deadline/);
-  assert.match(report.stdout, /pending: 2/);
   f.setPlan();
   const before = f.events().length;
-  const resumed = f.run(["resume", old.id, "--deadline", "30", "--wait", "30"]);
+  const resumed = f.run(["resume", old.id, "--deadline", "30"]);
   assert.equal(resumed.status, 0, resumed.stdout);
+  assert.equal(f.state().executions?.at(-1)?.waitSeconds, null);
   assert.deepEqual(
     f
       .events()
       .slice(before)
-      .map((e) => e.paths),
-    [["b.ts", "source.ts"]],
+      .map((e) => e.stage),
+    ["find"],
   );
   const after = f.state().tasks[0];
   assert.equal(after?.status, "no-findings");
   assert.equal(after?.unresolved, undefined);
 });
 
-test("a worker cleanup failure certifies no coverage for its shard", (t) => {
+test("a finder stopped at its own time ceiling is not retried; an idle stop is", (t) => {
+  const ceiling = queueFixture(t, {
+    maxRetries: 3,
+    limits: { workerTimeoutSeconds: 2, workerIdleSeconds: 60 },
+  });
+  ceiling.setPlan({ workers: { [ASPECT]: { hang: true } } });
+  const stopped = review(ceiling).task;
+  assert.equal(stopped.attempts.length, 1);
+  assert.equal(stopped.attempts[0]?.failure, "timeout");
+  assert.equal(stopped.attempts[0]?.diagnostic?.stop, "ceiling");
+  assert.deepEqual(stopped.unresolved, { cause: "timeout" });
+
+  const idle = queueFixture(t, {
+    maxRetries: 1,
+    limits: { workerTimeoutSeconds: 60, workerIdleSeconds: 1 },
+  });
+  idle.setPlan({ workers: { [ASPECT]: { hang: true } } });
+  assert.deepEqual(
+    review(idle).task.attempts.map((a) => a.diagnostic?.stop),
+    ["idle", "idle"],
+  );
+});
+
+test("a finder cleanup failure leaves the aspect incomplete", (t) => {
   const f = queueFixture(t, {
     agent: "pi",
     model: "openai/gpt-6-luna",
@@ -308,70 +320,49 @@ test("a worker cleanup failure certifies no coverage for its shard", (t) => {
   assert.equal(task.attempts.length, 1);
   assert.equal(task.attempts[0]?.failure, "cleanup");
   assert.equal(task.status, "incomplete");
-  assert.deepEqual(task.result?.examinedPaths, []);
+  assert.deepEqual(task.unresolved, { cause: "cleanup" });
 });
 
-test("an aspect is not applicable only when every shard says so", (t) => {
-  const reason = { reason: "No comments in this shard." };
-  for (const [other, status] of [
-    [found("not-applicable", [], reason), "not-applicable"],
-    [found("no-findings"), "no-findings"],
-  ] as const) {
-    const f = shardedFixture(t);
-    f.setPlan({
-      workers: {
-        [ASPECT]: {
-          ...found("not-applicable", [], reason),
-          paths: { "b.ts": other },
-        },
-      },
-    });
-    const { done, task } = review(f);
-    assert.equal(done.status, 0, done.stdout);
-    assert.equal(task.status, status);
-    assert.equal(
-      task.result?.reason,
-      status === "not-applicable" ? reason.reason : undefined,
-    );
-    assert.deepEqual(stage(f, "verify"), []);
-  }
-});
-
-test("a shard whose every candidate fails quote validation stays uncovered", (t) => {
+test("an aspect is not applicable when its finder says so and no verifier starts", (t) => {
   const f = queueFixture(t);
   f.setPlan({
     workers: {
-      [ASPECT]: found("findings", [candidate("source.ts", "invented quote")]),
+      [ASPECT]: found("not-applicable", [], { reason: "No comments here." }),
     },
   });
   const { done, task } = review(f);
-  assert.equal(done.status, 1, done.stdout);
-  assert.equal(task.status, "incomplete");
-  assert.deepEqual(task.result?.findings, []);
-  assert.deepEqual(task.rejections, [{ index: 1, reason: "quote-mismatch" }]);
-  assert.deepEqual(task.unresolved?.paths, ["source.ts"]);
+  assert.equal(done.status, 0, done.stdout);
+  assert.equal(task.status, "not-applicable");
+  assert.equal(task.result?.reason, "No comments here.");
   assert.deepEqual(stage(f, "verify"), []);
 });
 
-test("a rejected candidate keeps its path uncovered even when a sibling candidate survives", (t) => {
-  const f = queueFixture(t);
-  f.setPlan({
-    workers: {
-      [ASPECT]: found("findings", [
+test("a rejected quote drops only that candidate, is recorded and does not keep the aspect open", (t) => {
+  for (const [findings, status, verdicts] of [
+    [[candidate("source.ts", "invented quote")], "no-findings", []],
+    [
+      [
         candidate("source.ts", "// redundant"),
         candidate("source.ts", "invented quote", 2),
-      ]),
-    },
-  });
-  const { done, task } = review(f);
-  assert.equal(done.status, 1, done.stdout);
-  assert.equal(task.status, "incomplete");
-  assert.deepEqual(
-    task.result?.findings.map((x) => [x.quote, x.verdict]),
-    [["// redundant", "upheld"]],
-  );
-  assert.deepEqual(task.rejections, [{ index: 2, reason: "quote-mismatch" }]);
-  assert.deepEqual(task.unresolved?.paths, ["source.ts"]);
+      ],
+      "findings",
+      [["// redundant", "upheld"]],
+    ],
+  ] as const) {
+    const f = queueFixture(t);
+    f.setPlan({ workers: { [ASPECT]: found("findings", [...findings]) } });
+    const { done, task } = review(f);
+    assert.equal(done.status, 0, done.stdout);
+    assert.equal(task.status, status);
+    assert.deepEqual(
+      task.result?.findings.map((x) => [x.quote, x.verdict]),
+      verdicts,
+    );
+    assert.deepEqual(task.rejections, [
+      { index: findings.length, reason: "quote-mismatch" },
+    ]);
+    assert.equal(stage(f, "verify").length, verdicts.length);
+  }
 });
 
 test("verdicts from a verifier that did not finish cleanly are not applied", (t) => {

@@ -62,14 +62,55 @@ test("packaged Claude launcher replaces conflicting profile flags and preserves 
     const { args, marker } = JSON.parse(result.stdout);
     const option = (name: string) => args[args.indexOf(name) + 1];
     assert.equal(marker, "1");
-    assert.equal(option("--tools"), "Read,Grep,Glob");
+    assert.equal(option("--tools"), "Read,Grep,Glob,Bash");
     assert.equal(option("--setting-sources"), "");
-    assert.deepEqual(JSON.parse(option("--settings")), {
-      disableAllHooks: true,
-      apiKeyHelper: "",
-    });
+    const settings = JSON.parse(option("--settings"));
+    assert.equal(settings.disableAllHooks, true);
+    assert.equal(settings.apiKeyHelper, "");
+    assert.ok(!("hooks" in settings));
+    assert.deepEqual(
+      settings.permissions.allow.filter(
+        (rule: string) => !rule.endsWith(" *)"),
+      ),
+      [
+        "Bash(git diff)",
+        "Bash(git log)",
+        "Bash(git show)",
+        "Bash(git blame)",
+        "Bash(git status)",
+        "Bash(git ls-files)",
+        "Bash(git grep)",
+        "Bash(git cat-file)",
+        "Bash(git merge-base)",
+        "Bash(git rev-parse)",
+      ],
+    );
+    assert.ok(
+      settings.permissions.allow.every((rule: string) =>
+        /^Bash\(git [a-z-]+( \*)?\)$/.test(rule),
+      ),
+    );
+    assert.deepEqual(settings.permissions.deny, [
+      "Bash(git * --ou*)",
+      "Bash(git * --op*)",
+      "Bash(git grep *-*O*)",
+      "Bash(git *'*)",
+      'Bash(git *"*)',
+      "Bash(git *\\*)",
+      "Bash(git *\\\\*)",
+      "Bash(git *$*)",
+      "Bash(git *`*)",
+      "Bash(git *{*)",
+      "Bash(git *<*)",
+      "Bash(git *>*)",
+    ]);
     assert.deepEqual(JSON.parse(option("--mcp-config")), { mcpServers: {} });
-    assert.equal(option("--permission-mode"), "default");
+    assert.equal(option("--permission-mode"), "dontAsk");
+    assert.equal(args.filter((a: string) => a === "--settings").length, 1);
+    assert.equal(
+      args.filter((a: string) => a === "--permission-mode").length,
+      1,
+    );
     assert.equal(option("--model"), "exact-model");
     assert.equal(option("--resume"), "control-id");
     assert.equal(option("--max-turns"), "3");
@@ -110,7 +151,7 @@ test("packaged Claude launcher replaces conflicting profile flags and preserves 
     );
     assert.equal(
       discoveredArgs[discoveredArgs.indexOf("--tools") + 1],
-      "Read,Grep,Glob",
+      "Read,Grep,Glob,Bash",
     );
   } finally {
     await rm(cwd, { recursive: true, force: true });

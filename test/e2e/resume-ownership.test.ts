@@ -196,14 +196,7 @@ test("retry and resume retain production source-only profile, fresh sessions, on
     worker: {
       attempts: [
         { result: "" },
-        {
-          result: {
-            aspect: "low-value-comments",
-            status: "incomplete",
-            findings: [],
-            limitations: ["Needs another pass."],
-          },
-        },
+        { error: { message: "Cannot decode provider response" } },
         {},
       ],
     },

@@ -2,6 +2,7 @@ export const clean = {
   aspect: "low-value-comments",
   status: "no-findings",
   findings: [],
+  examinedPaths: [],
   limitations: [],
 };
 

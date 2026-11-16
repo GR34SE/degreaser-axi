@@ -123,8 +123,8 @@ test("an independent schema-validating process observes concurrent owner transit
   });
   assert.equal(f.start().status, 3);
   await until(
-    () => f.events().length === 16,
-    "Sixteen workers overlap under the default cap",
+    () => f.events().length >= 18,
+    "Every aspect's worker overlaps without a configured cap",
   );
   const reader = processFixture(t, f, "reader");
   await Promise.race([

@@ -240,14 +240,17 @@ test("bounded public waiting reattaches to the same detached owner and corrupt s
   assert.equal(f.events().length, 1);
   const file = join(f.root, ".degreaser/runs", id, "run.json");
   const original = readFileSync(file, "utf8");
-  for (const damaged of [
-    "{",
-    JSON.stringify({ ...JSON.parse(original), schemaVersion: 99 }),
-  ]) {
+  for (const [damaged, code] of [
+    ["{", /state-corrupt/],
+    [
+      JSON.stringify({ ...JSON.parse(original), schemaVersion: 99 }),
+      /state-incompatible/,
+    ],
+  ] as const) {
     writeFileSync(file, damaged);
     const result = f.run(["report", id]);
     assert.equal(result.status, 2);
-    assert.match(result.stdout, /state-corrupt/);
+    assert.match(result.stdout, code);
     assert.ok(result.stdout.includes("run.json"));
     assert.equal(readFileSync(file, "utf8"), damaged);
   }

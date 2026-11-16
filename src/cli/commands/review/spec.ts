@@ -35,11 +35,13 @@ export const spec: CommandSpec = {
     },
     concurrency: {
       type: "string",
-      description: "Positive active-worker limit (default 16, or the RC value)",
+      description:
+        "Positive active-worker cap (default the RC value, else one per selected aspect)",
     },
     wait: {
       type: "string",
-      description: "Seconds to wait (default 480)",
+      description:
+        "Return status running after this many seconds (default: block until the run ends)",
     },
   },
   positionals: {

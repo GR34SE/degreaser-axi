@@ -14,7 +14,7 @@ export interface ReviewRequest {
   taskFile?: string;
   pathPatterns: string[];
   controls: ReviewControls;
-  waitSeconds: number;
+  waitSeconds: number | null;
 }
 
 export interface ReviewInput extends ResolvedScope {
@@ -26,7 +26,7 @@ export interface ReviewInput extends ResolvedScope {
   task: string;
   taskFile?: string;
   pathPatterns?: string[];
-  waitSeconds: number;
+  waitSeconds: number | null;
   config: EffectiveConfig;
   dismissed?: Dismissal[];
   workers: Assignment[];
@@ -35,6 +35,6 @@ export interface ReviewInput extends ResolvedScope {
 
 export interface ResumeControls {
   concurrency?: number;
-  waitSeconds?: number;
+  waitSeconds?: number | null;
   deadlineSeconds?: number;
 }

@@ -7,7 +7,7 @@ Result completeness and local data limits are described in [result-contract.md](
 
 Review requires an explicit `worktree`, `branch` or `repository` scope and exactly one nonempty task, supplied as `--task` or a readable UTF-8 `--task-file`. File paths resolve from the invocation directory. Task text preserves whitespace and line breaks. Duplicate flags (other than repeatable `--path`), unknown flags, positional arguments, empty selections and noninteger controls fail before run creation. Only `branch` accepts `--base`, which is mandatory and never inferred.
 
-The repository root comes from Git, including nested invocations and linked worktrees. Only its `.degreaserrc.json` is loaded. There is no parent-directory or global configuration search and no default agent, model or verifier.
+The repository root comes from Git, including nested invocations and linked worktrees. Only its `.degreaserrc.json` is loaded. There is no parent-directory or global configuration search and no default agent or model; the verifier defaults to the configured finder identity.
 
 ## Configuration
 
@@ -16,13 +16,13 @@ The repository root comes from Git, including nested invocations and linked work
 - Agents: `codex`, `claude`, `pi`, `cursor`. Models are whitespace-free IDs or explicit latest selectors (below), with `provider/model` required for Pi. Syntax checks do not establish model availability. Before creating a run, owner or aspect attempt, `review` discovers the exact catalogs needed by selected finders and the verifier and rejects unsupported pairs (including overrides) as `invalid-input` / 2. Exact IDs never receive prefix matching, substitution or fallback.
 - `aspects` maps each built-in ID to exactly one setting: `true` (on, configured identity), `false` (off) or an identity object (on, that identity). Omitted IDs are on. Unknown IDs, other value types or an empty effective selection are invalid.
 - `--aspects` is a comma-separated one-run subset of enabled IDs, sorted into catalog order. Explicit disabled IDs are errors, not silently re-enabled. No aliases (including former A01–A16 numbers) or custom rubrics.
-- Every review runs two worker stages. The top-level `agent`/`model` is the **finder** identity and per-aspect overrides apply to finders. The required top-level `verifier` identity selects the sessions that check each candidate finding.
-- An identity object is `{ "model": "<model>" }` or `{ "agent": "...", "model": "..." }`. Model-only overrides retain the configured agent; an agent override always requires an explicit model. `verifier` takes the same two forms: `{ "model": "<model>" }` inherits the top-level agent, `{ "agent": "...", "model": "..." }` sets both. A missing `verifier` is rejected with a pointer to `init`; there is no default, and `config sync` cannot fill it.
-- `concurrency` and `limits.maxTurns` accept integers 1–9,007,199,254,740,991. An absent `concurrency` means 16 simultaneous workers across both stages, not a machine-dependent cap. RC `null` explicitly represents no limit, as it does in resolved input.
-- `maxRetries`: 0–10, default 1 additional attempt. `limits.workerTimeoutSeconds`: 1–2,147,483, default 300. `limits.workerIdleSeconds`: the same range, default 120; an attempt with no adapter event for that long stops as a timeout. `limits.runTimeoutSeconds`: the same range, default 7200. `limits.maxTurns` defaults to 40. `--wait` uses the seconds range, default 480. The seconds bound prevents signed 32-bit millisecond timer overflow.
+- Every review runs two worker stages. The top-level `agent`/`model` is the **finder** identity and per-aspect overrides apply to finders. The optional top-level `verifier` identity selects the sessions that check each candidate finding; when it is absent, the top-level `agent`/`model` also verifies.
+- An identity object is `{ "model": "<model>" }` or `{ "agent": "...", "model": "..." }`. Model-only overrides retain the configured agent; an agent override always requires an explicit model. `verifier` takes the same two forms: `{ "model": "<model>" }` inherits the top-level agent, `{ "agent": "...", "model": "..." }` sets both. `config sync` never adds a missing `verifier`.
+- `concurrency` and `limits.maxTurns` accept integers 1–9,007,199,254,740,991. `concurrency` is an optional cap on simultaneous workers across both stages, for example to respect a provider rate limit. When it is absent, a run allows one active worker per selected aspect, the aspect's finder and then its verifier. `null` is rejected.
+- `maxRetries`: 0–10, default 1 additional attempt. `limits.workerTimeoutSeconds`: 1–2,147,483, default 900, the ceiling for one attempt. `limits.workerIdleSeconds`: the same range, default 180; an attempt with no adapter event for that long stops as a timeout. `limits.runTimeoutSeconds`: the same range, default 1800. `limits.maxTurns` defaults to 40. `--wait` uses the seconds range and has no default: without it `review`, `wait` and `resume` block until the run ends. The seconds bound prevents signed 32-bit millisecond timer overflow.
 - Only `--aspects`, `--concurrency` and `--wait` control this review invocation. They never rewrite the RC.
 
-Init writes every configurable field, including the verifier, every aspect, empty collections and a concurrency of 16. `config sync` fills only missing configurable fields (including nested limits and aspect settings) in an existing valid RC, retaining explicit values and effective behavior. It writes atomically and leaves complete files untouched. Model-only overrides continue inheriting the configured agent; sync does not copy inherited identities into overrides. Home, installed startup hooks, doctor and review disclose missing settings and the installed default values without editing the RC. No registry lookup or model discovery is needed to sync. The format version is independent of package releases; unsupported versions and unknown fields are errors, never reset or silently discarded.
+Init writes every configurable field except `concurrency`, including the verifier, every aspect and empty collections; it keeps an existing `concurrency` cap. `config sync` fills only missing configurable fields (including nested limits and aspect settings) in an existing valid RC, retaining explicit values and effective behavior. It writes atomically and leaves complete files untouched. Model-only overrides continue inheriting the configured agent; sync does not copy inherited identities into overrides. Home, installed startup hooks, doctor and review disclose missing settings and the installed default values without editing the RC. No registry lookup or model discovery is needed to sync. The format version is independent of package releases; unsupported versions and unknown fields are errors, never reset or silently discarded.
 
 These numeric defaults, retry ceiling, version-omission rule and exclusion spelling are implementation choices, not additional product requirements.
 
@@ -78,13 +78,12 @@ Example with Codex, `gpt-6-terra` as finder and `gpt-6-sol` as verifier; confirm
   "agent": "codex",
   "model": "gpt-6-terra",
   "verifier": { "model": "gpt-6-sol" },
-  "concurrency": 16,
   "maxRetries": 1,
   "limits": {
-    "workerTimeoutSeconds": 300,
-    "workerIdleSeconds": 120,
+    "workerTimeoutSeconds": 900,
+    "workerIdleSeconds": 180,
     "maxTurns": 40,
-    "runTimeoutSeconds": 7200
+    "runTimeoutSeconds": 1800
   },
   "aspects": {
     "unnecessary-complexity": true,

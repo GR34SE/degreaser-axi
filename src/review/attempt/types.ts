@@ -16,6 +16,7 @@ export interface WorkerRequest {
   onSessionReady?: (id: string) => void;
   onLifecycle?: (event: { type: "spawn" | "exit"; pid: number }) => void;
   onTool?: (event: { kind: string; status: string }) => void;
+  next?: (output: string) => string | undefined;
 }
 export interface WorkerOutcome {
   status: "completed" | "failed";

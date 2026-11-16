@@ -5,13 +5,15 @@ import {
   CALLER_GUIDANCE,
   DESCRIPTION,
 } from "../../../install/skill/guidance.ts";
+import { skippedNote } from "../../../install/startup-context.ts";
 import { ASPECT_IDS } from "../../../modules/aspect/api.ts";
 import { verdictCounts } from "../../../report/details.ts";
 import { observeRun } from "../../../state/status.ts";
-import { loadInput, loadRun } from "../../../state/store.ts";
+import { loadInput } from "../../../state/store.ts";
 import { InputError, StateError } from "../../../util/errors.ts";
 import { repositoryRoot } from "../../../util/git/repository.ts";
 import type { Factory } from "../../factory.ts";
+import { selectRun } from "../shared/run.ts";
 
 export { spec } from "./spec.ts";
 
@@ -56,11 +58,13 @@ export function run(f: Factory) {
     local.reason = error.message;
   }
   try {
-    const run = loadRun(repository);
+    const { run, skipped } = selectRun(repository);
     loadInput(run);
+    const note = skippedNote(skipped);
     const { run: observed, status } = observeRun(run);
     Object.assign(local, {
       history: "available",
+      ...(note ? { skippedRuns: note } : {}),
       run: run.id,
       status,
       ...verdictCounts(observed.tasks),

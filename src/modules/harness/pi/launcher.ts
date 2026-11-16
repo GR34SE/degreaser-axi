@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { fileURLToPath } from "node:url";
 import {
   launchNative,
   replaceOptions,
@@ -26,9 +27,11 @@ try {
       ...args,
       ...(discovery ? [] : ["--model", model]),
       "--tools",
-      "read,grep,find,ls",
+      "read,grep,find,ls,bash",
       "--no-skills",
       "--no-extensions",
+      "--extension",
+      fileURLToPath(new URL("./git-gate.js", import.meta.url)),
       "--no-mcp",
       "--no-context-files",
       "--no-prompt-templates",

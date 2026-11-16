@@ -216,10 +216,10 @@ test("selection narrows all eighteen defaults without re-enabling disabled aspec
   assert.equal(config.concurrency, 1);
   assert.equal(config.maxRetries, 1);
   assert.deepEqual(config.limits, {
-    workerTimeoutSeconds: 300,
-    workerIdleSeconds: 120,
+    workerTimeoutSeconds: 900,
+    workerIdleSeconds: 180,
     maxTurns: 40,
-    runTimeoutSeconds: 7200,
+    runTimeoutSeconds: 1800,
   });
   assert.equal(JSON.stringify(rc), original);
   assert.equal(resolveConfig(rc).assignments.length, all.length - 1);

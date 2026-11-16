@@ -120,9 +120,7 @@ export async function run(
   let previous: ProjectConfig | undefined;
   if (before !== null) {
     try {
-      previous = validateConfig(JSON.parse(before), {
-        requireVerifier: false,
-      });
+      previous = validateConfig(JSON.parse(before));
     } catch (error) {
       if (error instanceof InputError) throw error;
       throw new InputError("Root .degreaserrc.json must contain valid JSON.");

@@ -5,8 +5,8 @@
 | Harness | Adapter / verified native version | Effective restriction |
 | --- | --- | --- |
 | Codex | @agentclientprotocol/codex-acp 2.5.0 / 0.165.0 | Native read-only filesystem sandbox with never approval; shell/code mode remains for reads. Project docs/hooks/delegation/apps/web/MCP are disabled by the worker profile. |
-| Claude Code | @agentclientprotocol/claude-agent-acp 0.95.0 / 2.1.317 | Native Read/Grep/Glob tool allowlist; settings sources, skills, hooks and MCP disabled by the worker launcher. Managed policy is retained. |
-| Pi | pi-acp 0.0.33 / 1.4.0 | Native read/grep/find/ls tool allowlist; skills, extensions, MCP, context files and prompt templates disabled by the worker launcher. |
+| Claude Code | @agentclientprotocol/claude-agent-acp 0.95.0 / 2.1.317 | Native Read/Grep/Glob/Bash tool allowlist; Bash limited by native allow rules and dontAsk mode to read-only git subcommands, with deny rules for git output and pager options and for quoting, escapes, expansions and redirection. Settings sources, skills, hooks and MCP disabled by the worker launcher. Managed policy is retained. |
+| Pi | pi-acp 0.0.33 / 1.4.0 | Native read/grep/find/ls/bash tool allowlist; bash limited by the launcher's own extension, which blocks any call that is not a read-only git subcommand with plain arguments. Skills, other extensions, MCP, context files and prompt templates disabled by the worker launcher. |
 | Cursor | native ACP / 2026.11.05-86047df | Native ask/read-only mode with sandbox enabled; writes denied by the ACP client. Project MCP/hooks are not a native allowlist. |
 
 The verifier session uses the same native read-only profile as a finder, with the
@@ -85,7 +85,11 @@ persisting model RPC. There is no default-model, provider or metered API fallbac
 
 All workers receive `DEGREASER_WORKER=1` and the packaged source-only instruction.
 They must not edit, run tests/application code, install, delegate, browse or invoke
-Degreaser. The coordinator supplies one assigned rubric, the resolved scope/task
+Degreaser. Every worker may run read-only `git` (diff, log, show, blame, status,
+ls-files, grep, cat-file, merge-base, rev-parse) to explore the branch. Workers
+run with `GIT_NO_LAZY_FETCH=1`, `GIT_OPTIONAL_LOCKS=0`, `GIT_TERMINAL_PROMPT=0`
+and `GIT_PAGER=cat`, so these commands do not fetch promised objects, refresh the
+index, prompt or page. The coordinator supplies one assigned rubric, the resolved scope/task
 and the stage's response contract. Repository text is evidence, not authority.
 
 ## Limits and honest evidence
@@ -99,6 +103,11 @@ and the stage's response contract. Repository text is evidence, not authority.
   execution used for reading. User skills and managed policy may remain visible.
 - Claude and Pi tool allowlists are native tool restrictions, not OS sandboxes
   around the whole adapter process. Managed policy remains authoritative.
+  Claude's Bash is limited by native permission rules matched against command
+  text; Pi's bash by the launcher's extension, which accepts only a read-only git
+  subcommand with plain arguments (no quotes, globs, variables, redirection or
+  command separators) and rejects git options that write files or start a pager
+  program. Neither is a sandbox around the git process.
 - Cursor ask mode is native read-only behavior plus client-side deny-writes, not
   a tool allowlist. Repository rules (AGENTS.md, CLAUDE.md), project MCP, hooks,
   plugins and skills may remain visible; the `native-worker` pilot records an
@@ -137,8 +146,8 @@ hooks/apps/delegation and enabled code-mode. A bounded native stdio
 `config/read` check confirms effective `web_search: disabled` even over a
 disposable user configuration requesting live search; it sends no model turn
 and opens no listening port. Claude's actual initialization
-advertises exactly Read/Grep/Glob, zero skills and zero MCP servers. Pi's native
-system messages advertise exactly read/grep/find/ls. Read nonces and inactive
+advertises exactly Read/Grep/Glob/Bash, zero skills and zero MCP servers. Pi's
+native system messages advertise exactly read/grep/find/ls/bash. Read nonces and inactive
 project hook/extension/instruction canaries accompany those checks.
 Each profile also creates a second fresh actual session, cancels it during a
 turn, and checks that observed owned native descendants have exited. Pi settings
@@ -161,18 +170,22 @@ Native read-only filesystem sandbox with never approval; shell/code mode remains
 
 ## Claude Code
 
-Native Read/Grep/Glob tool allowlist; settings sources, skills, hooks and MCP disabled by the worker launcher. Managed policy is retained.
+Native Read/Grep/Glob/Bash tool allowlist; Bash limited by native allow rules and dontAsk mode to read-only git subcommands, with deny rules for git output and pager options and for quoting, escapes, expansions and redirection. Settings sources, skills, hooks and MCP disabled by the worker launcher. Managed policy is retained.
 
-- Native Read/Grep/Glob allowlist is not an OS sandbox for the adapter.
+- Native tool allowlist and Bash permission rules are not an OS sandbox for the adapter or for the commands Bash runs.
+- Bash rules match command text with Claude Code's own parser; commands Claude Code classifies as read-only may also run. git keeps user and repository configuration, including diff drivers and textconv filters.
+- The git grep deny rule also refuses harmless searches with an uppercase O after an option; the Grep tool remains.
+- dontAsk mode also denies Read, Grep and Glob outside the worker's working directory.
 - Managed host policy is retained; conflicting policy blocks operation. Harmless plugin metadata may remain.
 - Claude's review-time --model adds any requested ID to the session catalog, so a review-time catalog check cannot confirm the model; admission checks a catalog discovered without --model. Neither proves provider availability.
 - Native harness session/cache writes are outside the reviewed source.
 
 ## Pi
 
-Native read/grep/find/ls tool allowlist; skills, extensions, MCP, context files and prompt templates disabled by the worker launcher.
+Native read/grep/find/ls/bash tool allowlist; bash limited by the launcher's own extension, which blocks any call that is not a read-only git subcommand with plain arguments. Skills, other extensions, MCP, context files and prompt templates disabled by the worker launcher.
 
-- Native read/grep/find/ls allowlist is not an OS sandbox for the adapter.
+- Native tool allowlist and the bash extension gate are not an OS sandbox for the adapter or for the git commands bash runs.
+- git keeps user and repository configuration, including diff drivers and textconv filters.
 - Offline suppresses startup discovery, not subscription model traffic.
 - Native harness session/cache writes are outside the reviewed source.
 

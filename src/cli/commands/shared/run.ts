@@ -1,4 +1,5 @@
 import { setTimeout } from "node:timers/promises";
+import { skippedNote } from "../../../install/startup-context.ts";
 import { AGENTS, HARNESSES } from "../../../modules/harness/api.ts";
 import { renderReport } from "../../../report/index.ts";
 import type { ReportContext } from "../../../report/types.ts";
@@ -10,13 +11,25 @@ import {
 } from "../../../state/ownership.ts";
 import type { Run, RunTask } from "../../../state/run.ts";
 import { observeRun } from "../../../state/status.ts";
-import { loadInput, loadRun } from "../../../state/store.ts";
+import { loadInput, loadLatestRun, loadRun } from "../../../state/store.ts";
+import { StateError } from "../../../util/errors.ts";
 import type { Factory } from "../../factory.ts";
 
 export const identities = (tasks: RunTask[]) =>
   [
     ...new Set(tasks.map((t) => `${t.assignment.agent}/${t.assignment.model}`)),
   ].join(",");
+
+export function selectRun(repository: string, id?: string) {
+  if (id) return { run: loadRun(repository, id), skipped: 0 };
+  const { run, skipped } = loadLatestRun(repository);
+  if (!run)
+    throw new StateError(
+      "no-history",
+      `No review history readable by this version. ${skippedNote(skipped) ?? ""}`.trim(),
+    );
+  return { run, skipped };
+}
 
 export function reportContext(f: Factory, snapshot: Run) {
   const { run, status } = observeRun(snapshot);
@@ -43,10 +56,14 @@ export function reportContext(f: Factory, snapshot: Run) {
   return { run, context };
 }
 
-export async function waitFor(f: Factory, run: Run, seconds: number) {
-  const end = f.now() + seconds * 1000;
-  while (observeRun(run).status === "running" && f.now() < end) {
-    await setTimeout(Math.min(100, end - f.now()));
+const STOP_GRACE_MS = 60_000;
+
+export async function waitFor(f: Factory, run: Run, seconds: number | null) {
+  const limit =
+    seconds === null ? Number.POSITIVE_INFINITY : f.now() + seconds * 1000;
+  const end = () => Math.min(limit, run.deadline + STOP_GRACE_MS);
+  while (observeRun(run).status === "running" && f.now() < end()) {
+    await setTimeout(Math.min(100, end() - f.now()));
     run = loadRun(run.repository, run.id);
   }
   const observed = reportContext(f, run);
