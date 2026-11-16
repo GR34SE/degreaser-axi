@@ -74,8 +74,9 @@ persisting model RPC. There is no default-model, provider or metered API fallbac
 
 All workers receive `DEGREASER_WORKER=1` and the packaged source-only instruction.
 They must not edit, run tests/application code, install, delegate, browse or invoke
-Degreaser. Every worker may run read-only `git` (diff, log, show, blame, status,
-ls-files, grep, cat-file, merge-base, rev-parse) to explore the branch. Workers
+Degreaser. Every worker may run read-only `git` (diff, log, show, status,
+ls-files, cat-file, merge-base, rev-parse; blame and grep except on Claude Code,
+which searches with its native Grep tool) to explore the branch. Workers
 run with `GIT_NO_LAZY_FETCH=1`, `GIT_OPTIONAL_LOCKS=0`, `GIT_TERMINAL_PROMPT=0`
 and `GIT_PAGER=cat`, so these commands do not fetch promised objects, refresh the
 index, prompt or page. The coordinator supplies one assigned rubric, the resolved scope/task
