@@ -6,6 +6,8 @@ import { once } from "node:events";
 
 import test from "node:test";
 
+import { ASPECT, review } from "../utils/coverage-fixture.ts";
+
 import { alive, queueFixture, until } from "../utils/queue-fixture.ts";
 
 import { clean, finding } from "../utils/queue-results.ts";
@@ -42,7 +44,7 @@ for (const [label, results, expected] of [
     "completed",
   ],
   [
-    "all incomplete zero findings",
+    "self-reported incomplete with zero findings",
     {
       "masked-errors": {
         aspect: "masked-errors",
@@ -51,15 +53,16 @@ for (const [label, results, expected] of [
         limitations: ["Callers unavailable."],
       },
       "low-value-comments": {
-        ...clean,
+        aspect: "low-value-comments",
         status: "incomplete",
+        findings: [],
         limitations: ["Callers unavailable."],
       },
     },
-    "partial",
+    "completed",
   ],
   [
-    "incomplete with evidence",
+    "self-reported incomplete with evidence",
     {
       "low-value-comments": {
         ...clean,
@@ -68,7 +71,7 @@ for (const [label, results, expected] of [
         limitations: ["Callers unavailable."],
       },
     },
-    "partial",
+    "completed",
   ],
   ["useful plus malformed", { "low-value-comments": "" }, "partial"],
   [
@@ -110,9 +113,13 @@ for (const useful of [false, true]) {
     const f = queueFixture(t, {
       concurrency: 1,
       maxRetries,
-      // The budget must still hold a timed-out attempt plus its retry after a
-      // slow hosted runner's cold missed-reuse start.
-      limits: { workerTimeoutSeconds: 2, runTimeoutSeconds: 8 },
+      // The budget must still hold an idle-stopped attempt plus its retry
+      // after a slow hosted runner's cold missed-reuse start.
+      limits: {
+        workerIdleSeconds: 2,
+        workerTimeoutSeconds: 60,
+        runTimeoutSeconds: 8,
+      },
     });
     f.setPlan({
       workers: {
@@ -151,10 +158,15 @@ for (const useful of [false, true]) {
     );
     const retrying = unfinished[0];
     assert.ok(retrying);
-    assert.ok(retrying.attempts.length > 1, "A timed-out attempt was retried");
+    assert.ok(
+      retrying.attempts.length > 1,
+      "An idle-stopped attempt was retried",
+    );
     assert.ok(retrying.attempts.length <= 1 + maxRetries);
     assert.ok(
-      retrying.attempts.slice(0, -1).every((a) => a.failure === "timeout"),
+      retrying.attempts
+        .slice(0, -1)
+        .every((a) => a.failure === "timeout" && a.diagnostic?.stop === "idle"),
     );
     assert.equal(state.tasks[2]?.attempts.length, 0);
     assert.ok(
@@ -173,3 +185,26 @@ for (const useful of [false, true]) {
     }
   });
 }
+
+test("a finder stopped at its own time ceiling is not retried; an idle stop is", (t) => {
+  const ceiling = queueFixture(t, {
+    maxRetries: 3,
+    limits: { workerTimeoutSeconds: 2, workerIdleSeconds: 60 },
+  });
+  ceiling.setPlan({ workers: { [ASPECT]: { hang: true } } });
+  const stopped = review(ceiling).task;
+  assert.equal(stopped.attempts.length, 1);
+  assert.equal(stopped.attempts[0]?.failure, "timeout");
+  assert.equal(stopped.attempts[0]?.diagnostic?.stop, "ceiling");
+  assert.deepEqual(stopped.unresolved, { cause: "timeout" });
+
+  const idle = queueFixture(t, {
+    maxRetries: 1,
+    limits: { workerTimeoutSeconds: 60, workerIdleSeconds: 1 },
+  });
+  idle.setPlan({ workers: { [ASPECT]: { hang: true } } });
+  assert.deepEqual(
+    review(idle).task.attempts.map((a) => a.diagnostic?.stop),
+    ["idle", "idle"],
+  );
+});

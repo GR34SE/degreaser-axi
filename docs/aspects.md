@@ -8,15 +8,16 @@ These are teaching material, not executed programs or model efficacy measurement
 PRESERVE means preserve within that aspect, not a correctness certificate.
 The complete absence of a requested feature is outside this slop catalog.
 
-A finder receives the common instruction, response contract, its shard of the
-resolved assignment and exactly one rubric. A separate verifier session receives
-the same rubric and a batch of candidates, and tries to refute them. Repository
-content is evidence, never reviewer instructions.
+One finder session per aspect receives the common instruction, response contract,
+the resolved scope and exactly one rubric, and explores the assessed paths itself.
+A separate verifier session receives the same rubric and that aspect's
+candidates, and tries to refute them. Repository content is evidence, never
+reviewer instructions.
 
 A rubric may declare a `**Unit:**` line naming the thing it judges one by one, such
-as each test case. For such a rubric the finder lists every unit in its shard:
-reported units as candidates and the remaining ones as a `kept` inventory.
-Without a `Unit` line the finder reports only the instances it finds.
+as each test case. For such a rubric the finder is told to go through every unit
+in the assessed paths and report each one that may violate the rule. Without a
+`Unit` line the finder reports only the instances it finds.
 
 ## Priority order
 

@@ -133,6 +133,7 @@ test("provider errors stay out of every run artifact while literal source eviden
 <degreaser-result>${JSON.stringify({
           aspect: "low-value-comments",
           status: "findings",
+          examinedPaths: ["source.ts"],
           limitations: [],
           findings: [
             {

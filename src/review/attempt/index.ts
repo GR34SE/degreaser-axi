@@ -15,11 +15,11 @@ type Attempt = RunTask["attempts"][number];
 
 interface AttemptSpec<T> {
   stage: "find" | "verify";
-  portion: { index: number };
   identity: Identity;
   prompt: string;
   ingest: (output: string) => { value: T; rejections?: Rejection[] };
   record: (value: T, complete: boolean) => WorkerResult;
+  follow?: (round: T, prior: T | undefined) => { value: T; prompt?: string };
 }
 
 const RESULT_FAILURES = [
@@ -29,7 +29,10 @@ const RESULT_FAILURES = [
   "cancelled",
   "deadline",
 ];
-const RETRIED = ["invalid-output", "output-limit", "timeout"];
+const RETRIED = {
+  find: ["invalid-output", "output-limit", "timeout"],
+  verify: ["invalid-output", "output-limit"],
+};
 
 const usageOf = (usage: Record<string, unknown> | null) => {
   const entries = Object.entries(usage ?? {}).filter(
@@ -90,7 +93,6 @@ async function runOnce<T>(
     failure: null,
     usage: null,
     stage: spec.stage,
-    portion: spec.portion,
   };
   task.attempts.push(record);
   task.usage = null;
@@ -109,6 +111,33 @@ async function runOnce<T>(
   let cleanupFailed = false;
   let nativeStop: string | undefined;
   let profiled = false;
+  let gathered: { value: T; rejections: Rejection[] } | undefined;
+  let rounds = 0;
+  const { follow } = spec;
+  const next =
+    follow &&
+    ((output: string) => {
+      try {
+        const round = spec.ingest(output);
+        const step = follow(round.value, gathered?.value);
+        gathered = {
+          value: step.value,
+          rejections: [
+            ...(gathered?.rejections ?? []),
+            ...(round.rejections ?? []),
+          ],
+        };
+        rounds++;
+        return step.prompt;
+      } catch (error) {
+        if (!rounds) return undefined;
+        if (!(error instanceof ResultError)) throw error;
+        limitations.push(
+          `A follow-up round returned no valid result block and ended the session; earlier rounds were kept: ${error.message.slice(0, 200)}`,
+        );
+        return undefined;
+      }
+    });
   try {
     const profile = await nativeProfile(
       runtime,
@@ -137,6 +166,7 @@ async function runOnce<T>(
           record.lastActivityAt = runtime.now();
         },
         onLifecycle: (event) => persist(event.type === "spawn"),
+        ...(next ? { next } : {}),
         onSessionReady: (id) => {
           record.sessionId = id;
           persist();
@@ -153,24 +183,44 @@ async function runOnce<T>(
         ? control.stopReason
         : (outcome.failure ?? null);
     if (outcome.diagnostic && record.failure)
-      record.diagnostic = {
-        ...outcome.diagnostic,
-        recovery: recoveryFor(record.failure),
-      };
+      record.diagnostic = runStopped
+        ? failureDiagnostic(
+            outcome.diagnostic.stage,
+            record.failure,
+            undefined,
+            nativeStop,
+            "run",
+          )
+        : { ...outcome.diagnostic, recovery: recoveryFor(record.failure) };
     limitations.push(...outcome.limitations);
     record.usage = usageOf(outcome.usage as Record<string, unknown> | null);
+    if (rounds) record.rounds = rounds;
     if (
+      gathered ||
       cleanupFailed ||
       runStopped ||
       !record.failure ||
       RESULT_FAILURES.includes(record.failure)
     ) {
       try {
-        const { value, rejections = [] } = spec.ingest(outcome.output);
+        const { value, rejections = [] } =
+          gathered ?? spec.ingest(outcome.output);
         const complete =
           !cleanupFailed &&
-          !runStopped &&
-          (!record.failure || record.failure === "environment-blocked");
+          (gathered
+            ? runStopped
+              ? control.stopReason === "deadline"
+              : !record.failure ||
+                outcome.diagnostic?.stop === "idle" ||
+                outcome.diagnostic?.stop === "ceiling"
+            : !runStopped &&
+              (!record.failure || record.failure === "environment-blocked"));
+        if (complete && gathered && record.failure) {
+          limitations.push(
+            `A later round ended with ${record.failure}; the ${rounds} completed round(s) were kept.`,
+          );
+          delete record.diagnostic;
+        }
         if (complete) record.failure = null;
         else
           errors.push(
@@ -199,6 +249,11 @@ async function runOnce<T>(
             ? "timeout"
             : failure
         : failure;
+    const stop = runStopped
+      ? "run"
+      : profileTimeout.signal.aborted && record.failure === "timeout"
+        ? "ceiling"
+        : undefined;
     record.diagnostic = failureDiagnostic(
       error instanceof ResultError
         ? "result-validation"
@@ -206,8 +261,9 @@ async function runOnce<T>(
           ? "internal"
           : "profile",
       record.failure,
-      error instanceof ResultError ? undefined : error,
+      error instanceof ResultError || stop ? undefined : error,
       nativeStop,
+      stop,
     );
     errors.push(
       error instanceof ResultError
@@ -233,6 +289,9 @@ async function runOnce<T>(
     retryPrompt,
     errors,
     final:
-      cleanupFailed || stopped() || !RETRIED.includes(record.failure ?? ""),
+      cleanupFailed ||
+      stopped() ||
+      record.diagnostic?.stop === "ceiling" ||
+      !RETRIED[spec.stage].includes(record.failure ?? ""),
   };
 }

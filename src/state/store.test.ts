@@ -9,7 +9,13 @@ import { runtime } from "../../test/utils/runtime.ts";
 import { createRun } from "../review/prepare/create.ts";
 import { StateError } from "../util/errors.ts";
 import type { Run, RunTask } from "./run.ts";
-import { loadInput, loadRun, saveRun } from "./store.ts";
+import {
+  checkHistory,
+  loadInput,
+  loadLatestRun,
+  loadRun,
+  saveRun,
+} from "./store.ts";
 
 test("pre-write run validation rejects invalid structures, versions and embedded result relationships without replacement", (t) => {
   const f = fixture(t);
@@ -31,7 +37,7 @@ test("pre-write run validation rejects invalid structures, versions and embedded
   const path = join(f.root, ".degreaser/runs", original.id, "run.json");
   const bytes = readFileSync(path);
   const mutations: ((run: Run, task: RunTask) => void)[] = [
-    (run) => Object.assign(run, { schemaVersion: 2 }),
+    (run) => Object.assign(run, { schemaVersion: 1 }),
     (_run, task) => Object.assign(task, { attempts: "not an array" }),
     (_run, task) => Object.assign(task, { status: "no-findings" }),
     (_run, task) =>
@@ -242,6 +248,15 @@ test("compiled readers reject corruption at every authoritative JSON layer witho
     for (const [caseIndex, damaged] of cases.entries()) {
       try {
         writeFileSync(path, damaged);
+        if (path.endsWith("/run.json") && caseIndex === 2) {
+          const latest = f.run(["report"]);
+          assert.equal(latest.status, 0, latest.stdout);
+          assert.ok(latest.stdout.includes(sibling.id), latest.stdout);
+          const named = f.run(["report", run.id]);
+          assert.equal(named.status, 2, named.stdout);
+          assert.match(named.stdout, /state-incompatible/);
+          continue;
+        }
         for (const args of [
           ["report"],
           ["wait", run.id, "--wait", "1"],
@@ -291,4 +306,46 @@ test("new review rejects damaged latest history before model discovery or publis
   } finally {
     writeFileSync(path, original);
   }
+});
+
+test("runs saved by another version are skipped by history and the latest listing, and fail only when requested by ID", (t) => {
+  const f = fixture(t);
+  f.write("source.ts", "export const value = 1;\n");
+  const argv = [
+    "--scope",
+    "worktree",
+    "--task",
+    "Update",
+    "--aspects",
+    "low-value-comments",
+  ];
+  const older = createRun(runtime(), prepareReview(argv, f.root));
+  const old = createRun(runtime(), prepareReview(argv, f.root));
+  const path = join(f.root, ".degreaser/runs", old.id, "run.json");
+  writeFileSync(
+    path,
+    JSON.stringify({ ...old, schemaVersion: 1, extra: true }),
+  );
+  checkHistory(f.root);
+  assert.deepEqual(
+    [loadLatestRun(f.root).run?.id, loadLatestRun(f.root).skipped],
+    [older.id, 1],
+  );
+  assert.throws(
+    () => loadRun(f.root, old.id),
+    (error) =>
+      error instanceof StateError &&
+      error.code === "state-incompatible" &&
+      error.message.includes(old.id),
+  );
+  const fresh = createRun(runtime(), prepareReview(argv, f.root));
+  assert.equal(loadLatestRun(f.root).run?.id, fresh.id);
+  const lone = fixture(t);
+  lone.write("source.ts", "export const value = 1;\n");
+  const only = createRun(runtime(), prepareReview(argv, lone.root));
+  writeFileSync(
+    join(lone.root, ".degreaser/runs", only.id, "run.json"),
+    JSON.stringify({ ...only, schemaVersion: 1 }),
+  );
+  assert.deepEqual(loadLatestRun(lone.root), { run: null, skipped: 1 });
 });

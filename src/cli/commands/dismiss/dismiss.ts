@@ -2,11 +2,11 @@ import { assertNotWorker } from "../../../modules/harness/common/isolation.ts";
 import { findings } from "../../../report/index.ts";
 import { recordDismissal } from "../../../state/dismissals.ts";
 import { observeRun } from "../../../state/status.ts";
-import { loadRun } from "../../../state/store.ts";
 import { InputError, StateError } from "../../../util/errors.ts";
 import { repositoryRoot } from "../../../util/git/repository.ts";
 import type { Factory } from "../../factory.ts";
 import type { CommandOptions } from "../../types.ts";
+import { selectRun } from "../shared/run.ts";
 
 export { spec } from "./spec.ts";
 
@@ -19,10 +19,10 @@ export function run(f: Factory, { positionals, values }: CommandOptions) {
     );
   const repository = repositoryRoot(f, f.cwd);
   const { run, status } = observeRun(
-    loadRun(
+    selectRun(
       repository,
       typeof values.run === "string" ? values.run : undefined,
-    ),
+    ).run,
   );
   if (status === "running")
     throw new StateError(

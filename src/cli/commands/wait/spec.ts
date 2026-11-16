@@ -6,7 +6,8 @@ export const spec: CommandSpec = {
   flags: {
     wait: {
       type: "string",
-      description: "Seconds to wait (default 480)",
+      description:
+        "Return status running after this many seconds (default: block until the run ends, or 60 seconds past its deadline)",
     },
   },
   positionals: {

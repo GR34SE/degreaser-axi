@@ -29,7 +29,7 @@ export function result(
   aspect: AspectId,
   findings: Candidate[],
   limitations: string[] = [],
-): FinderResult {
+): Omit<FinderResult, "examinedPaths"> {
   return {
     aspect,
     status: limitations.length

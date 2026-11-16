@@ -18,7 +18,7 @@ test("public configuration is strict, root-local and rejects finite invalid valu
   f.write("nested/.degreaserrc.json", '{"agent":"droid"}');
   f.write(
     ".degreaserrc.json",
-    '{"agent":"codex","model":"gpt-6-luna","verifier":{"model":"gpt-6-sol"},"maxRetries":0,"concurrency":null}',
+    '{"agent":"codex","model":"gpt-6-luna","verifier":{"model":"gpt-6-sol"},"maxRetries":0}',
   );
   assert.equal(
     f.run(
@@ -36,7 +36,8 @@ test("public configuration is strict, root-local and rejects finite invalid valu
     0,
   );
   assert.equal(f.input().task, "First line\nSecond line\n");
-  assert.equal(f.input().config.concurrency, null);
+  assert.equal(f.input().config.concurrency, 1);
+  assert.equal(f.input().waitSeconds, null);
   const runs = readdirSync(join(f.root, ".degreaser/runs")),
     count = f.events().length;
   const valid = {
@@ -57,7 +58,7 @@ test("public configuration is strict, root-local and rejects finite invalid valu
     { ...valid, caller: "codex" },
     { ...valid, schemaVersion: 2 },
     ...["droid", "grok"].map((agent) => ({ ...valid, agent })),
-    ...[0, -1, 1.5, "2"].map((concurrency) => ({
+    ...[null, 0, -1, 1.5, "2"].map((concurrency) => ({
       ...valid,
       concurrency,
     })),
@@ -101,7 +102,7 @@ test("public configuration is strict, root-local and rejects finite invalid valu
   assert.equal(f.events().length, count);
 });
 
-test("public review refuses an RC without a verifier and points to init without creating a run", (t) => {
+test("public review without a configured verifier verifies with the finder identity", (t) => {
   const f = setup(t);
   f.write("source.ts", "export const a = 1;\n");
   f.write(
@@ -109,12 +110,11 @@ test("public review refuses an RC without a verifier and points to init without 
     JSON.stringify({ agent: "codex", model: "gpt-6-luna" }),
   );
   const result = f.run(args);
-  assert.equal(result.status, 2, result.stdout);
-  assert.match(result.stdout, /code: invalid-input/);
-  assert.match(result.stdout, /verifier is required/);
-  assert.match(result.stdout, /degreaser-axi init/);
-  assert.ok(!existsSync(join(f.root, ".degreaser")));
-  assert.deepEqual(f.events(), []);
+  assert.notEqual(result.status, 2, result.stdout);
+  assert.deepEqual(f.input().config.verifier, {
+    agent: "codex",
+    model: "gpt-6-luna",
+  });
 });
 
 test("public default/narrowed/restored selections retain exact overrides and exclusions without RC writes", (t) => {

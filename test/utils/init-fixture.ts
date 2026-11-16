@@ -38,13 +38,12 @@ export const pty = fileURLToPath(
 );
 
 export const defaultSettings = {
-  concurrency: 16,
   maxRetries: 1,
   limits: {
-    workerTimeoutSeconds: 300,
-    workerIdleSeconds: 120,
+    workerTimeoutSeconds: 900,
+    workerIdleSeconds: 180,
     maxTurns: 40,
-    runTimeoutSeconds: 7200,
+    runTimeoutSeconds: 1800,
   },
   aspects: {
     "unnecessary-complexity": true,

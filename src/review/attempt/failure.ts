@@ -37,9 +37,13 @@ export const RECOVERIES = [
 ] as const;
 export type Recovery = (typeof RECOVERIES)[number];
 
+export const LOCAL_STOPS = ["idle", "ceiling", "run"] as const;
+export type LocalStop = (typeof LOCAL_STOPS)[number];
+
 export interface WorkerDiagnostic {
   stage: WorkerStage;
   recovery: Recovery;
+  stop?: LocalStop;
   code?: string;
   detailCode?: string;
   retryable?: boolean;
@@ -89,8 +93,9 @@ export function failureDiagnostic(
   failure: string | null | undefined,
   error?: unknown,
   stopReason?: unknown,
+  stop?: LocalStop,
 ): WorkerDiagnostic {
-  const chain = causeChain(error);
+  const chain = stop ? [] : causeChain(error);
   const pick = (key: string) => {
     for (const record of chain) {
       const value = record[key];
@@ -108,6 +113,7 @@ export function failureDiagnostic(
   return {
     stage,
     recovery: recoveryFor(failure),
+    ...(stop ? { stop } : {}),
     ...(code ? { code } : {}),
     ...(detailCode ? { detailCode } : {}),
     ...(retryable === undefined ? {} : { retryable }),

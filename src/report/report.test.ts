@@ -43,14 +43,13 @@ function task(
   } as unknown as RunTask;
 }
 
-const attempt = (stage: "find" | "verify", index: number) =>
+const attempt = (stage: "find" | "verify") =>
   ({
     startedAt: 0,
     endedAt: 1,
     sessionId: null,
     failure: null,
     stage,
-    portion: { index },
   }) as RunTask["attempts"][number];
 
 const run = (tasks: RunTask[]) =>
@@ -89,7 +88,7 @@ const sample = () =>
         }),
       ],
       "incomplete",
-      [attempt("find", 0), attempt("find", 1), attempt("verify", 0)],
+      [attempt("find"), attempt("find"), attempt("verify")],
     ),
   ]);
 
@@ -133,8 +132,12 @@ test("default report lists every upheld finding by path with counts, hiding othe
     lines: "new:5-5",
     action: "Inline it.",
   });
+  assert.deepEqual(mixed.unverifiedFindings, {
+    "a.ts": [{ id: "F1", aspect: "low-value-comments", lines: "new:1-1" }],
+  });
+  assert.equal(renderReport(many, context()).unverifiedFindings, undefined);
   assert.ok(mixed.help.some((h) => h.includes("--full")));
-  assert.equal(mixed.coverageBasis, "coordinator-assigned");
+  assert.equal(mixed.coverageBasis, "worker-declared");
 });
 
 test("coverage counts verdicts per aspect and summarizes stages tersely", () => {
@@ -142,7 +145,40 @@ test("coverage counts verdicts per aspect and summarizes stages tersely", () => 
   const comments = coverage.find((c) => c.aspect === "low-value-comments");
   assert.equal(comments?.unverified, 1);
   assert.equal(comments?.refuted, 1);
-  assert.equal(comments?.stages, "2 finders, 1 verifier");
+  assert.equal(comments?.stages, "2 finder sessions, 1 verifier session");
+});
+
+test("paths a finder did not examine are counted by default and listed in full", () => {
+  const examined = (aspect: string, paths: string[]) => {
+    const t = task(aspect, []);
+    Object.assign(t.result ?? {}, { examinedPaths: paths });
+    return t;
+  };
+  const sampled = run([
+    examined("missed-reuse", ["a.ts"]),
+    examined("scope-creep", ["a.ts", "b.ts"]),
+  ]);
+  const scoped = {
+    ...context(),
+    input: {
+      ...context().input,
+      paths: [{ path: "a.ts" }, { path: "b.ts" }],
+    } as unknown as RunInput,
+  };
+  const rows = (full: boolean) =>
+    renderReport(sampled, scoped, full).coverage.map((c) => [
+      c.aspect,
+      c.notExamined,
+    ]);
+  assert.deepEqual(rows(false), [
+    ["missed-reuse", 1],
+    ["scope-creep", undefined],
+  ]);
+  assert.deepEqual(rows(true), [
+    ["missed-reuse", ["b.ts"]],
+    ["scope-creep", undefined],
+  ]);
+  assert.equal(renderReport(sampled, scoped).status, "completed");
 });
 
 test("--full shows refuted and unverified findings with reason and evidence", () => {
@@ -164,9 +200,9 @@ test("finding shows verdict, title, quote and evidence", () => {
   assert.equal(out.aspectStatus, "incomplete");
 });
 
-test("export carries flattened new fields and coordinator-assigned coverage", () => {
+test("export carries flattened new fields and worker-declared coverage", () => {
   const out = JSON.parse(exportRun(sample(), context()));
-  assert.equal(out.coverageBasis, "coordinator-assigned");
+  assert.equal(out.coverageBasis, "worker-declared");
   const upheld = out.findings.find(
     (f: { verdict: string }) => f.verdict === "upheld",
   );
@@ -184,58 +220,29 @@ test("export carries flattened new fields and coordinator-assigned coverage", ()
   ]);
 });
 
-test("a failed attempt still explains its aspect when a later sibling attempt succeeded", () => {
-  const limited = {
-    ...attempt("find", 1),
-    failure: "rate-limited",
-    diagnostic: { phase: "invocation" },
-  } as unknown as RunTask["attempts"][number];
-  const failed = task("low-value-comments", [], "incomplete", [
-    limited,
-    attempt("find", 2),
-  ]);
-  failed.unresolved = { cause: "rate-limited", paths: ["a.ts"] };
-  const out = renderReport(
-    { ...run([failed]), status: "partial", deadline: 1 } as Run,
-    { ...context(), status: "partial" },
-  );
-  const [row] = out.coverage;
-  assert.equal(row?.reason, "rate-limited");
-  assert.deepEqual(row?.cause, { phase: "invocation" });
-  assert.ok(out.help.some((h) => h.includes("--concurrency 1")));
-});
-
 test("only a failure still open in the latest execution explains its aspect", () => {
-  const limited = (
-    stage: "find" | "verify",
-    index: number,
-    startedAt: number,
-  ) =>
+  const limited = (stage: "find" | "verify", startedAt: number) =>
     ({
-      ...attempt(stage, index),
+      ...attempt(stage),
       startedAt,
       failure: "rate-limited",
       diagnostic: { phase: "invocation" },
     }) as unknown as RunTask["attempts"][number];
-  const later = (stage: "find" | "verify", index: number) => ({
-    ...attempt(stage, index),
+  const later = (stage: "find" | "verify") => ({
+    ...attempt(stage),
     startedAt: 10,
   });
   const cases = [
-    { attempts: [limited("find", 1, 0), later("find", 3)], open: false },
+    { attempts: [limited("find", 0), later("find")], open: false },
     {
-      attempts: [
-        limited("verify", 1, 10),
-        later("verify", 1),
-        later("find", 2),
-      ],
+      attempts: [limited("verify", 10), later("verify"), later("find")],
       open: false,
     },
-    { attempts: [later("find", 1), limited("find", 2, 10)], open: true },
+    { attempts: [later("find"), limited("find", 10)], open: true },
   ];
   for (const { attempts, open } of cases) {
     const unfinished = task("low-value-comments", [], "incomplete", attempts);
-    unfinished.unresolved = { cause: "incomplete", paths: ["a.ts"] };
+    unfinished.unresolved = { cause: "incomplete" };
     const out = renderReport(
       {
         ...run([unfinished]),

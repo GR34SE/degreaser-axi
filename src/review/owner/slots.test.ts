@@ -41,3 +41,29 @@ test("a warm-up worker that ends before its first turn hands warm-up to the next
   await tick();
   assert.deepEqual(granted, [1, 2, 3]);
 });
+
+test("a first worker that never reaches its first turn stops gating the rest after the warm-up bound", async () => {
+  const limiter = slots(Infinity, 30);
+  const granted: number[] = [];
+  for (const id of [1, 2, 3])
+    void limiter.acquire().then(() => granted.push(id));
+  await tick();
+  assert.deepEqual(granted, [1]);
+  await new Promise((resolve) => setTimeout(resolve, 60));
+  assert.deepEqual(granted, [1, 2, 3]);
+});
+
+test("each warm-up worker gets its own bound, so failing first workers never release the rest early", async () => {
+  const limiter = slots(Infinity, 40);
+  const granted: number[] = [];
+  const releases = new Map<number, () => void>();
+  for (const id of [1, 2, 3])
+    void limiter.acquire().then((release) => {
+      granted.push(id);
+      releases.set(id, release);
+    });
+  await new Promise((resolve) => setTimeout(resolve, 25));
+  releases.get(1)?.();
+  await new Promise((resolve) => setTimeout(resolve, 25));
+  assert.deepEqual(granted, [1, 2]);
+});

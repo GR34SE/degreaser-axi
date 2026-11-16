@@ -11,5 +11,4 @@ export interface OwnerContext {
   startedAt: number;
   control: OwnerControl;
   slots: Slots;
-  sizesOf: () => Map<string, number>;
 }

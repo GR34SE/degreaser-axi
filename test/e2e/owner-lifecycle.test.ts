@@ -5,7 +5,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { ASPECT, shardedFixture } from "../utils/coverage-fixture.ts";
+import { ASPECT, UNFINISHED } from "../utils/coverage-fixture.ts";
 import { alive, queueFixture, until } from "../utils/queue-fixture.ts";
 
 const psFault = fileURLToPath(
@@ -22,7 +22,10 @@ test("a terminal owner record keeps no exited process identities, so recycled PI
   const f = queueFixture(t);
   f.setPlan({
     workers: {
-      "low-value-comments": { result: incomplete("low-value-comments") },
+      "low-value-comments": {
+        result: incomplete("low-value-comments"),
+        ...UNFINISHED,
+      },
     },
   });
   f.start(["--aspects", "masked-errors,low-value-comments"]);
@@ -41,7 +44,10 @@ test("a recycled owner PID does not block resume of a terminal run", async (t) =
   const f = queueFixture(t);
   f.setPlan({
     workers: {
-      "low-value-comments": { result: incomplete("low-value-comments") },
+      "low-value-comments": {
+        result: incomplete("low-value-comments"),
+        ...UNFINISHED,
+      },
     },
   });
   f.start(["--aspects", "low-value-comments"]);
@@ -224,12 +230,12 @@ test("an earlier attempt forced incomplete by cleanup does not make scope-creep 
 });
 
 test("resume after a killed owner closes every concurrent open attempt as interrupted", async (t) => {
-  const f = shardedFixture(t);
+  const f = queueFixture(t);
   f.setPlan({ worker: { hang: true } });
-  f.start(["--aspects", ASPECT]);
+  f.start(["--aspects", `${ASPECT},masked-errors`]);
   await until(
     () => f.events().filter((e) => e.stage === "find").length === 2,
-    "Both finder shards are running",
+    "Both finders are running",
   );
   const old = f.state();
   const owner = old.owner;
@@ -242,17 +248,22 @@ test("resume after a killed owner closes every concurrent open attempt as interr
     }
   });
   await until(
-    () => (f.state().tasks[0]?.attempts.length ?? 0) === 2,
+    () => f.state().tasks.every((task) => task.attempts.length === 1),
     "Both attempts are persisted",
   );
   process.kill(owner.pid, "SIGKILL");
   await until(() => !alive(owner.pid), "Owner is dead");
+  const waited = f.run(["wait", old.id]);
+  assert.equal(waited.status, 1, waited.stdout);
+  assert.match(waited.stdout, /interrupted/);
   f.setPlan();
   const resumed = f.run(["resume", old.id, "--wait", "30"]);
   assert.equal(resumed.status, 0, resumed.stdout + resumed.stderr);
-  const closed = f.state().tasks[0]?.attempts.slice(0, 2);
   assert.deepEqual(
-    closed?.map((a) => [a.failure, a.endedAt !== null]),
+    f.state().tasks.map((task) => {
+      const first = task.attempts[0];
+      return [first?.failure, first?.endedAt !== null];
+    }),
     [
       ["interrupted", true],
       ["interrupted", true],

@@ -8,7 +8,7 @@ import {
   cleanInterruptedOwner,
   needsCleanup,
 } from "../../state/ownership.ts";
-import { type Run, resolved } from "../../state/run.ts";
+import { type Run, resumable } from "../../state/run.ts";
 import {
   loadInput,
   loadRun,
@@ -39,7 +39,7 @@ export async function admitRun(
     assertAvailable(run, controls === undefined);
     if (controls) {
       assertFresh(runtime, run, input);
-      if (run.status === "completed")
+      if (run.status === "completed" && !run.tasks.some(resumable))
         throw new StateError(
           "already-completed",
           `Run is complete. Use degreaser-axi report ${id}.`,
@@ -62,17 +62,19 @@ export async function admitRun(
     const concurrency =
       controls?.concurrency ??
       run.executions?.at(-1)?.concurrency ??
-      input.config.concurrency;
-    input.config.concurrency = concurrency;
+      input.config.concurrency ??
+      null;
     run.executions ??= [];
     execution = {
       startedAt,
       deadline: run.deadline,
       concurrency,
-      waitSeconds: controls?.waitSeconds ?? input.waitSeconds,
+      waitSeconds: controls
+        ? (controls.waitSeconds ?? null)
+        : input.waitSeconds,
     };
     run.executions.push(execution);
-    for (const task of run.tasks.filter((t) => !resolved(t)))
+    for (const task of run.tasks.filter(resumable))
       for (const attempt of task.attempts.filter((a) => a.endedAt === null)) {
         attempt.endedAt = runtime.now();
         attempt.failure = "interrupted";

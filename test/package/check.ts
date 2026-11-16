@@ -170,6 +170,7 @@ try {
     for (const resource of [
       "dist/review/attempt/prompt/finder.md",
       "dist/review/attempt/prompt/find-response.md",
+      "dist/review/attempt/prompt/follow-up.md",
       "dist/review/attempt/prompt/verifier.md",
       "dist/review/attempt/prompt/verify-response.md",
       "docs/aspects.md",

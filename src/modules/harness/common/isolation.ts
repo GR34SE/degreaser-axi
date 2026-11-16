@@ -24,6 +24,10 @@ export function workerEnvironment(
     if (value !== undefined) env[name] = value;
   }
   env.DEGREASER_WORKER = "1";
+  env.GIT_NO_LAZY_FETCH = "1";
+  env.GIT_OPTIONAL_LOCKS = "0";
+  env.GIT_TERMINAL_PROMPT = "0";
+  env.GIT_PAGER = "cat";
   return env;
 }
 

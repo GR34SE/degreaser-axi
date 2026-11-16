@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 import { decode } from "@toon-format/toon";
+import { UNFINISHED } from "../utils/coverage-fixture.ts";
 import {
   acceptAgent,
   acceptModel,
@@ -213,6 +214,7 @@ test("Codex latest upgrades on new reviews, pins resume and preserves explicit p
   const rc = readFileSync(join(f.root, ".degreaserrc.json"));
   f.setPlan({
     models: { codex: ["gpt-6.9-luna", "gpt-6.10-luna", "gpt-7-sol"] },
+    workers: { "low-value-comments": UNFINISHED },
     results: {
       "low-value-comments": {
         aspect: "low-value-comments",
@@ -227,7 +229,7 @@ test("Codex latest upgrades on new reviews, pins resume and preserves explicit p
   const first = f.state();
   assert.equal(first.tasks[0]?.assignment.model, "gpt-6.10-luna");
   assert.ok(
-    started.stderr.includes("identities: codex/gpt-6.10-luna;"),
+    started.stderr.includes("finders: codex/gpt-6.10-luna;"),
     started.stderr,
   );
   f.setPlan({

@@ -9,14 +9,13 @@ const base = { agent: "claude" as const, model: "sonnet" };
 const rc = { ...base, verifier: { model: "opus" } };
 const resolve = (data: unknown) => resolveConfig(data, {}, ASPECT_IDS);
 
-test("a valid RC without a verifier is rejected with a pointer to init", () => {
-  assert.throws(() => resolve(base), {
-    name: /^(Input|Axi)Error$/,
-    message: /verifier.*degreaser-axi init/s,
-  });
-  assert.throws(() => completeConfig(base, ASPECT_IDS), /verifier/);
-  assert.throws(() => validateConfig(base), /verifier/);
-  assert.deepEqual(validateConfig(base, { requireVerifier: false }), base);
+test("an RC without a verifier verifies with the finder identity", () => {
+  assert.deepEqual(resolve(base).verifier, base);
+  assert.equal(
+    Object.hasOwn(completeConfig(base, ASPECT_IDS), "verifier"),
+    false,
+  );
+  assert.deepEqual(validateConfig(base), base);
 });
 
 test("a model-only verifier inherits the worker agent and an agent needs a model", () => {
@@ -56,19 +55,32 @@ test("Pi verifiers need provider-qualified models, inherited or explicit", () =>
   );
 });
 
-test("defaults are 16 workers and a two hour run, and null still means unlimited", () => {
+test("concurrency defaults to one slot per selected aspect; an RC value is only a cap", () => {
   const config = resolve(rc);
-  assert.equal(config.concurrency, 16);
-  assert.equal(config.limits.runTimeoutSeconds, 7200);
-  assert.equal(resolve({ ...rc, concurrency: null }).concurrency, null);
+  assert.equal(config.concurrency, ASPECT_IDS.length);
+  assert.equal(
+    resolveConfig(rc, { aspects: ["missed-reuse", "scope-creep"] }, ASPECT_IDS)
+      .concurrency,
+    2,
+  );
   assert.equal(resolve({ ...rc, concurrency: 3 }).concurrency, 3);
+  assert.throws(() => resolve({ ...rc, concurrency: null }), /concurrency/);
   const complete = completeConfig(rc, ASPECT_IDS);
-  assert.equal(complete.concurrency, 16);
+  assert.equal(Object.hasOwn(complete, "concurrency"), false);
   assert.deepEqual(complete.verifier, { model: "opus" });
 });
 
-test("sync reports missing defaults but never invents a verifier", () => {
+test("limits default to an 1800 s run, 900 s per worker and a 180 s idle stop", () => {
+  assert.deepEqual(resolve(rc).limits, {
+    workerTimeoutSeconds: 900,
+    workerIdleSeconds: 180,
+    maxTurns: 40,
+    runTimeoutSeconds: 1800,
+  });
+});
+
+test("sync reports missing defaults but never invents a verifier or a concurrency", () => {
   const fields = missingConfigFields(rc, ASPECT_IDS).map((m) => m.field);
-  assert.ok(fields.includes("concurrency"));
+  assert.ok(!fields.includes("concurrency"));
   assert.ok(!fields.includes("verifier"));
 });

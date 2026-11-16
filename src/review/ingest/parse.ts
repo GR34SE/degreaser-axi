@@ -45,9 +45,12 @@ export function parseFinder(
   const value = resultBlock(text);
   omitEmptyOptionalReason(value);
   if (repository !== undefined) {
-    const result = value as { findings?: unknown; kept?: unknown };
+    const result = value as { findings?: unknown; examinedPaths?: unknown };
     normalizePaths(result.findings, repository);
-    normalizePaths(result.kept, repository);
+    if (Array.isArray(result.examinedPaths))
+      result.examinedPaths = result.examinedPaths.map((path) =>
+        typeof path === "string" ? repositoryRelative(repository, path) : path,
+      );
   }
   return validated<FinderResult>(value, "./find.schema.json", aspect);
 }

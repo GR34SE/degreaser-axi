@@ -26,7 +26,11 @@ export function fleetEvidence(
     1,
     "Resumed fleets are not initial acceptance",
   );
-  assert.equal(run.executions[0]?.concurrency, null, "Fleet must be uncapped");
+  assert.equal(
+    run.executions[0]?.concurrency,
+    run.tasks.length,
+    "Fleet must be uncapped",
+  );
   const aspects = [...ASPECT_IDS];
   const [first] = aspects;
   assert.deepEqual(

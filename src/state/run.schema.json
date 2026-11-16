@@ -1,11 +1,11 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://degreaser.dev/schemas/run-v1.json",
-  "title": "Degreaser atomic run state v1",
+  "$id": "https://degreaser.dev/schemas/run-v2.json",
+  "title": "Degreaser atomic run state v2",
   "type": "object", "additionalProperties": false,
   "required": ["schemaVersion", "id", "repository", "createdAt", "deadline", "status", "owner", "identity", "tasks"],
   "properties": {
-    "schemaVersion": { "const": 1 },
+    "schemaVersion": { "const": 2 },
     "id": { "type": "string", "pattern": "^r-[0-9]{8}-[0-9]{4}-[a-f0-9]{4}$" },
     "repository": { "type": "string", "pattern": "^/" },
     "createdAt": { "type": "integer", "minimum": 0 },
@@ -38,7 +38,7 @@
         "startedAt": { "type": "integer", "minimum": 0 },
         "deadline": { "type": "integer", "minimum": 0 },
         "concurrency": { "type": ["integer", "null"], "minimum": 1 },
-        "waitSeconds": { "$ref": "config-v1.json#/definitions/seconds" },
+        "waitSeconds": { "anyOf": [{ "type": "null" }, { "$ref": "config-v1.json#/definitions/seconds" }] },
         "stopReason": { "enum": ["cancelled", "deadline"] },
         "failure": {
           "type": "object", "additionalProperties": false, "required": ["code", "message"],
@@ -80,6 +80,7 @@
                   "properties": {
                     "stage": { "enum": ["profile", "session-setup", "model-check", "turn-start", "turn-stream", "turn-result", "usage", "cleanup", "result-validation", "internal"] },
                     "recovery": { "enum": ["fix-authentication", "change-model", "wait-for-quota", "fix-account", "fix-environment", "retry-later", "resume", "inspect-cleanup", "inspect"] },
+                    "stop": { "enum": ["idle", "ceiling", "run"] },
                     "code": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]{0,63}$" },
                     "detailCode": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]{0,63}$" },
                     "retryable": { "type": "boolean" },
@@ -91,19 +92,15 @@
                 "limitations": { "$ref": "#/properties/tasks/items/properties/limitations" },
                 "usage": { "$ref": "#/properties/tasks/items/properties/usage" },
                 "stage": { "enum": ["find", "verify"] },
-                "portion": {
-                  "type": "object", "additionalProperties": false, "required": ["index"],
-                  "properties": { "index": { "type": "integer", "minimum": 1 } }
-                }
+                "rounds": { "type": "integer", "minimum": 1 }
               }
             }
           },
           "limitations": { "type": "array", "items": { "type": "string" } },
           "unresolved": {
-            "type": "object", "additionalProperties": false, "required": ["cause", "paths"],
+            "type": "object", "additionalProperties": false, "required": ["cause"],
             "properties": {
-              "cause": { "type": "string", "minLength": 1 },
-              "paths": { "type": "array", "items": { "type": "string" } }
+              "cause": { "type": "string", "minLength": 1 }
             }
           },
           "usage": {

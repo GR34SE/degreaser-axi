@@ -31,15 +31,15 @@ export interface RunTask {
     rejections?: Rejection[];
     limitations?: string[];
     usage?: Record<string, number> | null;
-    portion?: { index: number };
     stage?: "find" | "verify";
+    rounds?: number;
   }[];
   limitations: string[];
-  unresolved?: { cause: string; paths: string[] };
+  unresolved?: { cause: string };
   usage: Record<string, number> | null;
 }
 export interface Run {
-  schemaVersion: 1;
+  schemaVersion: 2;
   id: string;
   repository: string;
   createdAt: number;
@@ -55,7 +55,7 @@ export interface Run {
     startedAt: number;
     deadline: number;
     concurrency: number | null;
-    waitSeconds: number;
+    waitSeconds: number | null;
     stopReason?: "cancelled" | "deadline";
     failure?: { code: string; message: string };
   }[];
@@ -64,14 +64,14 @@ export interface Run {
 }
 export const resolved = (task: RunTask) =>
   ["findings", "no-findings", "not-applicable"].includes(task.status);
-const portionKey = (a: RunTask["attempts"][number]) =>
-  `${a.stage}:${a.portion?.index ?? 0}`;
+export const resumable = (task: RunTask) =>
+  !resolved(task) ||
+  !!task.result?.findings.some((f) => f.verdict === "unverified");
 export function openFailure(task: RunTask, since: number) {
   const current = task.attempts.filter((a) => a.startedAt >= since);
   return current.findLast(
     (a, i) =>
-      a.failure &&
-      !current.slice(i + 1).some((b) => portionKey(b) === portionKey(a)),
+      a.failure && !current.slice(i + 1).some((b) => b.stage === a.stage),
   );
 }
 export function terminalStatus(tasks: RunTask[]): Run["status"] {

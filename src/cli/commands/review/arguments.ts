@@ -23,6 +23,11 @@ export function positiveInteger(
   return number;
 }
 
+export const waitOption = (value: unknown) =>
+  value === undefined
+    ? null
+    : positiveInteger(String(value), "--wait", 2147483);
+
 function validPathPatterns(values: unknown): string[] {
   const patterns = (values ?? []) as string[];
   for (const pattern of patterns) {
@@ -111,7 +116,6 @@ export function parseReviewArguments(
           }
         : {}),
     },
-    waitSeconds:
-      wait === undefined ? 480 : positiveInteger(wait, "--wait", 2147483),
+    waitSeconds: waitOption(wait),
   };
 }

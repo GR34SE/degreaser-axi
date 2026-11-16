@@ -6,7 +6,7 @@ import {
   modelChoices,
 } from "../modules/harness/common/models.ts";
 import { assertAvailable } from "../state/ownership.ts";
-import type { Run } from "../state/run.ts";
+import { type Run, resumable } from "../state/run.ts";
 import { checkHistory, loadInput } from "../state/store.ts";
 import { StateError } from "../util/errors.ts";
 import type { Runtime } from "../util/exec/types.ts";
@@ -79,9 +79,10 @@ export async function resumeReview(
 ): Promise<Run | null> {
   assertNotWorker(runtime.env, "start nested reviews or resume runs");
   const input = loadInput(run);
-  if (run.status !== "completed") assertAvailable(run);
+  const done = run.status === "completed" && !run.tasks.some(resumable);
+  if (!done) assertAvailable(run);
   assertFresh(runtime, run, input);
-  if (run.status === "completed") return null;
+  if (done) return null;
   try {
     return await startOwner(runtime, run, controls);
   } catch (error) {

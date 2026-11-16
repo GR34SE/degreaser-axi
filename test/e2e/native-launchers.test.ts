@@ -26,6 +26,8 @@ test("Pi launcher pins argv model, removes discovery and cannot inherit metered 
           "--mode",
           "rpc",
           "--no-themes",
+          "-e",
+          "host-extension.ts",
           "--provider",
           "other-provider",
           "--model=other-model",
@@ -49,7 +51,13 @@ test("Pi launcher pins argv model, removes discovery and cannot inherit metered 
     assert.equal(args[args.indexOf("--model") + 1], "openai/exact-model");
     assert.ok(!args.includes("--provider"));
     assert.equal(args.filter((arg: string) => arg === "--model").length, 1);
-    assert.equal(args[args.indexOf("--tools") + 1], "read,grep,find,ls");
+    assert.equal(args[args.indexOf("--tools") + 1], "read,grep,find,ls,bash");
+    assert.equal(
+      args[args.indexOf("--extension") + 1],
+      join(root, "dist/modules/harness/pi/git-gate.js"),
+    );
+    assert.equal(args.filter((arg: string) => arg === "--extension").length, 1);
+    assert.ok(!args.includes("-e") && !args.includes("host-extension.ts"));
     for (const flag of [
       "--no-skills",
       "--no-extensions",

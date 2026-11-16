@@ -7,7 +7,6 @@ import { fixture } from "../../../test/utils/git-fixture.ts";
 import { prepareReview } from "../../../test/utils/input.ts";
 import { block, clean, finding } from "../../../test/utils/result-fixture.ts";
 import { runtime } from "../../../test/utils/runtime.ts";
-import { packShards, pathSizes } from "../../review/ingest/coverage.ts";
 import { ingestFinder } from "../../review/ingest/verify-quotes.ts";
 import { createRun } from "../../review/prepare/create.ts";
 import { git } from "./exec.ts";
@@ -65,18 +64,12 @@ test("run creation still asks for the state ignore rule when Git reports no matc
   assert.equal(existsSync(join(f.root, ".degreaser")), false);
 });
 
-test("optional blob failures retain conservative coverage sizing and incomplete quote validation", (t) => {
+test("optional blob failures reject the quote as source-unavailable", (t) => {
   const f = fixture(t, false);
   const source = "// source explanation\n";
   f.write("source.ts", source);
   const input = prepareReview(request, f.root);
   f.write(".git/config", "[private-config-sentinel\n");
-  const sizes = pathSizes(runtime(), input);
-  assert.equal(sizes.size, 0);
-  assert.deepEqual(packShards(["source.ts", ".gitignore"], sizes, 100), [
-    ["source.ts"],
-    [".gitignore"],
-  ]);
   const { result, rejections } = ingestFinder(
     runtime(),
     block({
@@ -87,7 +80,7 @@ test("optional blob failures retain conservative coverage sizing and incomplete 
     "low-value-comments",
     input,
   );
-  assert.equal(result.status, "incomplete");
+  assert.equal(result.status, "no-findings");
   assert.deepEqual(result.findings, []);
   assert.deepEqual(rejections, [{ index: 1, reason: "source-unavailable" }]);
 });

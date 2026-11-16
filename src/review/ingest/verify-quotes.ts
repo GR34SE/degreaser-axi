@@ -141,39 +141,26 @@ export function ingestFinder(
   const result = parseFinder(text, aspect, input.repository);
   const blobs: Blobs = new Map();
   const rejections: Rejection[] = [];
-  const unexamined = new Set<string>();
   const seen = new Set<string>();
   result.findings = result.findings.filter((finding, index) => {
     const reason = checkQuote(runtime, input, finding, blobs);
-    if (reason) {
-      rejections.push({ index: index + 1, reason });
-      const entry = entryAt(input, finding.location);
-      if (entry) unexamined.add(entry.path);
-    }
+    if (reason) rejections.push({ index: index + 1, reason });
     const key = JSON.stringify(finding);
     if (reason || seen.has(key)) return false;
     seen.add(key);
     return true;
   });
-  if (result.kept) {
-    const kept = result.kept.filter(
-      (unit) => !checkQuote(runtime, input, unit, blobs),
+  const assessed = new Set(input.paths.map((p) => p.path));
+  const examined = [...new Set(result.examinedPaths)];
+  result.examinedPaths = examined.filter((path) => assessed.has(path));
+  const ignored = examined.length - result.examinedPaths.length;
+  if (ignored)
+    result.limitations.push(
+      `Ignored ${plural(ignored, "examined path")} outside the assessed paths.`,
     );
-    const dropped = result.kept.length - kept.length;
-    if (dropped)
-      result.limitations.push(
-        `Dropped ${plural(dropped, "kept unit")} whose quote did not match the source.`,
-      );
-    result.kept = kept;
-  }
-  if (result.status === "findings" && !result.findings.length) {
-    result.status = rejections.length ? "incomplete" : "no-findings";
-    if (rejections.length)
-      result.limitations.push(
-        "All proposed findings were rejected by literal source validation; this shard remains unresolved.",
-      );
-  }
-  return { result, rejections, unexamined };
+  if (result.status === "findings" && !result.findings.length)
+    result.status = "no-findings";
+  return { result, rejections };
 }
 
 export function ingestVerifier(

@@ -4,10 +4,39 @@ import { missingConfigFields } from "../config/defaults.ts";
 import { loadConfig } from "../config/load.ts";
 import { resolveConfig } from "../config/resolve.ts";
 import type { Assignment, ProjectConfig } from "../config/types.ts";
-import { loadRun } from "../state/store.ts";
+import { loadLatestRun } from "../state/store.ts";
 import { InputError, StateError } from "../util/errors.ts";
 import { gitEnvironment } from "../util/exec/env.ts";
 import type { Runtime } from "../util/exec/types.ts";
+
+export const skippedNote = (skipped: number) =>
+  skipped
+    ? `${skipped} run${skipped === 1 ? "" : "s"} saved by another Degreaser version skipped.`
+    : undefined;
+
+function lastRun(root: string) {
+  let latest: ReturnType<typeof loadLatestRun>;
+  try {
+    latest = loadLatestRun(root);
+  } catch (error) {
+    if (error instanceof StateError && error.code === "no-history")
+      return ["No local run yet."];
+    throw error;
+  }
+  const { run, skipped } = latest;
+  const note = skippedNote(skipped);
+  return [
+    ...(note ? [note] : []),
+    ...(run
+      ? [
+          `Last run: ${run.id} (${run.status}).`,
+          run.status === "running"
+            ? `Use degreaser-axi wait ${run.id} until the run finishes.`
+            : `Use degreaser-axi report ${run.id} to inspect the result.`,
+        ]
+      : ["No local run yet."]),
+  ];
+}
 
 export function startupContext(
   cwd: string,
@@ -51,19 +80,7 @@ export function startupContext(
     lines.push(
       "Some settings use installed defaults; degreaser-axi config sync saves them.",
     );
-  try {
-    const run = loadRun(root);
-    lines.push(`Last run: ${run.id} (${run.status}).`);
-    lines.push(
-      run.status === "running"
-        ? `Use degreaser-axi wait ${run.id} until the run finishes.`
-        : `Use degreaser-axi report ${run.id} to inspect the result.`,
-    );
-  } catch (error) {
-    if (!(error instanceof StateError && error.code === "no-history"))
-      throw error;
-    lines.push("No local run yet.");
-  }
+  lines.push(...lastRun(root));
   lines.push("Run degreaser-axi for review instructions and status.");
   return lines.join("\n");
 }

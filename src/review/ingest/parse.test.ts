@@ -7,6 +7,7 @@ const clean = {
   aspect: "low-value-comments",
   status: "no-findings",
   findings: [],
+  examinedPaths: [],
   limitations: [],
 };
 const block = (data: unknown) =>
@@ -28,7 +29,8 @@ test("only the last complete finder block is eligible, with strict status and as
     `${block(clean)}<degreaser-result>bad</degreaser-result>`,
     block({ ...clean, aspect: "masked-errors" }),
     block({ ...clean, extra: true }),
-    block({ ...clean, examinedPaths: ["a.ts"] }),
+    block({ ...clean, examinedPaths: undefined }),
+    block({ ...clean, examinedPaths: ["../a.ts"] }),
     block({ ...clean, unresolved: [] }),
     block({ ...clean, status: "not-applicable", reason: null }),
     block({ ...clean, status: "findings" }),
@@ -38,19 +40,19 @@ test("only the last complete finder block is eligible, with strict status and as
       status: "findings",
       findings: [{ ...candidate, evidence: "prose" }],
     }),
-    block({ ...clean, kept: [{ location: candidate.location }] }),
+    block({ ...clean, kept: [] }),
   ])
     assert.throws(
       () => parseFinder(text, "low-value-comments"),
       /result|aspect|schema/i,
     );
-  const kept = {
+  const listed = {
     ...clean,
     status: "findings",
     findings: [candidate],
-    kept: [{ location: candidate.location, quote: "// keep" }],
+    examinedPaths: ["a.ts"],
   };
-  assert.deepEqual(parseFinder(block(kept), "low-value-comments"), kept);
+  assert.deepEqual(parseFinder(block(listed), "low-value-comments"), listed);
 });
 
 test("a billing-only refusal is an account failure, not output text", () => {
@@ -94,15 +96,13 @@ test("finder and verifier paths are normalized inside the repository", () => {
       findings: [
         { ...candidate, location: { ...candidate.location, path: "/r/a.ts" } },
       ],
-      kept: [
-        { location: { ...candidate.location, path: "./b.ts" }, quote: "x" },
-      ],
+      examinedPaths: ["./b.ts", "/r/c.ts"],
     }),
     "low-value-comments",
     "/r",
   );
   assert.equal(found.findings[0]?.location.path, "a.ts");
-  assert.equal(found.kept?.[0]?.location.path, "b.ts");
+  assert.deepEqual(found.examinedPaths, ["b.ts", "c.ts"]);
   const verdict = {
     candidate: 1,
     verdict: "upheld",

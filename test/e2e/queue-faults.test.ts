@@ -36,24 +36,31 @@ for (const [name, worker, retries, count, status] of [
     "completed",
   ],
   [
-    "incomplete waits for explicit resume",
+    "a self-reported incomplete result is accepted without a retry",
     {
       result: {
         ...clean,
         status: "incomplete",
+        examinedPaths: ["source.ts"],
         limitations: ["Unexamined call sites."],
       },
     },
     3,
     1,
-    "partial",
+    "completed",
   ],
-  ["startup timeout exhausts", { startupHang: true }, 1, 2, "failed"],
   [
-    "inference timeout exhausts",
+    "startup timeout at the worker ceiling is not retried",
+    { startupHang: true },
+    1,
+    1,
+    "failed",
+  ],
+  [
+    "inference timeout at the worker ceiling is not retried",
     { hang: true, descendant: true },
     1,
-    2,
+    1,
     "failed",
   ],
 ] as const) {
@@ -98,7 +105,11 @@ for (const [name, worker, retries, count, status] of [
       assert.ok(current.startedAt >= previous.endedAt);
     }
     if (name.includes("timeout"))
-      assert.ok(task.attempts.every((a) => a.failure === "timeout"));
+      assert.ok(
+        task.attempts.every(
+          (a) => a.failure === "timeout" && a.diagnostic?.stop === "ceiling",
+        ),
+      );
     if (name.startsWith("oversized")) {
       for (const attempt of name.endsWith("recovers")
         ? task.attempts.slice(0, 1)
@@ -259,6 +270,8 @@ test("a valid result followed by an attempt timeout remains useful but unresolve
     "Valid incomplete evidence requires explicit resume",
   );
   assert.equal(finders[0]?.failure, "timeout");
+  assert.equal(finders[0]?.diagnostic?.stop, "ceiling");
+  assert.equal(finders[0]?.diagnostic?.code, undefined);
 });
 
 test("a silent worker stops at the idle limit, long before its hard timeout", (t) => {
@@ -281,4 +294,6 @@ test("a silent worker stops at the idle limit, long before its hard timeout", (t
   assert.equal(attempt?.failure, "timeout");
   assert.ok(attempt?.lastActivityAt);
   assert.match(done.stdout, /stopped as idle/);
+  assert.equal(attempt?.diagnostic?.stop, "idle");
+  assert.equal(attempt?.diagnostic?.code, undefined);
 });

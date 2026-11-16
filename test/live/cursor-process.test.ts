@@ -53,5 +53,7 @@ test("review workers do not inherit Cursor state redirects", () => {
     CURSOR_CONFIG_DIR: "/tmp/a",
     CURSOR_DATA_DIR: "/tmp/b",
   });
-  assert.deepEqual(env, { PATH: "/bin", DEGREASER_WORKER: "1" });
+  assert.equal(env.CURSOR_CONFIG_DIR, undefined);
+  assert.equal(env.CURSOR_DATA_DIR, undefined);
+  assert.equal(env.PATH, "/bin");
 });

@@ -32,7 +32,7 @@ export async function run(f: Factory, options: CommandOptions) {
     };
   const workers = run.tasks.filter((t) => t.promptHash !== null);
   f.io.error.write(
-    `run: ${run.id}; workers: ${workers.length}; identities: ${identities(workers) || "coordinator-only"}; concurrency: ${input.config.concurrency ?? "all"}; deadline: ${new Date(run.deadline).toISOString()}\n`,
+    `run: ${run.id}; aspects: ${run.tasks.length}; finder sessions: ${workers.length}; verifier sessions: up to ${workers.length}; finders: ${identities(workers) || "coordinator-only"}; verifier: ${input.config.verifier.agent}/${input.config.verifier.model}; concurrency: ${input.config.concurrency}; deadline: ${new Date(run.deadline).toISOString()}\n`,
   );
   const output = await waitFor(f, run, input.waitSeconds);
   return {

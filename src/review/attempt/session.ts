@@ -14,6 +14,7 @@ import {
   safeStopReason,
   type WorkerStage,
 } from "../../review/attempt/failure.ts";
+import { sumUsage } from "../../state/run.ts";
 import { executionFailure } from "../../util/exec/failure.ts";
 import { instructions } from "./prompt/assemble.ts";
 
@@ -95,19 +96,28 @@ export async function executeWorker(
     },
   });
   let stopped: "timeout" | "cancelled" | undefined;
+  let localStop: "idle" | "ceiling" | undefined;
   let shutdown: Promise<boolean> | undefined;
   const join = () =>
     (shutdown ??= runtime.shutdown().then(
       () => true,
       () => false,
     ));
-  const stop = (reason: "timeout" | "cancelled") => {
-    stopped ??= reason;
+  const stop = (reason: "idle" | "ceiling" | "cancelled") => {
+    if (!stopped) {
+      stopped = reason === "cancelled" ? reason : "timeout";
+      if (reason !== "cancelled") localStop = reason;
+    }
     void join();
   };
   const abort = () => stop("cancelled");
   request.signal?.addEventListener("abort", abort, { once: true });
-  const timer = setTimeout(() => stop("timeout"), request.timeoutMs);
+  const timer = setTimeout(() => {
+    outcome.limitations.push(
+      "The worker reached its total time ceiling and was stopped.",
+    );
+    stop("ceiling");
+  }, request.timeoutMs);
   let idle: NodeJS.Timeout | undefined;
   const active = () => {
     request.onActivity?.();
@@ -118,7 +128,7 @@ export async function executeWorker(
       outcome.limitations.push(
         `No worker activity for ${idleMs / 1000} seconds; the attempt was stopped as idle.`,
       );
-      stop("timeout");
+      stop("idle");
     }, request.idleMs);
   };
   let handle: AcpRuntimeHandle | undefined;
@@ -177,67 +187,68 @@ export async function executeWorker(
       outcome.failure = "model-unavailable";
       return outcome;
     }
-    stage = "turn-start";
-    const turn = runtime.startTurn({
-      handle,
-      mode: "prompt",
-      requestId: randomUUID(),
-      text: prompt,
-      timeoutMs: request.timeoutMs,
-      assertActive() {
-        if (stopped) throw new Error("Worker admission cancelled.");
-      },
-    });
-    await turn.promptStarted;
-    request.onPromptStarted?.();
-    stage = "turn-stream";
-    active();
-    for await (const event of turn.events) {
+    for (let text: string | undefined = prompt; text; ) {
+      stage = "turn-start";
+      outcome.output = "";
+      const turn = runtime.startTurn({
+        handle,
+        mode: "prompt",
+        requestId: randomUUID(),
+        text,
+        timeoutMs: request.timeoutMs,
+        assertActive() {
+          if (stopped) throw new Error("Worker admission cancelled.");
+        },
+      });
+      await turn.promptStarted;
+      request.onPromptStarted?.();
+      stage = "turn-stream";
       active();
-      if (event.type === "text_delta" && event.stream !== "thought") {
-        if (outcome.output.length + event.text.length > 1_048_576) {
-          outcome.output = "";
-          outcome.failure = "output-limit";
-          outcome.limitations.push(
-            "Worker output exceeded 1,048,576 characters and was discarded; no result was accepted.",
-          );
-          await turn.cancel();
-          break;
+      for await (const event of turn.events) {
+        active();
+        if (event.type === "text_delta" && event.stream !== "thought") {
+          if (outcome.output.length + event.text.length > 1_048_576) {
+            outcome.output = "";
+            outcome.failure = "output-limit";
+            outcome.limitations.push(
+              "Worker output exceeded 1,048,576 characters and was discarded; no result was accepted.",
+            );
+            await turn.cancel();
+            break;
+          }
+          outcome.output += event.text;
         }
-        outcome.output += event.text;
+        if (event.type === "tool_call")
+          request.onTool?.({
+            kind: event.kind ?? "other",
+            status: event.status ?? "unknown",
+          });
       }
-      if (event.type === "tool_call")
-        request.onTool?.({
-          kind: event.kind ?? "other",
-          status: event.status ?? "unknown",
-        });
-    }
-    clearTimeout(idle);
-    if (!outcome.failure) stage = "turn-result";
-    const result = await turn.result;
-    if (result.status !== "failed") {
-      const reason = safeStopReason(result.stopReason);
+      clearTimeout(idle);
+      if (!outcome.failure) stage = "turn-result";
+      const result = await turn.result;
+      const reason =
+        "stopReason" in result && safeStopReason(result.stopReason);
       if (reason) outcome.stopReason = reason;
-    }
-    if (result.status === "failed") cause = result.error;
-    if (!outcome.failure) {
-      if (result.status === "completed") outcome.status = "completed";
-      else {
-        const failure =
-          result.status === "cancelled"
-            ? "cancelled"
-            : executionFailure(result.error);
-        outcome.failure =
-          failure === "runtime" ? (stopped ?? failure) : failure;
-      }
+      if (result.status === "failed") cause = result.error;
+      if (!outcome.failure && result.status === "completed")
+        outcome.status = "completed";
+      else
+        outcome.failure ??=
+          stopped ??
+          (result.status === "failed"
+            ? executionFailure(result.error)
+            : "cancelled");
+      text =
+        outcome.failure || stopped ? undefined : request.next?.(outcome.output);
     }
     if (!outcome.failure) stage = "usage";
-    const status = await runtime.getStatus({ handle });
-    outcome.usage = status.usage?.cumulative ?? null;
+    const { usage } = await runtime.getStatus({ handle });
+    const turns = Object.values(usage?.perRequest ?? {});
+    outcome.usage = sumUsage(turns) ?? usage?.cumulative ?? null;
   } catch (error) {
     cause = error;
-    const failure = executionFailure(error);
-    outcome.failure ??= failure === "runtime" ? (stopped ?? failure) : failure;
+    outcome.failure ??= stopped ?? executionFailure(error);
   } finally {
     clearTimeout(timer);
     clearTimeout(idle);
@@ -274,11 +285,13 @@ export async function executeWorker(
     request.signal?.removeEventListener("abort", abort);
     if (outcome.failure) {
       outcome.status = "failed";
+      const local = stopped && outcome.failure === stopped;
       outcome.diagnostic = failureDiagnostic(
         outcome.failure === "cleanup" ? "cleanup" : stage,
         outcome.failure,
-        cause,
+        local ? undefined : cause,
         outcome.stopReason,
+        local ? (localStop ?? "run") : undefined,
       );
     }
     records.clear();

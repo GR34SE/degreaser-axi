@@ -23,7 +23,7 @@ export interface FinderResult {
   aspect: AspectId;
   status: "findings" | "no-findings" | "not-applicable" | "incomplete";
   findings: Candidate[];
-  kept?: Quoted[];
+  examinedPaths: string[];
   limitations: string[];
   reason?: string;
 }
@@ -43,7 +43,6 @@ export interface WorkerResult {
   aspect: AspectId;
   status: FinderResult["status"];
   findings: Finding[];
-  kept?: Quoted[];
   limitations: string[];
   reason?: string;
   examinedPaths?: string[];

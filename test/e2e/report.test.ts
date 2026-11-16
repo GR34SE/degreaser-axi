@@ -79,19 +79,23 @@ test("home observes configuration and history independently and all read command
   rmSync(join(f.root, ".degreaserrc.json"));
   const file = join(f.root, ".degreaser/runs", run.id, "run.json");
   const original = readFileSync(file, "utf8");
-  for (const damaged of [
-    "{",
-    JSON.stringify({ ...JSON.parse(original), schemaVersion: 99 }),
-  ]) {
+  for (const [damaged, code, history] of [
+    ["{", "state-corrupt", "state-corrupt"],
+    [
+      JSON.stringify({ ...JSON.parse(original), schemaVersion: 99 }),
+      "state-incompatible",
+      "no-history",
+    ],
+  ] as const) {
     writeFileSync(file, damaged);
     const read = f.run(["report", run.id]);
     assert.equal(read.status, 2);
     const error = decode(read.stdout);
-    assert.equal(error.code, "state-corrupt");
+    assert.equal(error.code, code);
     assert.ok(error.error.includes(file));
     const damagedHome = f.run(["home"]);
-    assert.equal(damagedHome.status, 2);
-    assert.equal(decode(damagedHome.stdout).history, "state-corrupt");
+    assert.equal(damagedHome.status, history === "no-history" ? 0 : 2);
+    assert.equal(decode(damagedHome.stdout).history, history);
     assert.equal(readFileSync(file, "utf8"), damaged);
   }
   writeFileSync(file, original);
@@ -145,18 +149,16 @@ test("running reports are immediate saved-result observations with same-run acti
       .events()
       .map((e) => `${e.aspect}:${e.stage}`)
       .sort(),
-    [
-      "masked-errors:find",
-      "missed-reuse:find",
-      "missed-reuse:verify",
-      "missed-reuse:verify",
-    ],
+    ["masked-errors:find", "missed-reuse:find", "missed-reuse:verify"],
   );
   assert.equal(start.stderr.trim().split("\n").length, 1);
-  assert.ok(start.stderr.includes(`run: ${state.id}; workers: 2;`));
   assert.ok(
-    start.stderr.includes("identities: codex/gpt-6-luna; concurrency: 2;"),
+    start.stderr.includes(
+      `run: ${state.id}; aspects: 2; finder sessions: 2; verifier sessions: up to 2; finders: codex/gpt-6-luna; verifier: `,
+    ),
+    start.stderr,
   );
+  assert.ok(start.stderr.includes("; concurrency: 2;"));
   assert.ok(start.stderr.includes(new Date(state.deadline).toISOString()));
   assert.equal(state.executions?.[0]?.concurrency, 2);
   const early = f.run(["dismiss", "F1", "--reason", "Kept on purpose"]);
@@ -265,4 +267,38 @@ test("export prints the run as plain JSON with flattened, unclipped findings", (
     ...location,
   });
   assert.equal(data.coverage[0].aspect, "low-value-comments");
+});
+
+test("runs saved by another version are skipped with a note unless requested by ID", (t) => {
+  const f = queueFixture(t);
+  f.start(["--aspects", "missed-reuse"]);
+  assert.equal(f.finish().status, 0);
+  const old = f.state();
+  const path = join(f.root, ".degreaser/runs", old.id, "run.json");
+  const saved = readFileSync(path, "utf8");
+  writeFileSync(
+    path,
+    JSON.stringify({
+      ...JSON.parse(readFileSync(path, "utf8")),
+      schemaVersion: 1,
+    }),
+  );
+  const latest = f.run(["report"]);
+  assert.equal(latest.status, 2, latest.stdout);
+  assert.match(latest.stdout, /no-history/);
+  assert.match(
+    latest.stdout,
+    /1 run saved by another Degreaser version skipped/,
+  );
+  const home = decode(f.run(["home"]).stdout);
+  assert.equal(home.history, "no-history");
+  assert.match(home.historyReason, /1 run saved by another/);
+  const requested = f.run(["report", old.id]);
+  assert.equal(requested.status, 2);
+  assert.match(requested.stdout, /state-incompatible/);
+  f.start(["--aspects", "missed-reuse"]);
+  assert.equal(f.finish().status, 0);
+  const current = decode(f.run(["report"]).stdout);
+  assert.equal(current.run, f.state().id);
+  writeFileSync(path, saved);
 });

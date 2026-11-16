@@ -137,7 +137,7 @@ test("review fingerprint ignores independent execution controls but distinguishe
   const original = fingerprint(input);
   const controls = [
     (v: typeof input) => {
-      v.waitSeconds++;
+      v.waitSeconds = 1;
     },
     (v: typeof input) => {
       v.config.concurrency = 2;
@@ -338,6 +338,7 @@ test("an alternate installed package refuses independently changed instruction, 
   for (const asset of [
     "review/attempt/prompt/finder.md",
     "review/attempt/prompt/find-response.md",
+    "review/attempt/prompt/follow-up.md",
     "review/ingest/find.schema.json",
     "review/attempt/prompt/verifier.md",
     "review/attempt/prompt/verify-response.md",

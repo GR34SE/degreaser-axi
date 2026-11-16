@@ -97,7 +97,7 @@ test("help, version and strict routing work without repo, credentials or side ef
       "--aspects",
       "--concurrency",
       "--wait",
-      "480",
+      "until the run ends",
     ]) {
       assert.ok(review.includes(text), text);
     }

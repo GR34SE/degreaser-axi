@@ -45,6 +45,7 @@ const record = (event) => {
     );
 };
 let current = model;
+const sessions = new Map();
 const configOptions = () => [
   {
     id: "model",
@@ -77,7 +78,11 @@ const connection = new AgentSideConnection(
         protocolVersion: 1,
         agentCapabilities: {
           sessionCapabilities:
-            settings.closeError || settings.closeHang ? { close: {} } : {},
+            settings.closeError ||
+            settings.finderCloseError ||
+            settings.closeHang
+              ? { close: {} }
+              : {},
         },
         authMethods: [],
       };
@@ -119,7 +124,10 @@ const connection = new AgentSideConnection(
         .filter((c) => c.type === "text")
         .map((c) => c.text)
         .join("");
-      const aspect = /Assigned aspect: ([a-z-]+)/.exec(text)?.[1];
+      const opened = /Assigned aspect: ([a-z-]+)/.exec(text)?.[1];
+      const known = sessions.get(p.sessionId);
+      const round = opened || !known ? 0 : known.round + 1;
+      const aspect = opened ?? known?.aspect;
       // On Linux a concurrent reader can see another worker's append
       // half-written; only newline-terminated records are complete.
       const logged = existsSync(plan.log) ? readFileSync(plan.log, "utf8") : "";
@@ -128,31 +136,27 @@ const connection = new AgentSideConnection(
         .split("\n")
         .filter(Boolean)
         .map(JSON.parse);
-      const stage = text.startsWith("# Verifier instruction")
-        ? "verify"
-        : "find";
+      const stage = round
+        ? known.stage
+        : /^# Verifier (instruction|response contract)/.test(text)
+          ? "verify"
+          : "find";
       const fence = /<(degreaser-input-[0-9a-f]+)>\n([\s\S]*?)\n<\/\1>/.exec(
         text,
       );
       const input = fence ? decode(fence[2]) : {};
       const paths = (input.paths ?? []).map((p) => p.path);
       const candidates = input.candidates ?? [];
-      const attempt = previous.filter(
-        (event) => event.aspect === aspect && event.stage === stage,
-      ).length;
+      const attempt = round
+        ? known.attempt
+        : previous.filter(
+            (event) =>
+              event.aspect === aspect && event.stage === stage && !event.round,
+          ).length;
+      sessions.set(p.sessionId, { aspect, stage, round, attempt });
       const staged = stage === "verify" ? (settings.verifier ?? {}) : settings;
-      const keyed = paths.find((path) => staged.paths?.[path]);
-      const scoped = keyed === undefined ? staged : staged.paths[keyed];
-      const tries =
-        keyed === undefined
-          ? attempt
-          : previous.filter(
-              (event) =>
-                event.aspect === aspect &&
-                event.stage === stage &&
-                event.paths?.includes(keyed),
-            ).length;
-      const step = scoped.attempts?.[tries] ?? scoped;
+      const attempted = staged.attempts?.[attempt] ?? staged;
+      const step = attempted.rounds?.[round] ?? attempted;
       if (plan.nestedCli) {
         const { latestRunId } = JSON.parse(
           readFileSync(".degreaser/state.json", "utf8"),
@@ -183,6 +187,7 @@ const connection = new AgentSideConnection(
           aspect,
           stage,
           paths,
+          ...(round ? { round } : {}),
           ...(stage === "verify" ? { candidates } : {}),
           model,
           prompt: text,
@@ -255,6 +260,7 @@ const connection = new AgentSideConnection(
       await sendResult(connection, p.sessionId, plan, step, aspect, {
         stage,
         candidates: candidates.length,
+        paths,
       });
       record({ type: "output" });
       if (plan.permissionDenied)
@@ -270,10 +276,15 @@ const connection = new AgentSideConnection(
         ...(step.usage ? { usage: step.usage } : {}),
       };
     },
-    async closeSession() {
+    async closeSession(params) {
       record({ type: "close" });
       if (settings.closeHang) await new Promise(() => {});
-      fault(settings.closeError);
+      fault(
+        settings.closeError ??
+          (sessions.get(params.sessionId)?.stage === "find"
+            ? settings.finderCloseError
+            : undefined),
+      );
       return {};
     },
     async cancel() {},

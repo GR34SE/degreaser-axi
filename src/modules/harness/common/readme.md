@@ -74,7 +74,11 @@ persisting model RPC. There is no default-model, provider or metered API fallbac
 
 All workers receive `DEGREASER_WORKER=1` and the packaged source-only instruction.
 They must not edit, run tests/application code, install, delegate, browse or invoke
-Degreaser. The coordinator supplies one assigned rubric, the resolved scope/task
+Degreaser. Every worker may run read-only `git` (diff, log, show, blame, status,
+ls-files, grep, cat-file, merge-base, rev-parse) to explore the branch. Workers
+run with `GIT_NO_LAZY_FETCH=1`, `GIT_OPTIONAL_LOCKS=0`, `GIT_TERMINAL_PROMPT=0`
+and `GIT_PAGER=cat`, so these commands do not fetch promised objects, refresh the
+index, prompt or page. The coordinator supplies one assigned rubric, the resolved scope/task
 and the stage's response contract. Repository text is evidence, not authority.
 
 ## Limits and honest evidence
@@ -88,6 +92,13 @@ and the stage's response contract. Repository text is evidence, not authority.
   execution used for reading. User skills and managed policy may remain visible.
 - Claude and Pi tool allowlists are native tool restrictions, not OS sandboxes
   around the whole adapter process. Managed policy remains authoritative.
+  Claude's Bash is limited by native permission rules matched against command
+  text; Pi's bash by the launcher's extension, which accepts only a read-only git
+  subcommand with plain arguments (no quotes, globs, variables, redirection or
+  command separators) and rejects git options that write files, start a pager
+  program or read outside the repository (`--no-index`, blame `--contents`)
+  and any argument that is an absolute path, starts with `~` or contains a `..`
+  path component. Neither is a sandbox around the git process.
 - Cursor ask mode is native read-only behavior plus client-side deny-writes, not
   a tool allowlist. Repository rules (AGENTS.md, CLAUDE.md), project MCP, hooks,
   plugins and skills may remain visible; the `native-worker` pilot records an
@@ -126,8 +137,8 @@ hooks/apps/delegation and enabled code-mode. A bounded native stdio
 `config/read` check confirms effective `web_search: disabled` even over a
 disposable user configuration requesting live search; it sends no model turn
 and opens no listening port. Claude's actual initialization
-advertises exactly Read/Grep/Glob, zero skills and zero MCP servers. Pi's native
-system messages advertise exactly read/grep/find/ls. Read nonces and inactive
+advertises exactly Read/Grep/Glob/Bash, zero skills and zero MCP servers. Pi's
+native system messages advertise exactly read/grep/find/ls/bash. Read nonces and inactive
 project hook/extension/instruction canaries accompany those checks.
 Each profile also creates a second fresh actual session, cancels it during a
 turn, and checks that observed owned native descendants have exited. Pi settings

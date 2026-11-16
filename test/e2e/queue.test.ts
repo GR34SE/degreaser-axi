@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { setTimeout } from "node:timers/promises";
 import { ASPECT_IDS } from "../../src/modules/aspect/api.ts";
+import { candidate, found, stage } from "../utils/coverage-fixture.ts";
 import { alive, queueFixture, until } from "../utils/queue-fixture.ts";
 
 const all = [...ASPECT_IDS].sort();
 
-test("default fleet holds at session readiness, then sixteen real workers overlap and the rest wait for a slot", async (t) => {
+test("default fleet holds at session readiness, then every aspect runs at once without a configured cap", async (t) => {
   const f = queueFixture(t);
   f.setPlan({
     worker: { invocationGate: f.gate("invoke"), resultGate: f.gate("result") },
@@ -20,18 +20,11 @@ test("default fleet holds at session readiness, then sixteen real workers overla
   assert.equal(f.events().length, 0);
   f.release("invoke");
   await until(
-    () => f.events().length === 16,
-    "Sixteen prompts start under the default cap",
+    () => f.events().length === ASPECT_IDS.length,
+    "Every aspect's finder starts",
   );
-  await setTimeout(500);
-  assert.equal(f.events().length, 16, "The default cap admits sixteen");
   assert.equal(f.events()[0]?.aspect, "unnecessary-complexity");
   assert.ok(f.events().every((e) => alive(e.pid)));
-  f.release("result");
-  await until(
-    () => f.events().length === ASPECT_IDS.length,
-    "The rest get a slot",
-  );
   assert.deepEqual(
     f
       .events()
@@ -39,6 +32,7 @@ test("default fleet holds at session readiness, then sixteen real workers overla
       .sort(),
     all,
   );
+  f.release("result");
   const done = f.finish();
   assert.equal(done.status, 0, done.stdout);
   assert.match(
@@ -227,4 +221,40 @@ test("a payment-method refusal is an account failure and is not retried", (t) =>
   assert.equal(f.events().length, 1);
   assert.match(done.stdout, /account-disabled/);
   assert.doesNotMatch(done.stdout, /invalid-output/);
+});
+
+test("the concurrency cap holds across finder and verifier workers", (t) => {
+  const f = queueFixture(t, { concurrency: 2 });
+  const aspects = ["masked-errors", "convention-drift", "low-value-comments"];
+  f.setPlan({
+    delayMs: 300,
+    results: Object.fromEntries(
+      aspects.map((aspect) => [
+        aspect,
+        {
+          ...found("findings", [candidate("source.ts", "// redundant")]).result,
+          aspect,
+        },
+      ]),
+    ),
+  });
+  f.start(["--aspects", aspects.join(",")]);
+  assert.equal(f.finish().status, 0);
+  assert.equal(stage(f, "find").length, 3);
+  assert.equal(stage(f, "verify").length, 3);
+  const spans = [...Map.groupBy(f.lifecycle(), (e) => e.pid).values()].map(
+    (events) => [
+      events.find((e) => e.type === "prompt")?.time ?? Number.NaN,
+      events.find((e) => e.type === "result")?.time ?? Number.NaN,
+    ],
+  );
+  assert.equal(spans.length, 6);
+  const peak = Math.max(
+    ...spans.map(
+      ([start = 0]) =>
+        spans.filter(([from = 0, to = 0]) => from <= start && start < to)
+          .length,
+    ),
+  );
+  assert.ok(peak >= 1 && peak <= 2, `peak ${peak}`);
 });

@@ -8,6 +8,7 @@ import test from "node:test";
 
 import { saveRun } from "../../src/state/store.ts";
 
+import { UNFINISHED } from "../utils/coverage-fixture.ts";
 import { alive, queueFixture, until } from "../utils/queue-fixture.ts";
 
 import { decode, finding, result, snapshot } from "../utils/report-fixture.ts";
@@ -17,6 +18,7 @@ test("short coverage attributes incomplete limitations and full reports separate
   const f = queueFixture(t);
   f.write("source.ts", "new line 1\n");
   f.setPlan({
+    workers: { "masked-errors": UNFINISHED },
     results: {
       "missed-reuse": result("missed-reuse", [
         finding(1),
@@ -53,17 +55,16 @@ test("short coverage attributes incomplete limitations and full reports separate
   assert.equal(short.upheld, 1);
   assert.equal(short.rejected, 1);
   assert.equal(short.usage, "unknown");
-  assert.equal(short.coverageBasis, "coordinator-assigned");
+  assert.equal(short.coverageBasis, "worker-declared");
   assert.ok(short.help.includes(`degreaser-axi report ${short.run} --full`));
   assert.ok(!reviewed.stdout.includes(longLimitation));
   const incomplete = short.coverage.find(
     (row: { aspect: string }) => row.aspect === "masked-errors",
   );
-  assert.equal(incomplete.stopCause, "incomplete");
-  assert.equal(incomplete.pending, 2);
+  assert.equal(incomplete.stopCause, "cleanup");
   assert.ok(
     incomplete.limitations.some((l: string) =>
-      l.endsWith(": Generated caller skipped."),
+      l.endsWith("Generated caller skipped."),
     ),
   );
   const harness = [
@@ -94,7 +95,7 @@ test("short coverage attributes incomplete limitations and full reports separate
   assert.ok(
     full.coverage
       .find((row: { aspect: string }) => row.aspect === "masked-errors")
-      .limitations.some((l: string) => l.endsWith(`: ${longLimitation}`)),
+      .limitations.some((l: string) => l.endsWith(longLimitation)),
   );
   assert.equal(full.pathList, `.degreaser/runs/${short.run}/input/review.json`);
   assert.equal(
@@ -119,7 +120,10 @@ test("short coverage attributes incomplete limitations and full reports separate
   assert.equal(full.coordinator[0].status, "not-applicable");
   assert.match(full.coordinator[0].reason, /no feature-change scope/);
   assert.equal(f.events().length, 4);
-  assert.match(reviewed.stderr, /workers: 3;/);
+  assert.match(
+    reviewed.stderr,
+    /aspects: 4; finder sessions: 3; verifier sessions: up to 3;/,
+  );
   assert.equal(reviewed.stderr.trim().split("\n").length, 1);
   const run = f.state();
   const owner = run.owner;
@@ -182,6 +186,7 @@ test("every upheld finding is listed without a cap and historical detail keeps v
   );
   const entries = Array.from({ length: 35 }, (_, n) => finding(n + 1));
   f.setPlan({
+    workers: { "low-value-comments": UNFINISHED },
     results: {
       "low-value-comments": result("low-value-comments", entries, [
         "Unexamined generated caller.",
@@ -232,7 +237,7 @@ test("every upheld finding is listed without a cap and historical detail keeps v
   assert.equal(detail.action, "Remove it.");
   assert.ok(
     detail.limitations.some((l: string) =>
-      l.endsWith(": Unexamined generated caller."),
+      l.endsWith("Unexamined generated caller."),
     ),
   );
   f.setPlan();

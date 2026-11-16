@@ -3,7 +3,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
 import test from "node:test";
-import { candidate } from "../utils/coverage-fixture.ts";
+import { candidate, UNFINISHED } from "../utils/coverage-fixture.ts";
 import { alive, capture, queueFixture, until } from "../utils/queue-fixture.ts";
 
 const { decode } = createRequire(import.meta.resolve("axi-sdk-js"))(
@@ -29,7 +29,10 @@ test("resume retains successes, supersedes incomplete evidence and records only 
       },
       "low-value-comments": incomplete,
     },
-    workers: { "unjustified-defense": { result: "" } },
+    workers: {
+      "unjustified-defense": { result: "" },
+      "low-value-comments": UNFINISHED,
+    },
   });
   assert.equal(
     f.start([
@@ -99,6 +102,7 @@ test("resumed pre-result failure reports unknown aspect usage while retaining di
       "low-value-comments": {
         usage: priorUsage,
         verifier: { usage: verifyUsage },
+        ...UNFINISHED,
       },
     },
     results: {
@@ -371,16 +375,7 @@ test("a killed owner exposes interrupted and racing resumes admit only one nonov
 
 test("an unsuccessful continuation retains prior incomplete evidence and retries without renewing its explicit budget", (t) => {
   const f = queueFixture(t, { maxRetries: 1 });
-  f.setPlan({
-    results: {
-      "low-value-comments": {
-        aspect: "low-value-comments",
-        status: "incomplete",
-        findings: [],
-        limitations: ["An unresolved construct remains."],
-      },
-    },
-  });
+  f.setPlan({ workers: { "low-value-comments": UNFINISHED } });
   f.start(["--aspects", "masked-errors,low-value-comments"]);
   assert.equal(f.finish().status, 1);
   const old = f.state();

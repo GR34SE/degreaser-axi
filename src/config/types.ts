@@ -23,7 +23,7 @@ export interface Limits {
 export type AspectSetting = boolean | { agent?: Agent; model: string };
 export interface ProjectConfig extends Identity {
   schemaVersion?: 1;
-  concurrency?: number | null;
+  concurrency?: number;
   maxRetries?: number;
   limits?: Partial<Limits>;
   aspects?: Partial<Record<AspectId, AspectSetting>>;
@@ -33,7 +33,7 @@ export interface ProjectConfig extends Identity {
 export interface EffectiveConfig {
   assignments: Assignment[];
   verifier: PinnedIdentity;
-  concurrency: number | null;
+  concurrency: number;
   maxRetries: number;
   limits: Limits;
   exclude: string[];
