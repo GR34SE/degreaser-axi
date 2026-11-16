@@ -162,7 +162,7 @@ Schemas use JSON Schema draft-07, with no type coercion or unknown-field removal
 | `runs/<id>/run.json` | `run-v2.json`, requires `schemaVersion: 2`; tasks, owner heartbeat, attempts and embedded results |
 | `runs/<id>/input/review.json` | `input-v1.json`, requires `schemaVersion: 1`; immutable scope, task and selected execution identities |
 | `runs/<id>/input/patch.json` | `patch-v1.json`; JSON string or null, version inherited from `input-v1`; must equal the input's patch |
-| `runs/<id>/input/patch.diff` | Raw copy of the same patch for worker slice reads; absent when the patch is null; not read back by the coordinator |
+| `runs/<id>/input/patch.diff` | Raw copy of the same patch for worker slice reads; absent when the patch is null; must equal the input's patch |
 | Embedded aspect result | `result-v1.json`, referenced by `run-v2`; no separate file or version field |
 
 Malformed JSON, invalid structure, unsupported versions and inconsistent
@@ -211,7 +211,7 @@ upheld, refuted and unverified findings. `report --full` also shows refuted
 findings with their reasons and evidence, per-aspect rejection reasons, attempts and
 exact selected identities; `finding <id>` shows the same for one finding.
 An unverified finding does not make its aspect incomplete or the run partial;
-`resume` can verify it again. The report
+`resume` can verify it again. The report shows
 the reviewed path count as `paths`; `pathList` names the run's resolved input
 (`.degreaser/runs/<run-id>/input/review.json`) that holds the complete list.
 Missing usage is unknown, not zero. No-findings and not-applicable are distinct;
@@ -288,9 +288,10 @@ ready, or until 15 seconds have passed. It then fills the available slots. A
 pre-invocation failure advances to the next worker without releasing a
 still-cold fleet.
 
-Only missing/malformed results and finder timeouts without valid evidence
-receive up to `maxRetries` additional attempts. A verifier timeout is not
-retried; its candidates stay `unverified`. An attempt stops when its adapter is
+Only missing/malformed results and finder idle timeouts without valid evidence
+receive up to `maxRetries` additional attempts. A worker stopped at its
+`workerTimeoutSeconds` ceiling is not retried, and neither is a verifier
+timeout; its candidates stay `unverified`. An attempt stops when its adapter is
 idle for `workerIdleSeconds` or reaches `workerTimeoutSeconds`. Each uses a fresh session, the
 same assignment and exact model, and keeps its slot until cleanup finishes.
 Assistant output over 1,048,576 JavaScript string characters is discarded in
@@ -387,11 +388,6 @@ a new review only after confirming old work has stopped.
 If a process dies during the short admission critical section, its admission lock
 requires explicit local inspection before removal; it is never stolen on age alone.
 These checks do not supervise deliberately escaped, unobservable daemons.
-
-Earlier development runs with the old whole-input fingerprint remain readable.
-They require a new review rather than automatic continuation: those inputs did
-not record whether their task came from a file, so freshness cannot be fully
-rechecked. Their saved evidence is not migrated or overwritten.
 
 Worker-marked callers cannot review or resume; ordinary wait/cancel remain
 available. Killed callers do not own the detached run. Killed owners produce
