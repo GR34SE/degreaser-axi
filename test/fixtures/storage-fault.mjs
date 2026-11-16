@@ -63,7 +63,7 @@ fs.renameSync = (source, destination) => {
         JSON.parse(read(destination, "utf8")).status !== "running"))
   ) {
     fs.writeFileSync(
-      fault.marker,
+      `${fault.marker}.tmp`,
       JSON.stringify({
         source,
         destination,
@@ -71,6 +71,7 @@ fs.renameSync = (source, destination) => {
         proposed: read(source, "utf8"),
       }),
     );
+    rename(`${fault.marker}.tmp`, fault.marker);
     if (fault.mode === "write-failure") {
       fs.unlinkSync(planPath);
       throw Object.assign(new Error("Synthetic disk failure SECRET-canary"), {
