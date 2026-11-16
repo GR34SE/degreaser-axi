@@ -8,6 +8,7 @@ export interface OwnerContext {
   repository: string;
   input: ReviewInput;
   dir: string;
+  startedAt: number;
   control: OwnerControl;
   slots: Slots;
   sizesOf: () => Map<string, number>;

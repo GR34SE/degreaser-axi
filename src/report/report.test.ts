@@ -205,29 +205,51 @@ test("a failed attempt still explains its aspect when a later sibling attempt su
   assert.ok(out.help.some((h) => h.includes("--concurrency 1")));
 });
 
-test("a failure that a later attempt of the same portion or a later execution replaced no longer explains its aspect", () => {
-  const retried = {
-    ...attempt("verify", 1),
-    failure: "rate-limited",
-    diagnostic: { phase: "invocation" },
-  } as unknown as RunTask["attempts"][number];
-  const interrupted = {
-    ...attempt("find", 1),
-    failure: "interrupted",
-  } as RunTask["attempts"][number];
-  for (const attempts of [
-    [retried, attempt("verify", 1), attempt("find", 2)],
-    [interrupted, attempt("find", 2)],
-  ]) {
-    const open = task("low-value-comments", [], "incomplete", attempts);
-    open.unresolved = { cause: "incomplete", paths: ["a.ts"] };
+test("only a failure still open in the latest execution explains its aspect", () => {
+  const limited = (
+    stage: "find" | "verify",
+    index: number,
+    startedAt: number,
+  ) =>
+    ({
+      ...attempt(stage, index),
+      startedAt,
+      failure: "rate-limited",
+      diagnostic: { phase: "invocation" },
+    }) as unknown as RunTask["attempts"][number];
+  const later = (stage: "find" | "verify", index: number) => ({
+    ...attempt(stage, index),
+    startedAt: 10,
+  });
+  const cases = [
+    { attempts: [limited("find", 1, 0), later("find", 3)], open: false },
+    {
+      attempts: [
+        limited("verify", 1, 10),
+        later("verify", 1),
+        later("find", 2),
+      ],
+      open: false,
+    },
+    { attempts: [later("find", 1), limited("find", 2, 10)], open: true },
+  ];
+  for (const { attempts, open } of cases) {
+    const unfinished = task("low-value-comments", [], "incomplete", attempts);
+    unfinished.unresolved = { cause: "incomplete", paths: ["a.ts"] };
     const out = renderReport(
-      { ...run([open]), status: "partial", deadline: 1 } as Run,
+      {
+        ...run([unfinished]),
+        status: "partial",
+        deadline: 1,
+        executions: [{ startedAt: 0 }, { startedAt: 10 }],
+      } as Run,
       { ...context(), status: "partial" },
     );
     const [row] = out.coverage;
-    assert.equal(row?.reason, "incomplete");
-    assert.equal(row?.cause, undefined);
-    assert.ok(!out.help.some((h) => h.includes("--concurrency 1")));
+    assert.deepEqual(row?.cause, open ? { phase: "invocation" } : undefined);
+    assert.equal(
+      out.help.some((h) => h.includes("--concurrency 1")),
+      open,
+    );
   }
 });

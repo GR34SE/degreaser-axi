@@ -30,6 +30,7 @@ export async function ownRun(
     repository,
     input,
     dir,
+    startedAt: execution.startedAt,
     control,
     slots: slots(input.config.concurrency ?? Number.POSITIVE_INFINITY),
     sizesOf: () => (sizes ??= pathSizes(runtime, input)),

@@ -249,7 +249,7 @@ function finish(context: OwnerContext, task: RunTask) {
     task.unresolved = {
       cause: control.stopped()
         ? control.stopReason
-        : (openFailure(task)?.failure ??
+        : (openFailure(task, context.startedAt)?.failure ??
           (task.result?.findings.some((f) => f.verdict === "unverified")
             ? "unverified"
             : "incomplete")),

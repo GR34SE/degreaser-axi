@@ -66,16 +66,14 @@ export const resolved = (task: RunTask) =>
   ["findings", "no-findings", "not-applicable"].includes(task.status);
 const portionKey = (a: RunTask["attempts"][number]) =>
   `${a.stage}:${a.portion?.index ?? 0}`;
-export const openFailure = (task: RunTask) =>
-  task.attempts.findLast(
-    (a, i, all) =>
+export function openFailure(task: RunTask, since: number) {
+  const current = task.attempts.filter((a) => a.startedAt >= since);
+  return current.findLast(
+    (a, i) =>
       a.failure &&
-      !all
-        .slice(i + 1)
-        .some(
-          (b) => a.failure === "interrupted" || portionKey(b) === portionKey(a),
-        ),
+      !current.slice(i + 1).some((b) => portionKey(b) === portionKey(a)),
   );
+}
 export function terminalStatus(tasks: RunTask[]): Run["status"] {
   return tasks.every(resolved)
     ? "completed"

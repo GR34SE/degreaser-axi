@@ -1,6 +1,7 @@
 import { type Run, resolved, sumUsage } from "../state/run.ts";
 import {
   coverage,
+  executionStart,
   failedAttempt,
   harnessLimitations,
   shownLimitations,
@@ -20,6 +21,7 @@ export function renderReport(run: Run, context: ReportContext, full = false) {
   const failure = run.executions?.at(-1)?.failure;
   const stopReason = run.executions?.at(-1)?.stopReason;
   const unverifiedOwner = context.unverifiedOwner;
+  const since = executionStart(run);
   const canResume =
     status !== "completed" &&
     !unverifiedOwner &&
@@ -33,7 +35,7 @@ export function renderReport(run: Run, context: ReportContext, full = false) {
     !full &&
     run.tasks.some((task) =>
       [
-        taskReason(task, status === "interrupted") ?? "",
+        taskReason(task, status === "interrupted", since) ?? "",
         ...taskLimitations(task),
       ].some((text) => text.length > 240),
     );
@@ -50,7 +52,7 @@ export function renderReport(run: Run, context: ReportContext, full = false) {
     findings: full ? all.map(present) : upheldRows(all),
     coverageBasis: "coordinator-assigned",
     coverage: run.tasks.map((t) =>
-      coverage(t, context, status === "interrupted", full),
+      coverage(t, context, status === "interrupted", full, since),
     ),
     limitations: [
       ...shownLimitations(input, full),
@@ -114,7 +116,8 @@ export function renderReport(run: Run, context: ReportContext, full = false) {
             context.reviewCommand,
             ...(canResume &&
             run.tasks.some(
-              (task) => failedAttempt(task)?.failure === "account-disabled",
+              (task) =>
+                failedAttempt(task, since)?.failure === "account-disabled",
             )
               ? [
                   "Restore access to the selected account with its provider before resuming. A disabled or suspended account is not a transient rate limit; waiting or lowering concurrency does not restore access.",
@@ -122,7 +125,7 @@ export function renderReport(run: Run, context: ReportContext, full = false) {
               : []),
             ...(canResume &&
             run.tasks.some(
-              (task) => failedAttempt(task)?.failure === "rate-limited",
+              (task) => failedAttempt(task, since)?.failure === "rate-limited",
             )
               ? [
                   `After the selected account limit clears, keep the same model and run: degreaser-axi resume ${run.id} --concurrency 1${context.now >= run.deadline ? " --deadline 900" : ""}`,

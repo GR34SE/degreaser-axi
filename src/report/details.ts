@@ -1,4 +1,4 @@
-import type { RunInput } from "../state/run.ts";
+import type { Run, RunInput } from "../state/run.ts";
 import { openFailure, type RunTask, resolved, sumUsage } from "../state/run.ts";
 import type { ReportContext } from "./types.ts";
 
@@ -13,16 +13,19 @@ export function harnessLimitations(task: RunTask, context: ReportContext) {
   return new Set([...(context.harnessLimitations[agent] ?? [])]);
 }
 
-export const failedAttempt = (task: RunTask) =>
-  resolved(task) ? undefined : openFailure(task);
+export const executionStart = (run: Run) =>
+  run.executions?.at(-1)?.startedAt ?? 0;
 
-export function taskReason(task: RunTask, interrupted: boolean) {
+export const failedAttempt = (task: RunTask, since: number) =>
+  resolved(task) ? undefined : openFailure(task, since);
+
+export function taskReason(task: RunTask, interrupted: boolean, since: number) {
   return interrupted && task.status === "running"
     ? "Execution interrupted; last persisted aspect status: running."
     : (task.result?.reason ??
         (resolved(task)
           ? undefined
-          : (task.unresolved?.cause ?? failedAttempt(task)?.failure)) ??
+          : (task.unresolved?.cause ?? failedAttempt(task, since)?.failure)) ??
         undefined);
 }
 
@@ -36,8 +39,10 @@ export function coverage(
   context: ReportContext,
   interrupted: boolean,
   full: boolean,
+  since: number,
 ) {
-  const reason = taskReason(task, interrupted);
+  const reason = taskReason(task, interrupted, since);
+  const failed = failedAttempt(task, since);
   const harness = harnessLimitations(task, context);
   const stages = stageSummary(task);
   return {
@@ -45,8 +50,8 @@ export function coverage(
     status:
       interrupted && task.status === "running" ? "interrupted" : task.status,
     ...(reason ? { reason: preview(reason, full) } : {}),
-    ...(failedAttempt(task)?.diagnostic && task.status !== "running"
-      ? { cause: failedAttempt(task)?.diagnostic }
+    ...(failed?.diagnostic && task.status !== "running"
+      ? { cause: failed.diagnostic }
       : {}),
     limitations: taskLimitations(task)
       .filter((l) => l !== reason && !harness.has(l))

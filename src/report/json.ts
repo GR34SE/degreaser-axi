@@ -1,5 +1,5 @@
 import type { Run } from "../state/run.ts";
-import { coverage, taskLimitations } from "./details.ts";
+import { coverage, executionStart, taskLimitations } from "./details.ts";
 import { findings } from "./findings.ts";
 import type { ReportContext } from "./types.ts";
 
@@ -29,7 +29,13 @@ export function exportRun(run: Run, context: ReportContext) {
       })),
       coverageBasis: "coordinator-assigned",
       coverage: run.tasks.map((t) =>
-        coverage(t, context, status === "interrupted", true),
+        coverage(
+          t,
+          context,
+          status === "interrupted",
+          true,
+          executionStart(run),
+        ),
       ),
       limitations: [
         ...input.limitations.map((l) => l.message),
