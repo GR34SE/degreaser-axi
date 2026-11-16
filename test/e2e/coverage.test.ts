@@ -61,6 +61,23 @@ test("a focused pass may repeat a finding whose omitted final line was corrected
   assert.equal(f.state().status, "completed");
 });
 
+test("a clean pass that still names an unresolved obligation is saved as incomplete", (t) => {
+  const f = setup(t, [
+    pass("no-findings", ["a.ts", "b.ts", "source.ts"], {
+      unresolved: [
+        { scope: "context", reason: "Callers of a.ts were not checked." },
+      ],
+    }),
+  ]);
+  f.start(["--aspects", "low-value-comments"]);
+  const waited = f.finish();
+  assert.equal(f.state().status, "partial", waited.stdout);
+  assert.match(waited.stdout, /status: partial/);
+  const task = f.state().tasks[0];
+  assert.equal(task?.status, "incomplete");
+  assert.match(task?.result?.limitations.join("\n") ?? "", /1 unresolved item/);
+});
+
 test("a clean claim without full coverage is not certified until the rest is examined", (t) => {
   const clean = (paths: string[]) =>
     pass("not-applicable", paths, { reason: "No comments." });

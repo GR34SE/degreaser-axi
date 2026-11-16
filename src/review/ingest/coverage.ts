@@ -190,6 +190,10 @@ export function mergePass(
       ...passLimitations.map((l) => `${label}${l}`),
     ]),
   ];
+  if (merged.status === "incomplete" && !merged.limitations.length)
+    merged.limitations.push(
+      `${label}Reported ${pass.status} with ${open.size} unresolved item(s); this aspect remains incomplete.`,
+    );
   return merged;
 }
 

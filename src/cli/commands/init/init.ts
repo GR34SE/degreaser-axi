@@ -13,7 +13,7 @@ export { spec } from "./spec.ts";
 import { join } from "node:path";
 import { completeConfig } from "../../../config/defaults.ts";
 import { readConfigText } from "../../../config/load.ts";
-import { resolveConfig } from "../../../config/resolve.ts";
+import { resolveConfig, unsupportedModel } from "../../../config/resolve.ts";
 import type { Agent, Identity, ProjectConfig } from "../../../config/types.ts";
 import { validateConfig } from "../../../config/validate.ts";
 import { ensureStateIgnored } from "../../../install/gitignore.ts";
@@ -142,8 +142,11 @@ export async function run(
     const discovery = choices.discovery.find((d) => d.agent === identity.agent);
     if (discovery?.status === "unavailable")
       throw new StateError("environment-blocked", discovery.reason);
-    throw new InputError(
-      "Selected agent/model is not a listed model or latest selector. No substitute was selected.",
+    throw unsupportedModel(
+      identity,
+      choices.candidates
+        .filter((c) => c.agent === identity.agent)
+        .map((c) => c.model),
     );
   }
   const config = completeConfig(
