@@ -222,7 +222,7 @@ test("Codex latest overrides stay in their families and missing families refuse 
   assert.match(refused.stdout, /invalid-input/);
   assert.match(
     refused.stdout,
-    /low-value-comments.*codex.*latest selector with an advertised family/,
+    /codex\/latest:luna is neither an advertised codex model ID nor a latest selector with an advertised family\. No substitute was selected\. Available codex models: latest:sol, gpt-7-sol, custom-luna\./,
   );
   assert.ok(!existsSync(join(empty.root, ".degreaser/state.json")));
   assert.deepEqual(empty.events(), []);
