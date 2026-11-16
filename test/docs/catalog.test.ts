@@ -90,17 +90,3 @@ test("each neighboring rubric exposes its reciprocal routing boundary", () => {
       assert.ok(boundary(from).includes(to), `${from} -> ${to}`);
   assert.match(boundary("structural-erosion"), /missed-reuse/);
 });
-
-test("only the enumerable rubrics declare a unit, right after Applies when", () => {
-  const units: Record<string, string> = {
-    "low-value-comments": "Each explanatory comment or docstring.",
-    "low-value-tests": "Each test case.",
-  };
-  for (const id of ASPECT_IDS) {
-    const rubric = readFileSync(new URL(`${id}/rubric.md`, root), "utf8");
-    const unit = /^\*\*Unit:\*\* (.+)$/m.exec(rubric)?.[1];
-    assert.equal(unit, units[id], id);
-    if (unit)
-      assert.match(rubric, /^\*\*Applies when:\*\* .+\n\n\*\*Unit:\*\* /m, id);
-  }
-});

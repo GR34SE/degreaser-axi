@@ -82,6 +82,10 @@ test("finder prompt inlines and describes only its shard's paths and counts the 
     order.every((at, i) => at >= 0 && (i === 0 || at > (order[i - 1] ?? 0))),
     String(order),
   );
+  assert.match(
+    text,
+    /^\*\*Unit:\*\* Each explanatory comment or docstring\.$/m,
+  );
   assert.match(text, /\+export const a = 2;/);
   assert.doesNotMatch(text, /\+export const b = 2;/);
   const data = evidence(text);
