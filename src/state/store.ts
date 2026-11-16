@@ -60,7 +60,7 @@ export function checked<T>(
   if (!schema(value))
     throw new StateError(
       "state-corrupt",
-      `Invalid or unsupported state: ${path}`,
+      `Invalid or unsupported state: ${path}. State saved by another Degreaser version is not migrated; remove that run directory, or the repository's .degreaser directory, to start a new history.`,
     );
   return value;
 }
