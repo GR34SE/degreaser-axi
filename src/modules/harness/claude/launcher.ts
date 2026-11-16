@@ -12,15 +12,20 @@ import {
   selectedModel,
 } from "../common/launch.ts";
 
+const unavailable = ["grep", "blame"];
+const subcommandRules = (name: string) => [
+  `Bash(git ${name})`,
+  `Bash(git ${name} *)`,
+];
+
 const permissions = {
-  allow: READ_ONLY_GIT_SUBCOMMANDS.flatMap((name) => [
-    `Bash(git ${name})`,
-    `Bash(git ${name} *)`,
-  ]),
+  allow: READ_ONLY_GIT_SUBCOMMANDS.filter(
+    (name) => !unavailable.includes(name),
+  ).flatMap(subcommandRules),
   deny: [
+    "Bash(git -*)",
     ...UNSAFE_GIT_OPTION_PREFIXES.map((prefix) => `Bash(git * ${prefix}*)`),
-    "Bash(git grep *-*O*)",
-    "Bash(git blame *--con*)",
+    ...unavailable.flatMap(subcommandRules),
     ...[" ", ...VALUE_SEPARATORS].flatMap((separator) =>
       [...OUTSIDE_PATH_STARTS, PARENT_COMPONENT].map(
         (start) => `Bash(git *${separator}${start}*)`,

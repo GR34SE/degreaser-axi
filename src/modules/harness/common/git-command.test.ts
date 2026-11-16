@@ -22,6 +22,10 @@ test("read-only git commands with plain arguments are allowed", () => {
     "git diff origin/main...HEAD -- src/a..b.ts",
     "git show HEAD~2:src/a.ts",
     "git grep --context=3 TODO",
+    "git grep -n Overview",
+    "git blame -w -M src/Service.ts",
+    "git blame --show-stats README.md",
+    "git blame --ignore-rev HEAD README.md",
   ])
     assert.equal(readOnlyGitViolation(command), undefined, command);
 });
@@ -73,6 +77,10 @@ test("options that write files, start programs or read outside the repository ar
     "git diff --no-index /etc/hosts /etc/passwd",
     "git grep --no-index -n root /etc",
     "git grep --no-i root /etc",
+    "git blame -Srevs.txt README.md",
+    "git blame -wSrevs.txt README.md",
+    "git blame --ignore-revs-file=revs.txt README.md",
+    "git blame --ignore-revs revs.txt README.md",
   ])
     assert.ok(readOnlyGitViolation(command), command);
 });
@@ -94,6 +102,12 @@ test("arguments that name a path outside the repository are rejected", () => {
     "git log --ignore-revs-file=../x",
     "git grep -f/etc/shells",
     "git grep -f../x",
+    "git grep -nf/etc/shells",
+    "git grep -nf../x",
+    "git grep -inf~/x",
+    "git grep -1f/etc/shells",
+    "git grep -n1f/etc/shells",
+    "git diff -pO/etc/hosts HEAD",
     "git log -- /tmp/x",
   ])
     assert.ok(readOnlyGitViolation(command), command);

@@ -20,7 +20,7 @@ export const VALUE_SEPARATORS = ["=", ":"] as const;
 const valueSeparator = new RegExp(`[${VALUE_SEPARATORS.join("")}]`);
 const outsideRepository = (arg: string) =>
   arg
-    .replace(/^-[A-Za-z]/, "")
+    .replace(/^-[A-Za-z0-9]+/, "")
     .split(valueSeparator)
     .some(
       (part) =>
@@ -44,7 +44,10 @@ export function readOnlyGitViolation(command: unknown): string | undefined {
     if (
       UNSAFE_GIT_OPTION_PREFIXES.some((prefix) => arg.startsWith(prefix)) ||
       (subcommand === "grep" && /^-[^-]*O/.test(arg)) ||
-      (subcommand === "blame" && arg.startsWith("--con"))
+      (subcommand === "blame" &&
+        (arg.startsWith("--con") ||
+          arg.startsWith("--ignore-revs") ||
+          /^-[A-Za-z]*S/.test(arg)))
     )
       return "Options that write files, start programs or read outside the repository are not allowed.";
     if (outsideRepository(arg))

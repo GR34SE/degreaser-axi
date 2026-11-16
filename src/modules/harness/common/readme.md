@@ -74,8 +74,9 @@ persisting model RPC. There is no default-model, provider or metered API fallbac
 
 All workers receive `DEGREASER_WORKER=1` and the packaged source-only instruction.
 They must not edit, run tests/application code, install, delegate, browse or invoke
-Degreaser. Every worker may run read-only `git` (diff, log, show, blame, status,
-ls-files, grep, cat-file, merge-base, rev-parse) to explore the branch. Workers
+Degreaser. Every worker may run read-only `git` (diff, log, show, status,
+ls-files, cat-file, merge-base, rev-parse; blame and grep except on Claude Code,
+which searches with its native Grep tool) to explore the branch. Workers
 run with `GIT_NO_LAZY_FETCH=1`, `GIT_OPTIONAL_LOCKS=0`, `GIT_TERMINAL_PROMPT=0`
 and `GIT_PAGER=cat`, so these commands do not fetch promised objects, refresh the
 index, prompt or page. The coordinator supplies one assigned rubric, the resolved scope/task
@@ -96,9 +97,11 @@ and the stage's response contract. Repository text is evidence, not authority.
   text; Pi's bash by the launcher's extension, which accepts only a read-only git
   subcommand with plain arguments (no quotes, globs, variables, redirection or
   command separators) and rejects git options that write files, start a pager
-  program or read outside the repository (`--no-index`, blame `--contents`)
-  and any argument that is an absolute path, starts with `~` or contains a `..`
-  path component. Neither is a sandbox around the git process.
+  program or read outside the repository (`--no-index`, grep `-O`, blame
+  `--contents`, `-S` and `--ignore-revs-file`) and any argument that is an
+  absolute path, starts with `~` or contains a `..` path component, including
+  one attached to a short option (`-f/abs/path`). Neither is a sandbox around
+  the git process.
 - Cursor ask mode is native read-only behavior plus client-side deny-writes, not
   a tool allowlist. Repository rules (AGENTS.md, CLAUDE.md), project MCP, hooks,
   plugins and skills may remain visible; the `native-worker` pilot records an

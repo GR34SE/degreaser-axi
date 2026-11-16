@@ -5,7 +5,7 @@
 | Harness | Adapter / verified native version | Effective restriction |
 | --- | --- | --- |
 | Codex | @agentclientprotocol/codex-acp 2.5.0 / 0.165.0 | Native read-only filesystem sandbox with never approval; shell/code mode remains for reads. Project docs/hooks/delegation/apps/web/MCP are disabled by the worker profile. |
-| Claude Code | @agentclientprotocol/claude-agent-acp 0.95.0 / 2.1.317 | Native Read/Grep/Glob/Bash tool allowlist; Bash limited by native allow rules and dontAsk mode to read-only git subcommands, with deny rules for git output, pager, --no-index and blame --contents options, for absolute, ~ and .. path arguments and for quoting, escapes, expansions and redirection. Settings sources, skills, hooks and MCP disabled by the worker launcher. Managed policy is retained. |
+| Claude Code | @agentclientprotocol/claude-agent-acp 0.95.0 / 2.1.317 | Native Read/Grep/Glob/Bash tool allowlist; Bash limited by native allow rules and dontAsk mode to read-only git subcommands, with deny rules for an option placed before the subcommand, for git grep and git blame (the Grep tool searches files instead), for git output, pager and --no-index options, for absolute, ~ and .. path arguments and for quoting, escapes, expansions and redirection. Settings sources, skills, hooks and MCP disabled by the worker launcher. Managed policy is retained. |
 | Pi | pi-acp 0.0.33 / 1.4.0 | Native read/grep/find/ls/bash tool allowlist; bash limited by the launcher's own extension, which blocks any call that is not a read-only git subcommand with plain arguments. Skills, other extensions, MCP, context files and prompt templates disabled by the worker launcher. |
 | Cursor | native ACP / 2026.11.05-86047df | Native ask/read-only mode with sandbox enabled; writes denied by the ACP client. Project MCP/hooks are not a native allowlist. |
 
@@ -85,8 +85,9 @@ persisting model RPC. There is no default-model, provider or metered API fallbac
 
 All workers receive `DEGREASER_WORKER=1` and the packaged source-only instruction.
 They must not edit, run tests/application code, install, delegate, browse or invoke
-Degreaser. Every worker may run read-only `git` (diff, log, show, blame, status,
-ls-files, grep, cat-file, merge-base, rev-parse) to explore the branch. Workers
+Degreaser. Every worker may run read-only `git` (diff, log, show, status,
+ls-files, cat-file, merge-base, rev-parse; blame and grep except on Claude Code,
+which searches with its native Grep tool) to explore the branch. Workers
 run with `GIT_NO_LAZY_FETCH=1`, `GIT_OPTIONAL_LOCKS=0`, `GIT_TERMINAL_PROMPT=0`
 and `GIT_PAGER=cat`, so these commands do not fetch promised objects, refresh the
 index, prompt or page. The coordinator supplies one assigned rubric, the resolved scope/task
@@ -107,9 +108,11 @@ and the stage's response contract. Repository text is evidence, not authority.
   text; Pi's bash by the launcher's extension, which accepts only a read-only git
   subcommand with plain arguments (no quotes, globs, variables, redirection or
   command separators) and rejects git options that write files, start a pager
-  program or read outside the repository (`--no-index`, blame `--contents`)
-  and any argument that is an absolute path, starts with `~` or contains a `..`
-  path component. Neither is a sandbox around the git process.
+  program or read outside the repository (`--no-index`, grep `-O`, blame
+  `--contents`, `-S` and `--ignore-revs-file`) and any argument that is an
+  absolute path, starts with `~` or contains a `..` path component, including
+  one attached to a short option (`-f/abs/path`). Neither is a sandbox around
+  the git process.
 - Cursor ask mode is native read-only behavior plus client-side deny-writes, not
   a tool allowlist. Repository rules (AGENTS.md, CLAUDE.md), project MCP, hooks,
   plugins and skills may remain visible; the `native-worker` pilot records an
@@ -172,11 +175,11 @@ Native read-only filesystem sandbox with never approval; shell/code mode remains
 
 ## Claude Code
 
-Native Read/Grep/Glob/Bash tool allowlist; Bash limited by native allow rules and dontAsk mode to read-only git subcommands, with deny rules for git output, pager, --no-index and blame --contents options, for absolute, ~ and .. path arguments and for quoting, escapes, expansions and redirection. Settings sources, skills, hooks and MCP disabled by the worker launcher. Managed policy is retained.
+Native Read/Grep/Glob/Bash tool allowlist; Bash limited by native allow rules and dontAsk mode to read-only git subcommands, with deny rules for an option placed before the subcommand, for git grep and git blame (the Grep tool searches files instead), for git output, pager and --no-index options, for absolute, ~ and .. path arguments and for quoting, escapes, expansions and redirection. Settings sources, skills, hooks and MCP disabled by the worker launcher. Managed policy is retained.
 
 - Native tool allowlist and Bash permission rules are not an OS sandbox for the adapter or for the commands Bash runs.
 - Bash rules match command text with Claude Code's own parser; commands Claude Code classifies as read-only may also run. git keeps user and repository configuration, including diff drivers and textconv filters.
-- The git grep deny rule also refuses harmless searches with an uppercase O after an option; the Grep tool remains. The path deny rules match spelling, not location: they also refuse absolute paths inside the repository and a revision range written with an empty left side (..HEAD), and they cannot match a path glued to a short option (-f/abs/path).
+- git grep and git blame are denied, including Claude Code's built-in read-only use of git grep, because Claude Code's rule wildcards span argument boundaries and cannot single out their file-reading short options (grep -f, -O; blame -S) without refusing ordinary use. Any git option before the subcommand (git --no-pager log, git -P grep) is denied, so the subcommand rules cannot be bypassed. The path deny rules match spelling, not location: they also refuse absolute paths inside the repository and a revision range written with an empty left side (..HEAD), and they cannot match a path glued to a short option, so git diff, log and show -O<orderfile> and git ls-files -X<file> can read a file outside the repository; git uses it only to order or filter the listing and does not print it.
 - dontAsk mode also denies Read, Grep and Glob outside the worker's working directory.
 - Managed host policy is retained; conflicting policy blocks operation. Harmless plugin metadata may remain.
 - Claude's review-time --model adds any requested ID to the session catalog, so a review-time catalog check cannot confirm the model; admission checks a catalog discovered without --model. Neither proves provider availability.
