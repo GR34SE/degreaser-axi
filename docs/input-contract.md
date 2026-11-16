@@ -35,6 +35,8 @@ Invalid syntax fails before discovery. Empty change scopes and coordinator-only 
 `init` puts choices labeled `(latest)` above versioned IDs and prefers them
 when recommending the same model family. Existing configurations and explicit
 flags remain prefill; init never silently migrates a version pin.
+Init recommends only a balanced-tier finder and a strongest-tier verifier;
+without such a model it recommends nothing and you choose any listed model.
 
 - **Claude Code:** select an advertised `sonnet`, `opus`, `haiku` or `fable`
   alias, displayed as e.g. `sonnet (latest)`. The RC saves `sonnet`, not the

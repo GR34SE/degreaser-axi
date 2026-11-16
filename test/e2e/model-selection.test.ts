@@ -143,7 +143,7 @@ test("Codex latest family choices precede pins and init saves the rolling choice
   assert.deepEqual(f.config().verifier, { model: "latest:sol" });
 });
 
-test("Codex latest choices keep variant families separate and recommend an unpinned Mini", (t) => {
+test("Codex latest choices keep variant families separate and recommend no light Mini", (t) => {
   const f = setup(t);
   f.setPlan({
     models: {
@@ -160,13 +160,13 @@ test("Codex latest choices keep variant families separate and recommend an unpin
   assert.equal(preview.status, 2, preview.stdout);
   const output = decode(preview.stdout) as {
     candidates: { model: string }[];
-    recommendation: { model: string };
+    recommendation: { model: string } | null;
   };
   assert.deepEqual(
     output.candidates.slice(0, 4).map((c) => c.model),
     ["latest:mini", "latest:codex-mini", "latest:codex", "latest:gpt"],
   );
-  assert.equal(output.recommendation.model, "latest:mini");
+  assert.equal(output.recommendation, null);
 });
 
 for (const [models, worker, verifier] of [
@@ -175,10 +175,10 @@ for (const [models, worker, verifier] of [
     "latest:terra",
     "latest:sol",
   ],
-  [["gpt-6-luna", "gpt-6-sol"], "latest:luna", "latest:sol"],
-  [["gpt-6-luna", "gpt-6-terra"], "latest:terra", "latest:terra"],
-  [["gpt-6-astra", "gpt-6-luna"], "latest:luna", "latest:astra"],
-  [["gpt-6-mini"], "latest:mini", "latest:mini"],
+  [["gpt-6-luna", "gpt-6-sol"], null, "latest:sol"],
+  [["gpt-6-luna", "gpt-6-terra"], "latest:terra", "latest:luna"],
+  [["gpt-6-astra", "gpt-6-luna"], null, "latest:astra"],
+  [["gpt-6-mini"], null, "latest:mini"],
 ] as const)
   test(`init recommends worker ${worker} and verifier ${verifier} from ${models.join(", ")}`, (t) => {
     const f = setup(t);
@@ -186,10 +186,10 @@ for (const [models, worker, verifier] of [
     const preview = f.run(["--agent", "codex"]);
     assert.equal(preview.status, 2, preview.stdout);
     const output = decode(preview.stdout) as {
-      recommendation: { model: string };
+      recommendation: { model: string } | null;
       verifierPrefill: { model: string };
     };
-    assert.equal(output.recommendation.model, worker);
+    assert.equal(output.recommendation?.model ?? null, worker);
     assert.equal(output.verifierPrefill.model, verifier);
   });
 

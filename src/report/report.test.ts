@@ -204,3 +204,30 @@ test("a failed attempt still explains its aspect when a later sibling attempt su
   assert.deepEqual(row?.cause, { phase: "invocation" });
   assert.ok(out.help.some((h) => h.includes("--concurrency 1")));
 });
+
+test("a failure that a later attempt of the same portion or a later execution replaced no longer explains its aspect", () => {
+  const retried = {
+    ...attempt("verify", 1),
+    failure: "rate-limited",
+    diagnostic: { phase: "invocation" },
+  } as unknown as RunTask["attempts"][number];
+  const interrupted = {
+    ...attempt("find", 1),
+    failure: "interrupted",
+  } as RunTask["attempts"][number];
+  for (const attempts of [
+    [retried, attempt("verify", 1), attempt("find", 2)],
+    [interrupted, attempt("find", 2)],
+  ]) {
+    const open = task("low-value-comments", [], "incomplete", attempts);
+    open.unresolved = { cause: "incomplete", paths: ["a.ts"] };
+    const out = renderReport(
+      { ...run([open]), status: "partial", deadline: 1 } as Run,
+      { ...context(), status: "partial" },
+    );
+    const [row] = out.coverage;
+    assert.equal(row?.reason, "incomplete");
+    assert.equal(row?.cause, undefined);
+    assert.ok(!out.help.some((h) => h.includes("--concurrency 1")));
+  }
+});

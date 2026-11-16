@@ -1,5 +1,5 @@
 import type { RunInput } from "../state/run.ts";
-import { type RunTask, resolved, sumUsage } from "../state/run.ts";
+import { openFailure, type RunTask, resolved, sumUsage } from "../state/run.ts";
 import type { ReportContext } from "./types.ts";
 
 export function taskLimitations(task: RunTask) {
@@ -14,7 +14,7 @@ export function harnessLimitations(task: RunTask, context: ReportContext) {
 }
 
 export const failedAttempt = (task: RunTask) =>
-  resolved(task) ? undefined : task.attempts.findLast((a) => a.failure);
+  resolved(task) ? undefined : openFailure(task);
 
 export function taskReason(task: RunTask, interrupted: boolean) {
   return interrupted && task.status === "running"

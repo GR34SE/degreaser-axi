@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import type { Assignment } from "../../config/types.ts";
-import type { RunTask } from "../../state/run.ts";
+import { openFailure, type RunTask } from "../../state/run.ts";
 import { StateError } from "../../util/errors.ts";
 import { executeAttempt } from "../attempt/index.ts";
 import {
@@ -249,7 +249,7 @@ function finish(context: OwnerContext, task: RunTask) {
     task.unresolved = {
       cause: control.stopped()
         ? control.stopReason
-        : (task.attempts.findLast((a) => a.failure)?.failure ??
+        : (openFailure(task)?.failure ??
           (task.result?.findings.some((f) => f.verdict === "unverified")
             ? "unverified"
             : "incomplete")),

@@ -60,25 +60,17 @@ for (const [agent, models, worker, verifier] of catalogs)
     assert.equal(recommendVerifier(candidates)?.model, verifier);
   });
 
-test("workers fall back to the cheap tier, the verifier to the middle tier, and unknown catalogs recommend nothing", () => {
-  assert.equal(recommend(ids("claude", ["haiku", "opus"]))?.model, "haiku");
-  assert.equal(
-    recommendVerifier(ids("claude", ["haiku", "sonnet"]))?.model,
-    "sonnet",
-  );
+test("no tier falls back: without a middle or strongest model init recommends nothing", () => {
+  assert.equal(recommend(ids("claude", ["haiku", "opus"])), null);
+  assert.equal(recommendVerifier(ids("claude", ["haiku", "sonnet"])), null);
   assert.equal(recommend(ids("codex", ["gpt-x"])), null);
   assert.equal(recommendVerifier(ids("codex", ["gpt-x"])), null);
   assert.equal(HARNESSES.claude.modelTier("haiku"), "light");
+  assert.equal(recommend(ids("codex", ["latest:astra", "gpt-6-luna"])), null);
   assert.equal(
-    recommend(ids("codex", ["latest:astra", "gpt-6-luna"]))?.model,
-    "gpt-6-luna",
+    recommendVerifier(ids("codex", ["gpt-6-astra", "gpt-6.1-terra"])),
+    null,
   );
-  assert.equal(
-    recommendVerifier(ids("codex", ["gpt-6-astra", "gpt-6.1-terra"]))?.model,
-    "gpt-6.1-terra",
-  );
-  assert.equal(recommend(ids("codex", ["latest:astra"])), null);
-  assert.equal(recommendVerifier(ids("codex", ["latest:astra"])), null);
   assert.equal(HARNESSES.codex.modelTier("gpt-6-luna-high"), "light");
 });
 
