@@ -199,7 +199,21 @@ test("resume re-verifies only unverified candidates of a completed run and rerun
           candidate("source.ts", "// redundant", 1),
           candidate("source.ts", "export const value = 1;", 2),
         ]),
-        verifier: { verdicts: ["upheld", "omit"] },
+        verifier: {
+          result: {
+            aspect: ASPECT,
+            status: "verdicts",
+            verdicts: [
+              {
+                candidate: 1,
+                verdict: "upheld",
+                reason: "The source confirms the candidate.",
+                action: "Remove it.",
+              },
+            ],
+            limitations: ["The second candidate could not be checked."],
+          },
+        },
       },
       "masked-errors": {
         error: { message: "Cannot decode provider response" },
@@ -219,6 +233,10 @@ test("resume re-verifies only unverified candidates of a completed run and rerun
     ["upheld", "unverified"],
   );
   assert.equal(failed?.status, "failed");
+  assert.deepEqual(kept?.result?.limitations, [
+    "Verifier: The second candidate could not be checked.",
+    "Unverified findings (1): no valid verifier verdict yet.",
+  ]);
   const before = f.events().length;
   f.setPlan();
   const resumed = f.run(["resume", old.id, "--wait", "20"]);
@@ -237,6 +255,7 @@ test("resume re-verifies only unverified candidates of a completed run and rerun
   const task = f.state().tasks.find((t) => t.assignment.aspect === ASPECT);
   assert.deepEqual(task?.result?.findings[0], kept?.result?.findings[0]);
   assert.equal(task?.result?.findings[1]?.verdict, "upheld");
+  assert.deepEqual(task?.result?.limitations, []);
   assert.deepEqual(
     task?.attempts.slice(0, kept?.attempts.length),
     kept?.attempts,

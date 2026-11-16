@@ -36,6 +36,11 @@ const unverified = (findings: readonly Finding[]) =>
 
 const VERIFIER = "Verifier: ";
 
+const notesOfOtherStage = (result: WorkerResult, stage: "find" | "verify") =>
+  result.limitations.filter(
+    (l) => l.startsWith(VERIFIER) !== (stage === "verify"),
+  );
+
 const patchFile = (context: OwnerContext) =>
   join(context.dir, "input", "patch.diff");
 
@@ -95,7 +100,7 @@ async function find(context: OwnerContext, task: RunTask) {
   const merged = mergeFinder(
     {
       ...prior,
-      limitations: prior.limitations.filter((l) => l.startsWith(VERIFIER)),
+      limitations: notesOfOtherStage(prior, "find"),
     },
     {
       ...outcome.value,
@@ -197,7 +202,7 @@ async function verify(
     ...task.result,
     findings: task.result.findings.map((f) => replaced.get(f) ?? f),
     limitations: [
-      ...task.result.limitations,
+      ...notesOfOtherStage(task.result, "verify"),
       ...outcome.value.limitations.map((l) => `${VERIFIER}${l}`),
       ...(outcome.complete
         ? []

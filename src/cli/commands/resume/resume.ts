@@ -1,6 +1,6 @@
 import { resumeReview } from "../../../review/index.ts";
 import type { ResumeControls } from "../../../review/types.ts";
-import { resolved } from "../../../state/run.ts";
+import { resumable } from "../../../state/run.ts";
 import { loadRun } from "../../../state/store.ts";
 import { InputError } from "../../../util/errors.ts";
 import { repositoryRoot } from "../../../util/git/repository.ts";
@@ -36,7 +36,7 @@ export async function run(f: Factory, { values, positionals }: CommandOptions) {
         help: [`degreaser-axi report ${id}`],
       },
     };
-  const unresolved = prior.tasks.filter((t) => !resolved(t));
+  const unresolved = prior.tasks.filter(resumable);
   f.io.error.write(
     `run: ${id}; resume unresolved: ${unresolved.length}; identities: ${identities(unresolved)}; concurrency: ${resumed.executions?.at(-1)?.concurrency ?? "all"}; deadline: ${new Date(resumed.deadline).toISOString()}\n`,
   );
