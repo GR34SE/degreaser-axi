@@ -89,6 +89,7 @@ test("packaged Claude launcher replaces conflicting profile flags and preserves 
       ),
     );
     assert.deepEqual(settings.permissions.deny, [
+      "Bash(git -*)",
       "Bash(git * --ou*)",
       "Bash(git * --op*)",
       "Bash(git * --no-i*)",

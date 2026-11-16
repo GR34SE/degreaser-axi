@@ -23,6 +23,7 @@ const permissions = {
     (name) => !unavailable.includes(name),
   ).flatMap(subcommandRules),
   deny: [
+    "Bash(git -*)",
     ...UNSAFE_GIT_OPTION_PREFIXES.map((prefix) => `Bash(git * ${prefix}*)`),
     ...unavailable.flatMap(subcommandRules),
     ...[" ", ...VALUE_SEPARATORS].flatMap((separator) =>
