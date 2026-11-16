@@ -6,6 +6,8 @@ import { once } from "node:events";
 
 import test from "node:test";
 
+import { ASPECT, review } from "../utils/coverage-fixture.ts";
+
 import { alive, queueFixture, until } from "../utils/queue-fixture.ts";
 
 import { clean, finding } from "../utils/queue-results.ts";
@@ -51,8 +53,9 @@ for (const [label, results, expected] of [
         limitations: ["Callers unavailable."],
       },
       "low-value-comments": {
-        ...clean,
+        aspect: "low-value-comments",
         status: "incomplete",
+        findings: [],
         limitations: ["Callers unavailable."],
       },
     },
@@ -182,3 +185,26 @@ for (const useful of [false, true]) {
     }
   });
 }
+
+test("a finder stopped at its own time ceiling is not retried; an idle stop is", (t) => {
+  const ceiling = queueFixture(t, {
+    maxRetries: 3,
+    limits: { workerTimeoutSeconds: 2, workerIdleSeconds: 60 },
+  });
+  ceiling.setPlan({ workers: { [ASPECT]: { hang: true } } });
+  const stopped = review(ceiling).task;
+  assert.equal(stopped.attempts.length, 1);
+  assert.equal(stopped.attempts[0]?.failure, "timeout");
+  assert.equal(stopped.attempts[0]?.diagnostic?.stop, "ceiling");
+  assert.deepEqual(stopped.unresolved, { cause: "timeout" });
+
+  const idle = queueFixture(t, {
+    maxRetries: 1,
+    limits: { workerTimeoutSeconds: 60, workerIdleSeconds: 1 },
+  });
+  idle.setPlan({ workers: { [ASPECT]: { hang: true } } });
+  assert.deepEqual(
+    review(idle).task.attempts.map((a) => a.diagnostic?.stop),
+    ["idle", "idle"],
+  );
+});

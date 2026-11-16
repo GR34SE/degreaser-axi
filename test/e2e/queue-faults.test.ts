@@ -41,6 +41,7 @@ for (const [name, worker, retries, count, status] of [
       result: {
         ...clean,
         status: "incomplete",
+        examinedPaths: ["source.ts"],
         limitations: ["Unexamined call sites."],
       },
     },

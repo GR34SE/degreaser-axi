@@ -299,29 +299,6 @@ test("a run deadline is reported as its own local stop and a blocking resume rer
   assert.equal(after?.unresolved, undefined);
 });
 
-test("a finder stopped at its own time ceiling is not retried; an idle stop is", (t) => {
-  const ceiling = queueFixture(t, {
-    maxRetries: 3,
-    limits: { workerTimeoutSeconds: 2, workerIdleSeconds: 60 },
-  });
-  ceiling.setPlan({ workers: { [ASPECT]: { hang: true } } });
-  const stopped = review(ceiling).task;
-  assert.equal(stopped.attempts.length, 1);
-  assert.equal(stopped.attempts[0]?.failure, "timeout");
-  assert.equal(stopped.attempts[0]?.diagnostic?.stop, "ceiling");
-  assert.deepEqual(stopped.unresolved, { cause: "timeout" });
-
-  const idle = queueFixture(t, {
-    maxRetries: 1,
-    limits: { workerTimeoutSeconds: 60, workerIdleSeconds: 1 },
-  });
-  idle.setPlan({ workers: { [ASPECT]: { hang: true } } });
-  assert.deepEqual(
-    review(idle).task.attempts.map((a) => a.diagnostic?.stop),
-    ["idle", "idle"],
-  );
-});
-
 test("a finder cleanup failure leaves the aspect incomplete", (t) => {
   const f = queueFixture(t, {
     agent: "pi",
