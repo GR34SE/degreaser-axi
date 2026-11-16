@@ -92,8 +92,8 @@
                 "usage": { "$ref": "#/properties/tasks/items/properties/usage" },
                 "stage": { "enum": ["find", "verify"] },
                 "portion": {
-                  "type": "object", "additionalProperties": false, "required": ["index", "paths"],
-                  "properties": { "index": { "type": "integer", "minimum": 1 }, "paths": { "type": "integer", "minimum": 0 } }
+                  "type": "object", "additionalProperties": false, "required": ["index"],
+                  "properties": { "index": { "type": "integer", "minimum": 1 } }
                 }
               }
             }

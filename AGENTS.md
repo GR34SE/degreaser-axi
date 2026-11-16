@@ -72,6 +72,7 @@ For product intent, start from `specs/README.md` and `specs/pending/degreaser.md
 | `pnpm test:tooling` | Deterministic tests for the opt-in live tooling, without model inference |
 | `pnpm test:install --harnesses codex,claude,pi,cursor` | After build: native installation discovery in disposable homes, no inference; select installed harnesses. Cursor's ACP session does not run sessionStart; the check proves that hook with the logged-in CLI on a disposable repo |
 | `pnpm test:live --help` | Opt-in native/model scenarios; unsupported/unrun is never passed |
+| `node test/live/support/cleanup-benchmark.ts <repository> <commit> <export.json> [path-prefix...]` | Scores an exported `low-value-comments` audit of `<commit>^` against the comment blocks that `<commit>` removed (recall) and kept (precision); reads Git and the export only, starts no model |
 | `pnpm release:prepare --since <ancestor> --output <new-directory>` | From a clean committed checkout after checks: tested tarball, checksum and draft notes; no publishing |
 
 Live tests require synthetic code, confirmed models and a fresh quota check, without paid API fallback. Stop only owned processes. No model credentials/logins in CI. The opt-in fleet resource monitor reads macOS memory-pressure interfaces and refuses other hosts. Required hosted check: **macOS deterministic**; local success does not replace it.

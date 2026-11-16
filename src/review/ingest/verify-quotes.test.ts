@@ -6,7 +6,6 @@ import { fixture as gitFixture } from "../../../test/utils/git-fixture.ts";
 
 import { prepareReview } from "../../../test/utils/input.ts";
 import { runtime } from "../../../test/utils/runtime.ts";
-import type { ReviewInput } from "../types.ts";
 import { parseFinder } from "./parse.ts";
 import { ingestFinder, ingestVerifier } from "./verify-quotes.ts";
 
@@ -41,13 +40,6 @@ const finding = (
   quote,
   title: "Redundant explanation",
 });
-const ingestResult = (
-  runtime: ReturnType<typeof import("../../../test/utils/runtime.ts").runtime>,
-  text: string,
-  aspect: Parameters<typeof ingestFinder>[2],
-  input: ReviewInput,
-) => ingestFinder(runtime, text, aspect, input);
-
 test("a unique whole-line quote corrects only an omitted final line", (t) => {
   const f = fixture(t);
   const quote = "function label(value: string) {\n  return value.trim();\n}";
@@ -65,7 +57,7 @@ test("a unique whole-line quote corrects only an omitted final line", (t) => {
     finding("unique.ts", "new", quote, 2, 2),
     finding("unique.ts", "new", quote.slice(1), 2, 3),
   ];
-  const result = ingestResult(
+  const result = ingestFinder(
     runtime(),
     block({
       ...clean,
@@ -85,7 +77,7 @@ test("a unique whole-line quote corrects only an omitted final line", (t) => {
   );
 });
 
-test("literal persisted old/new quotes survive mixed rejection, with zero neighborhood tolerance", (t) => {
+test("literal persisted old/new quotes survive mixed rejection, which leaves the rejected paths unexamined", (t) => {
   const f = fixture(t);
   f.write("removed.ts", "// removed explanation\nexport const old = 1;\n");
   f.write("current.ts", "export const value = 1;\n");
@@ -117,7 +109,7 @@ test("literal persisted old/new quotes survive mixed rejection, with zero neighb
     finding("current.ts", "new", "fabricated"),
     finding("current.ts", "new", "// nearby", 2),
   ];
-  const result = ingestResult(
+  const result = ingestFinder(
     runtime(),
     block({ ...clean, status: "findings", findings: proposed }),
     "low-value-comments",
@@ -135,7 +127,8 @@ test("literal persisted old/new quotes survive mixed rejection, with zero neighb
       "quote-mismatch",
     ],
   );
-  const rejected = ingestResult(
+  assert.deepEqual([...result.unexamined].sort(), ["current.ts", "removed.ts"]);
+  const rejected = ingestFinder(
     runtime(),
     block({ ...clean, status: "findings", findings: proposed.slice(2) }),
     "low-value-comments",
@@ -164,7 +157,7 @@ test("quotes tolerate CRLF, copied diff markers and repo-path spellings but neve
     f.root,
   );
   const ingest = (findings: ReturnType<typeof finding>[]) =>
-    ingestResult(
+    ingestFinder(
       runtime(),
       block({ ...clean, status: "findings", findings }),
       "low-value-comments",
@@ -242,7 +235,7 @@ test("symlink quotes validate against the link blob", (t) => {
   assert.equal(byPath.get("naïve external")?.newLink, "/etc/hosts");
   assert.equal(byPath.get("dir-link"), undefined);
   const run = (path: string, side: "old" | "new", quote: string) =>
-    ingestResult(
+    ingestFinder(
       runtime(),
       block({
         ...clean,
@@ -340,7 +333,7 @@ test("verifier verdicts need a known candidate, an action when upheld and a matc
       evidence: { ...helper, quote: "invented" },
     },
   ];
-  const { result, dropped } = ingestVerifier(
+  const result = ingestVerifier(
     runtime(),
     block({
       aspect: "missed-reuse",
@@ -353,7 +346,6 @@ test("verifier verdicts need a known candidate, an action when upheld and a matc
     2,
   );
   assert.deepEqual(result.verdicts, verdicts.slice(0, 2));
-  assert.equal(dropped, 4);
   assert.match(result.limitations.join(" "), /Discarded 4 verdict/);
   const late = ingestVerifier(
     runtime(),
@@ -368,7 +360,35 @@ test("verifier verdicts need a known candidate, an action when upheld and a matc
     1,
   );
   assert.deepEqual(
-    late.result.verdicts.map((v) => v.verdict),
+    late.verdicts.map((v) => v.verdict),
     ["refuted"],
   );
+});
+
+test("a quote copied with the audit's line-number prefix matches without it", (t) => {
+  const f = fixture(t);
+  f.write("a.ts", "// first\n// second\nexport const a = 1;\n");
+  const input = prepareReview(
+    [
+      "--scope",
+      "repository",
+      "--task",
+      "Audit",
+      "--aspects",
+      "low-value-comments",
+    ],
+    f.root,
+  );
+  const proposed = [
+    finding("a.ts", "new", "1\t// first\n2\t// second", 1, 2),
+    finding("a.ts", "new", "1\t// first\n// second", 1, 2),
+  ];
+  const { result, rejections } = ingestFinder(
+    runtime(),
+    block({ ...clean, status: "findings", findings: proposed }),
+    "low-value-comments",
+    input,
+  );
+  assert.deepEqual(result.findings, proposed.slice(0, 1));
+  assert.deepEqual(rejections, [{ index: 2, reason: "quote-mismatch" }]);
 });

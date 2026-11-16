@@ -50,7 +50,7 @@ const attempt = (stage: "find" | "verify", index: number) =>
     sessionId: null,
     failure: null,
     stage,
-    portion: { index, paths: 1 },
+    portion: { index },
   }) as RunTask["attempts"][number];
 
 const run = (tasks: RunTask[]) =>
@@ -93,17 +93,23 @@ const sample = () =>
     ),
   ]);
 
-test("ids put upheld findings first in path order, whatever the task order", () => {
-  const forward = findings(sample()).map(
-    (f) => `${f.id}:${f.verdict}:${f.title}`,
-  );
+test("ids follow location order, whatever the task order, and survive a later verdict", () => {
+  const ids = (r: Run) =>
+    findings(r).map((f) => `${f.id}:${f.location.path}:${f.title}`);
+  const forward = ids(sample());
   const reversed = sample();
   reversed.tasks.reverse();
-  assert.deepEqual(
-    findings(reversed).map((f) => `${f.id}:${f.verdict}:${f.title}`),
-    forward,
-  );
-  assert.deepEqual(forward.slice(0, 2), ["F1:upheld:t5", "F2:upheld:t9"]);
+  assert.deepEqual(ids(reversed), forward);
+  assert.deepEqual(forward.slice(0, 3), [
+    "F1:a.ts:t1",
+    "F2:a.ts:t2",
+    "F3:a.ts:t5",
+  ]);
+  const verified = sample();
+  const pending = verified.tasks[1]?.result?.findings[0];
+  assert.ok(pending);
+  Object.assign(pending, { verdict: "upheld", action: "Delete it." });
+  assert.deepEqual(ids(verified), forward);
 });
 
 test("default report lists every upheld finding by path with counts, hiding others", () => {
@@ -122,7 +128,7 @@ test("default report lists every upheld finding by path with counts, hiding othe
   assert.deepEqual([mixed.upheld, mixed.refuted, mixed.unverified], [2, 2, 1]);
   assert.deepEqual(Object.keys(rows(mixed)), ["a.ts", "b.ts"]);
   assert.deepEqual(rows(mixed)["a.ts"]?.[0], {
-    id: "F1",
+    id: "F3",
     aspect: "unnecessary-complexity",
     lines: "new:5-5",
     action: "Inline it.",
@@ -151,7 +157,7 @@ test("--full shows refuted and unverified findings with reason and evidence", ()
 });
 
 test("finding shows verdict, title, quote and evidence", () => {
-  const out = renderFinding(sample(), context(), "F4");
+  const out = renderFinding(sample(), context(), "F2");
   assert.equal(out.verdict, "refuted");
   assert.equal(out.title, "t2");
   assert.equal(out.reason, "Used");
@@ -161,7 +167,10 @@ test("finding shows verdict, title, quote and evidence", () => {
 test("export carries flattened new fields and coordinator-assigned coverage", () => {
   const out = JSON.parse(exportRun(sample(), context()));
   assert.equal(out.coverageBasis, "coordinator-assigned");
-  assert.deepEqual(Object.keys(out.findings[0]).sort(), [
+  const upheld = out.findings.find(
+    (f: { verdict: string }) => f.verdict === "upheld",
+  );
+  assert.deepEqual(Object.keys(upheld).sort(), [
     "action",
     "aspect",
     "endLine",
@@ -173,4 +182,25 @@ test("export carries flattened new fields and coordinator-assigned coverage", ()
     "title",
     "verdict",
   ]);
+});
+
+test("a failed attempt still explains its aspect when a later sibling attempt succeeded", () => {
+  const limited = {
+    ...attempt("find", 1),
+    failure: "rate-limited",
+    diagnostic: { phase: "invocation" },
+  } as unknown as RunTask["attempts"][number];
+  const failed = task("low-value-comments", [], "incomplete", [
+    limited,
+    attempt("find", 2),
+  ]);
+  failed.unresolved = { cause: "rate-limited", paths: ["a.ts"] };
+  const out = renderReport(
+    { ...run([failed]), status: "partial", deadline: 1 } as Run,
+    { ...context(), status: "partial" },
+  );
+  const [row] = out.coverage;
+  assert.equal(row?.reason, "rate-limited");
+  assert.deepEqual(row?.cause, { phase: "invocation" });
+  assert.ok(out.help.some((h) => h.includes("--concurrency 1")));
 });

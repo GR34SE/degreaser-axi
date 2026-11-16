@@ -72,13 +72,11 @@ export async function admitRun(
       waitSeconds: controls?.waitSeconds ?? input.waitSeconds,
     };
     run.executions.push(execution);
-    for (const task of run.tasks.filter((t) => !resolved(t))) {
-      const last = task.attempts.at(-1);
-      if (last && last.endedAt === null) {
-        last.endedAt = runtime.now();
-        last.failure = "interrupted";
+    for (const task of run.tasks.filter((t) => !resolved(t)))
+      for (const attempt of task.attempts.filter((a) => a.endedAt === null)) {
+        attempt.endedAt = runtime.now();
+        attempt.failure = "interrupted";
       }
-    }
     run.status = "running";
     run.owner = ownership.owner;
     try {

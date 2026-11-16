@@ -31,7 +31,7 @@ export interface RunTask {
     rejections?: Rejection[];
     limitations?: string[];
     usage?: Record<string, number> | null;
-    portion?: { index: number; paths: number };
+    portion?: { index: number };
     stage?: "find" | "verify";
   }[];
   limitations: string[];
@@ -70,4 +70,21 @@ export function terminalStatus(tasks: RunTask[]): Run["status"] {
     : tasks.some((t) => t.promptHash !== null && t.result)
       ? "partial"
       : "failed";
+}
+
+export function sumUsage(
+  usages: readonly (Record<string, number> | null | undefined)[],
+) {
+  const known = usages.filter(
+    (u): u is Record<string, number> => !!u && Object.keys(u).length > 0,
+  );
+  if (!usages.length || known.length !== usages.length) return null;
+  const keys = Object.keys(known[0] ?? {}).filter((key) =>
+    known.every((u) => key in u),
+  );
+  return keys.length
+    ? Object.fromEntries(
+        keys.map((key) => [key, known.reduce((n, u) => n + (u[key] ?? 0), 0)]),
+      )
+    : null;
 }

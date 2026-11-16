@@ -5,6 +5,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { ASPECT, shardedFixture } from "../utils/coverage-fixture.ts";
 import { alive, queueFixture, until } from "../utils/queue-fixture.ts";
 
 const psFault = fileURLToPath(
@@ -220,4 +221,41 @@ test("an earlier attempt forced incomplete by cleanup does not make scope-creep 
   });
   assert.equal(f.run(["resume", old.id, "--wait", "20"]).status, 0);
   assert.equal(f.state().tasks[0]?.status, "not-applicable");
+});
+
+test("resume after a killed owner closes every concurrent open attempt as interrupted", async (t) => {
+  const f = shardedFixture(t);
+  f.setPlan({ worker: { hang: true } });
+  f.start(["--aspects", ASPECT]);
+  await until(
+    () => f.events().filter((e) => e.stage === "find").length === 2,
+    "Both finder shards are running",
+  );
+  const old = f.state();
+  const owner = old.owner;
+  assert.ok(owner);
+  t.after(() => {
+    try {
+      process.kill(-owner.pid, "SIGKILL");
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
+    }
+  });
+  await until(
+    () => (f.state().tasks[0]?.attempts.length ?? 0) === 2,
+    "Both attempts are persisted",
+  );
+  process.kill(owner.pid, "SIGKILL");
+  await until(() => !alive(owner.pid), "Owner is dead");
+  f.setPlan();
+  const resumed = f.run(["resume", old.id, "--wait", "30"]);
+  assert.equal(resumed.status, 0, resumed.stdout + resumed.stderr);
+  const closed = f.state().tasks[0]?.attempts.slice(0, 2);
+  assert.deepEqual(
+    closed?.map((a) => [a.failure, a.endedAt !== null]),
+    [
+      ["interrupted", true],
+      ["interrupted", true],
+    ],
+  );
 });

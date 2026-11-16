@@ -50,7 +50,7 @@ const run = () => ({
           sessionId: null,
           failure: null,
           stage: "verify",
-          portion: { index: 1, paths: 1 },
+          portion: { index: 1 },
           result,
         },
       ],
@@ -60,25 +60,15 @@ const run = () => ({
   ],
 });
 
-test("stored runs carry verified findings and staged attempts, not worker coverage obligations", () => {
+test("stored runs accept staged attempts with verified findings and reject unknown fields and values", () => {
   const validate = stateSchema<Run>("run");
   assert.ok(validate(run()), JSON.stringify(validate.errors));
   for (const mutate of [
     (r: ReturnType<typeof run>) =>
-      Object.assign(r.tasks[0] ?? {}, {
-        unresolved: { cause: "x", paths: [], stuck: ["a.ts"] },
-      }),
-    (r: ReturnType<typeof run>) =>
-      Object.assign(r.tasks[0]?.result ?? {}, { unresolved: [] }),
-    (r: ReturnType<typeof run>) =>
-      Object.assign(r.tasks[0]?.attempts[0] ?? {}, { stage: "pass" }),
+      Object.assign(r.tasks[0]?.result.findings[0] ?? {}, { unknown: "x" }),
     (r: ReturnType<typeof run>) =>
       Object.assign(r.tasks[0]?.result.findings[0] ?? {}, {
         verdict: "maybe",
-      }),
-    (r: ReturnType<typeof run>) =>
-      Object.assign(r.tasks[0]?.result.findings[0] ?? {}, {
-        consequence: "old prose field",
       }),
   ]) {
     const value = run();

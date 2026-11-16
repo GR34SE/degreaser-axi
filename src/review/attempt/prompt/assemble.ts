@@ -159,25 +159,20 @@ export function assembleFinder(
 ) {
   const members = new Set(shard);
   const index = input.patch === null ? null : patchIndex(input.patch, input);
-  const content = shardContent(
-    runtime,
-    input,
-    input.paths.filter((p) => members.has(p.path)),
-    index,
-  );
+  const paths = input.paths.filter((p) => members.has(p.path));
+  const content = shardContent(runtime, input, paths, index);
   const evidence = {
     task: input.task,
     scope: input.scope,
     base: input.base,
     tree: input.tree,
     patch: patchReference(input, patchFile, index),
-    paths: input.paths.map((p) => ({
+    paths: paths.map((p) => ({
       ...metadata(p),
-      shard: members.has(p.path),
       ...(index ? { patchLines: index.ranges.get(p.path) ?? null } : {}),
     })),
+    otherAssessedPaths: input.paths.length - paths.length,
     readWithTools: content.readWithTools,
-    excludedPaths: input.excludedPaths,
     limitations: input.limitations,
     dismissed: input.dismissed,
   };

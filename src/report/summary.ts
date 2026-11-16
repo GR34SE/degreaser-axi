@@ -1,9 +1,9 @@
-import { type Run, resolved } from "../state/run.ts";
+import { type Run, resolved, sumUsage } from "../state/run.ts";
 import {
   coverage,
+  failedAttempt,
   harnessLimitations,
   shownLimitations,
-  sumUsage,
   taskLimitations,
   taskReason,
   taskUsage,
@@ -114,7 +114,7 @@ export function renderReport(run: Run, context: ReportContext, full = false) {
             context.reviewCommand,
             ...(canResume &&
             run.tasks.some(
-              (task) => task.attempts.at(-1)?.failure === "account-disabled",
+              (task) => failedAttempt(task)?.failure === "account-disabled",
             )
               ? [
                   "Restore access to the selected account with its provider before resuming. A disabled or suspended account is not a transient rate limit; waiting or lowering concurrency does not restore access.",
@@ -122,7 +122,7 @@ export function renderReport(run: Run, context: ReportContext, full = false) {
               : []),
             ...(canResume &&
             run.tasks.some(
-              (task) => task.attempts.at(-1)?.failure === "rate-limited",
+              (task) => failedAttempt(task)?.failure === "rate-limited",
             )
               ? [
                   `After the selected account limit clears, keep the same model and run: degreaser-axi resume ${run.id} --concurrency 1${context.now >= run.deadline ? " --deadline 900" : ""}`,

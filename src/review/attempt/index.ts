@@ -4,7 +4,7 @@ import {
   failureDiagnostic,
   recoveryFor,
 } from "../../review/attempt/failure.ts";
-import type { RunTask } from "../../state/run.ts";
+import { type RunTask, sumUsage } from "../../state/run.ts";
 import { ResultError } from "../../util/errors.ts";
 import { executionFailure } from "../../util/exec/failure.ts";
 import type { Rejection, WorkerResult } from "../ingest/types.ts";
@@ -15,7 +15,7 @@ type Attempt = RunTask["attempts"][number];
 
 interface AttemptSpec<T> {
   stage: "find" | "verify";
-  portion: { index: number; paths: number };
+  portion: { index: number };
   identity: Identity;
   prompt: string;
   ingest: (output: string) => { value: T; rejections?: Rejection[] };
@@ -40,15 +40,6 @@ const usageOf = (usage: Record<string, unknown> | null) => {
   );
   return entries.length ? Object.fromEntries(entries) : null;
 };
-
-function totalUsage(attempts: readonly Attempt[]) {
-  if (attempts.some((attempt) => !attempt.usage)) return null;
-  const total: Record<string, number> = {};
-  for (const attempt of attempts)
-    for (const [key, value] of Object.entries(attempt.usage ?? {}))
-      total[key] = (total[key] ?? 0) + value;
-  return Object.keys(total).length ? total : null;
-}
 
 export async function executeAttempt<T>(
   context: OwnerContext,
@@ -235,7 +226,7 @@ async function runOnce<T>(
   }
   record.limitations = [...limitations, ...errors];
   task.limitations = [...new Set([...task.limitations, ...limitations])];
-  task.usage = totalUsage(task.attempts);
+  task.usage = sumUsage(task.attempts.map((a) => a.usage));
   persist();
   return {
     received,

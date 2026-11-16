@@ -27,14 +27,15 @@ function quoteMatches(
   const lines = lineEndings(quote)
     .replace(/^\n+|\n+$/g, "")
     .split("\n");
-  const marker = side === "old" ? /^[- ]/ : /^[+ ]/;
   const filled = lines.filter((line) => line.trim() !== "");
-  if (!filled.length || !filled.every((line) => marker.test(line)))
-    return false;
-  const stripped = trimLines(
-    lines.map((line) => (marker.test(line) ? line.slice(1) : line)).join("\n"),
+  return [side === "old" ? /^[- ]/ : /^[+ ]/, /^\d+\t/].some(
+    (prefix) =>
+      filled.length > 0 &&
+      filled.every((line) => prefix.test(line)) &&
+      found(
+        trimLines(lines.map((line) => line.replace(prefix, "")).join("\n")),
+      ),
   );
-  return found(stripped);
 }
 
 function omittedFinalLine(source: string, quoted: Quoted): boolean {
@@ -73,14 +74,18 @@ function blob(runtime: Runtime, input: ReviewInput, blobs: Blobs, id: string) {
   return blobs.get(id) ?? null;
 }
 
-function locate(
-  input: ReviewInput,
-  { path, side }: Quoted["location"],
-  anyPath: boolean,
-): { id?: string; reason?: Rejection["reason"] } {
-  const entry = input.paths.find((p) =>
+const entryAt = (input: ReviewInput, { path, side }: Quoted["location"]) =>
+  input.paths.find((p) =>
     side === "old" ? p.oldPath === path : p.path === path,
   );
+
+function locate(
+  input: ReviewInput,
+  location: Quoted["location"],
+  anyPath: boolean,
+): { id?: string; reason?: Rejection["reason"] } {
+  const { path, side } = location;
+  const entry = entryAt(input, location);
   if (!entry) {
     const commit = side === "old" ? input.base : input.tree;
     return anyPath && commit
@@ -136,10 +141,15 @@ export function ingestFinder(
   const result = parseFinder(text, aspect, input.repository);
   const blobs: Blobs = new Map();
   const rejections: Rejection[] = [];
+  const unexamined = new Set<string>();
   const seen = new Set<string>();
   result.findings = result.findings.filter((finding, index) => {
     const reason = checkQuote(runtime, input, finding, blobs);
-    if (reason) rejections.push({ index: index + 1, reason });
+    if (reason) {
+      rejections.push({ index: index + 1, reason });
+      const entry = entryAt(input, finding.location);
+      if (entry) unexamined.add(entry.path);
+    }
     const key = JSON.stringify(finding);
     if (reason || seen.has(key)) return false;
     seen.add(key);
@@ -163,7 +173,7 @@ export function ingestFinder(
         "All proposed findings were rejected by literal source validation; this shard remains unresolved.",
       );
   }
-  return { result, rejections };
+  return { result, rejections, unexamined };
 }
 
 export function ingestVerifier(
@@ -192,5 +202,5 @@ export function ingestVerifier(
       `Discarded ${plural(dropped, "verdict")} with an unknown or repeated candidate, a missing action or an unmatched evidence quote.`,
     );
   result.verdicts = verdicts;
-  return { result, dropped };
+  return result;
 }

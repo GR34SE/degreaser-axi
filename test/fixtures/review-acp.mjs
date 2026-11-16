@@ -135,10 +135,7 @@ const connection = new AgentSideConnection(
         text,
       );
       const input = fence ? decode(fence[2]) : {};
-      const paths =
-        stage === "verify"
-          ? (input.paths ?? []).map((p) => p.path)
-          : (input.paths ?? []).filter((p) => p.shard).map((p) => p.path);
+      const paths = (input.paths ?? []).map((p) => p.path);
       const candidates = input.candidates ?? [];
       const attempt = previous.filter(
         (event) => event.aspect === aspect && event.stage === stage,

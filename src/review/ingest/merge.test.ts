@@ -40,11 +40,12 @@ test("a shard covers its paths only when its finder did not stop incomplete", ()
     result,
     found("incomplete", [at("a.ts")], { limitations: ["Ran out."] }),
     ["a.ts"],
+    ["a.ts"],
     1,
   );
   assert.deepEqual(result.examinedPaths, []);
   assert.deepEqual(result.limitations, ["Shard 1 (1 path): Ran out."]);
-  mergeFinder(result, found("no-findings"), ["b.ts"], 2);
+  mergeFinder(result, found("no-findings"), ["b.ts"], ["b.ts"], 2);
   assert.equal(
     settle(input, result, ["incomplete", "no-findings"]),
     "incomplete",
@@ -56,6 +57,7 @@ test("a shard covers its paths only when its finder did not stop incomplete", ()
   const added = mergeFinder(
     result,
     found("findings", [at("a.ts"), at("a.ts", 2)]),
+    ["a.ts"],
     ["a.ts"],
     3,
   );
@@ -73,6 +75,7 @@ test("verdicts settle the aspect: upheld means findings, all refuted means no fi
   mergeFinder(
     result,
     found("findings", [at("a.ts"), at("a.ts", 2)]),
+    ["a.ts", "b.ts"],
     ["a.ts", "b.ts"],
     1,
   );
@@ -109,11 +112,13 @@ test("an aspect is not applicable only when every shard says so", () => {
     result,
     found("not-applicable", [], { reason: "No comments." }),
     ["a.ts"],
+    ["a.ts"],
     1,
   );
   mergeFinder(
     result,
     found("not-applicable", [], { reason: "No comments." }),
+    ["b.ts"],
     ["b.ts"],
     2,
   );

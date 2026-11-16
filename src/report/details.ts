@@ -1,5 +1,5 @@
 import type { RunInput } from "../state/run.ts";
-import { type RunTask, resolved } from "../state/run.ts";
+import { type RunTask, resolved, sumUsage } from "../state/run.ts";
 import type { ReportContext } from "./types.ts";
 
 export function taskLimitations(task: RunTask) {
@@ -13,10 +13,17 @@ export function harnessLimitations(task: RunTask, context: ReportContext) {
   return new Set([...(context.harnessLimitations[agent] ?? [])]);
 }
 
+export const failedAttempt = (task: RunTask) =>
+  resolved(task) ? undefined : task.attempts.findLast((a) => a.failure);
+
 export function taskReason(task: RunTask, interrupted: boolean) {
   return interrupted && task.status === "running"
     ? "Execution interrupted; last persisted aspect status: running."
-    : (task.result?.reason ?? task.attempts.at(-1)?.failure ?? undefined);
+    : (task.result?.reason ??
+        (resolved(task)
+          ? undefined
+          : (task.unresolved?.cause ?? failedAttempt(task)?.failure)) ??
+        undefined);
 }
 
 const preview = (text: string, full: boolean) =>
@@ -38,8 +45,8 @@ export function coverage(
     status:
       interrupted && task.status === "running" ? "interrupted" : task.status,
     ...(reason ? { reason: preview(reason, full) } : {}),
-    ...(task.attempts.at(-1)?.diagnostic && task.status !== "running"
-      ? { cause: task.attempts.at(-1)?.diagnostic }
+    ...(failedAttempt(task)?.diagnostic && task.status !== "running"
+      ? { cause: failedAttempt(task)?.diagnostic }
       : {}),
     limitations: taskLimitations(task)
       .filter((l) => l !== reason && !harness.has(l))
@@ -59,23 +66,6 @@ export function coverage(
         }
       : {}),
   };
-}
-
-export function sumUsage(
-  usages: readonly (Record<string, number> | null | undefined)[],
-) {
-  const known = usages.filter(
-    (u): u is Record<string, number> => !!u && Object.keys(u).length > 0,
-  );
-  if (!usages.length || known.length !== usages.length) return null;
-  const keys = Object.keys(known[0] ?? {}).filter((key) =>
-    known.every((u) => key in u),
-  );
-  return keys.length
-    ? Object.fromEntries(
-        keys.map((key) => [key, known.reduce((n, u) => n + (u[key] ?? 0), 0)]),
-      )
-    : null;
 }
 
 export const taskUsage = (task: RunTask) =>

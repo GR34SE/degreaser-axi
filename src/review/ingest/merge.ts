@@ -27,12 +27,13 @@ export function mergeFinder(
   result: WorkerResult,
   found: FinderResult,
   shard: readonly string[],
+  covered: readonly string[],
   index: number,
 ): Finding[] {
   const label = `Shard ${index} (${shard.length} path${shard.length === 1 ? "" : "s"}): `;
   if (found.status !== "incomplete")
     result.examinedPaths = [
-      ...new Set([...(result.examinedPaths ?? []), ...shard]),
+      ...new Set([...(result.examinedPaths ?? []), ...covered]),
     ];
   const known = new Set(result.findings.map(candidateKey));
   const added = found.findings
@@ -74,6 +75,13 @@ export function applyVerdicts(
   }
 }
 
+export const verdictStatus = (findings: readonly Finding[]) =>
+  findings.some((f) => f.verdict === "unverified")
+    ? "incomplete"
+    : findings.some((f) => f.verdict === "upheld")
+      ? "findings"
+      : "no-findings";
+
 export function settle(
   input: ReviewInput,
   result: WorkerResult,
@@ -96,14 +104,13 @@ export function settle(
     result.limitations.push(
       `${UNVERIFIED}${unverified}): no valid verifier verdict yet.`,
     );
-  result.status =
-    missing.length || unverified
-      ? "incomplete"
-      : result.findings.some((f) => f.verdict === "upheld")
-        ? "findings"
-        : finderStatuses.every((s) => s === "not-applicable")
-          ? "not-applicable"
-          : "no-findings";
+  const judged = verdictStatus(result.findings);
+  result.status = missing.length
+    ? "incomplete"
+    : judged === "no-findings" &&
+        finderStatuses.every((s) => s === "not-applicable")
+      ? "not-applicable"
+      : judged;
   if (result.status === "not-applicable")
     result.reason ??= "No assessed path has readable text for this aspect.";
   else if (result.status !== "incomplete") delete result.reason;

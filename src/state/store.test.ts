@@ -53,6 +53,16 @@ test("pre-write run validation rejects invalid structures, versions and embedded
           limitations: [],
         },
       }),
+    (_run, task) =>
+      Object.assign(task, {
+        status: "incomplete",
+        result: {
+          aspect: task.assignment.aspect,
+          status: "no-findings",
+          findings: [],
+          limitations: [],
+        },
+      }),
     (run) => Object.assign(run, { status: "completed" }),
     (run) =>
       Object.assign(run, {

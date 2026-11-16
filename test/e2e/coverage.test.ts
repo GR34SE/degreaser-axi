@@ -81,7 +81,7 @@ test("refuted findings stay out of the default report, appear with their reason 
   assert.deepEqual([short.upheld, short.refuted, short.unverified], [1, 1, 0]);
   assert.deepEqual(short.findings, {
     "source.ts": [
-      { id: "F1", aspect: ASPECT, lines: "new:2-2", action: "Remove it." },
+      { id: "F2", aspect: ASPECT, lines: "new:2-2", action: "Remove it." },
     ],
   });
   assert.ok(short.help.includes(`degreaser-axi report ${short.run} --full`));
@@ -92,21 +92,21 @@ test("refuted findings stay out of the default report, appear with their reason 
       x.verdict,
     ]),
     [
-      ["F1", "upheld"],
-      ["F2", "refuted"],
+      ["F1", "refuted"],
+      ["F2", "upheld"],
     ],
   );
-  assert.equal(full.findings[1].reason, refutation.reason);
-  assert.deepEqual(full.findings[1].evidence, {
+  assert.equal(full.findings[0].reason, refutation.reason);
+  assert.deepEqual(full.findings[0].evidence, {
     at: "source.ts:new:2-2",
     quote: "export const value = 1;",
   });
   const home = decode(f.run(["home"]).stdout);
   assert.deepEqual([home.upheld, home.refuted, home.unverified], [1, 1, 0]);
-  const refused = f.run(["dismiss", "F2", "--reason", "Keep it"]);
+  const refused = f.run(["dismiss", "F1", "--reason", "Keep it"]);
   assert.equal(refused.status, 2, refused.stdout);
   assert.equal(decode(refused.stdout).code, "finding-not-upheld");
-  const kept = f.run(["dismiss", "F1", "--reason", "Keep it"]);
+  const kept = f.run(["dismiss", "F2", "--reason", "Keep it"]);
   assert.equal(kept.status, 0, kept.stdout);
 });
 
@@ -351,4 +351,50 @@ test("a shard whose every candidate fails quote validation stays uncovered", (t)
   assert.deepEqual(task.rejections, [{ index: 1, reason: "quote-mismatch" }]);
   assert.deepEqual(task.unresolved?.paths, ["source.ts"]);
   assert.deepEqual(stage(f, "verify"), []);
+});
+
+test("a rejected candidate keeps its path uncovered even when a sibling candidate survives", (t) => {
+  const f = queueFixture(t);
+  f.setPlan({
+    workers: {
+      [ASPECT]: found("findings", [
+        candidate("source.ts", "// redundant"),
+        candidate("source.ts", "invented quote", 2),
+      ]),
+    },
+  });
+  const { done, task } = review(f);
+  assert.equal(done.status, 1, done.stdout);
+  assert.equal(task.status, "incomplete");
+  assert.deepEqual(
+    task.result?.findings.map((x) => [x.quote, x.verdict]),
+    [["// redundant", "upheld"]],
+  );
+  assert.deepEqual(task.rejections, [{ index: 2, reason: "quote-mismatch" }]);
+  assert.deepEqual(task.unresolved?.paths, ["source.ts"]);
+});
+
+test("verdicts from a verifier that did not finish cleanly are not applied", (t) => {
+  const f = queueFixture(t, {
+    agent: "pi",
+    model: "openai/gpt-6-luna",
+    verifier: { model: "openai/gpt-6-sol" },
+  });
+  f.setPlan({
+    workers: {
+      [ASPECT]: {
+        ...found("findings", [candidate("source.ts", "// redundant")]),
+        closeError: { message: "Synthetic close failure", code: -32603 },
+      },
+    },
+  });
+  const { task } = review(f);
+  const verifiers = task.attempts.filter((a) => a.stage === "verify");
+  assert.equal(verifiers.length, 1);
+  assert.equal(verifiers[0]?.failure, "cleanup");
+  assert.equal(task.status, "incomplete");
+  assert.deepEqual(
+    task.result?.findings.map((x) => x.verdict),
+    ["unverified"],
+  );
 });

@@ -1,5 +1,6 @@
 import type { Runtime } from "../../util/exec/types.ts";
 import { git } from "../../util/git/exec.ts";
+import { compareText } from "../../util/text.ts";
 import type { ReviewInput } from "../types.ts";
 import type { Finding } from "./types.ts";
 
@@ -8,14 +9,14 @@ export const VERIFY_BATCH = 20;
 
 type PathRecord = ReviewInput["paths"][number];
 
-export const readable = (p: PathRecord) =>
+const readable = (p: PathRecord) =>
   !p.binary && p.oldMode !== "160000" && p.newMode !== "160000";
 
 export function uncovered(input: ReviewInput, examined: readonly string[]) {
   const seen = new Set(examined);
   return input.paths
     .filter(readable)
-    .filter((p) => !seen.has(p.path) && !(p.oldPath && seen.has(p.oldPath)))
+    .filter((p) => !seen.has(p.path))
     .map((p) => p.path);
 }
 
@@ -68,11 +69,8 @@ export function packShards(
 export function verifyBatches(findings: readonly Finding[], size: number) {
   const ordered = findings.toSorted(
     (a, b) =>
-      (a.location.path < b.location.path
-        ? -1
-        : a.location.path > b.location.path
-          ? 1
-          : 0) || a.location.startLine - b.location.startLine,
+      compareText(a.location.path, b.location.path) ||
+      a.location.startLine - b.location.startLine,
   );
   return Array.from({ length: Math.ceil(ordered.length / size) }, (_, i) =>
     ordered.slice(i * size, (i + 1) * size),

@@ -11,7 +11,9 @@ apart from the single end-line correction in the next paragraph.
 Only CRLF line endings and trailing whitespace per line are normalized. A quote
 copied from the patch is accepted when every non-empty line carries one diff
 marker consistent with the cited side (`+`/space for new, `-`/space for old);
-the marker-stripped text must still occur in the cited lines. A quote needs at
+the marker-stripped text must still occur in the cited lines. Likewise, a quote
+copied from numbered audit text, with a `<digits><tab>` prefix on every non-empty
+line, is checked without those prefixes. A quote needs at
 least three non-whitespace characters unless it equals the whole cited text.
 Absolute or `./`-prefixed finding paths inside the repository are normalized
 before schema validation; other paths remain invalid. Old evidence uses the old path
@@ -39,7 +41,9 @@ A rejected attempt is retried (within `maxRetries`, same model) with the
 validator's short message appended to the prompt; the raw payload is not echoed.
 
 Each unsupported candidate is rejected separately, with its one-based index and
-reason available in `report --full`. Valid neighbors survive. If every candidate
+reason available in `report --full`. Valid neighbors survive, but the path of a
+rejected candidate stays uncovered, so the aspect stays incomplete and resume
+reruns that path. If every candidate
 of a shard is rejected, that shard fails, so the aspect becomes incomplete, not
 no-findings. This checks literal support, not whether the recommendation is
 correct. The caller makes that decision.
@@ -54,8 +58,9 @@ size; a path larger than a shard is a shard of its own. One finder session per
 shard receives the shard's content inline (patch sections for a change scope,
 numbered file text for a repository audit; quotes exclude the line numbers).
 Binary, symbolic-link, gitlink and oversized paths are listed for tool reading.
-The finder also sees the metadata of every changed path as context, but reports
-only on its shard. It enumerates candidates and does not adjudicate: each
+The finder also receives the patch file reference and the number of other
+assessed paths as context, but reports only on its shard. It enumerates
+candidates and does not adjudicate: each
 candidate has a location, an exact quote and a one-line title, every instance is
 listed separately, and a doubtful one is still listed. When the rubric declares a
 `Unit` ([aspects.md](aspects.md)), the finder also returns a `kept` inventory,
@@ -70,8 +75,10 @@ examples and the batch, never the finder's reasoning, and tries to refute each
 candidate. A verdict is `upheld`, with the action to take, or `refuted`, with a
 reason and optional quoted evidence. Evidence quotes are checked like any other
 quote; a verdict whose evidence quote fails is dropped. A candidate that has no
-valid verdict is `unverified`. Verdicts are source judgments, not test or runtime
-evidence.
+valid verdict is `unverified`. Verdicts from a verifier session that did not
+finish cleanly (timeout, cleanup failure, cancellation or deadline) are not
+applied, so its candidates stay `unverified`. Verdicts are source judgments, not
+test or runtime evidence.
 
 A stored finding therefore has a location, quote and title, a `verdict` of
 `upheld`, `refuted` or `unverified`, and, once verified, the action or reason and
@@ -183,19 +190,15 @@ neither a partial review nor an all-not-applicable review certifies clean code.
 
 ## Finding order and read surfaces
 
-For the same saved finding set, IDs and order do not depend on worker completion
-or result-list order. Inclusive overlapping intervals on the **same path and
-old/new coordinate side** form transitive groups. Each group, including a
-singleton, receives `G<n>`; every finding retains its own `F<n>`, aspect and
-complete evidence. Equal recommendations never merge findings.
-
-Groups sort by path and their earliest start line, with side (`new` before
-`old`) breaking ties. Members sort by start line, end line, aspect, title,
-quote, title, verdict, action, reason and evidence.
-Text comparisons use case-sensitive UTF-16 order, not locale collation. Identical findings remain separate.
-Group members stay adjacent, so an overlapping group can precede an opposite-side
-finding whose line falls inside it. IDs describe the current saved finding set;
-new results or replacement incomplete evidence can change ordinal IDs.
+For the same saved finding set, IDs and order do not depend on worker completion,
+result-list order or verdicts. Findings sort by path, start line, side (`new`
+before `old`), end line, aspect, title and quote, and receive `F<n>` in that
+order. Text comparisons use case-sensitive UTF-16 order, not locale collation.
+Identical findings remain separate, and equal recommendations never merge
+findings. Because a verdict does not move a finding, an ID stays the same when a
+resume verifies a previously unverified finding. The default report lists only
+upheld findings with their IDs, so gaps in the numbering are expected. New
+candidates from a resumed finder can shift later IDs.
 
 Short reports expose the counts of upheld, refuted and unverified findings,
 resolved/selected `aspects`, and each aspect's status, reason (omitted when none), limitations and
@@ -213,12 +216,10 @@ tasks with actual attempt records). Repository scope-creep stays configured but 
 as coordinator-owned not-applicable, never a phantom worker.
 
 Every worker call is an attempt tagged with its `stage` (`find` or `verify`) and, for
-a finder shard or verifier batch, a `portion: {index, paths}` naming which slice it
+a finder shard or verifier batch, a `portion: {index}` naming which slice it
 covered. Retries of one call share its portion. Limitations and reasons from every
 shard and batch are kept, prefixed with their portion where they may describe only
-part of the paths. When an aspect needed more than one shard, `help` adds one line
-suggesting a narrower next review with repeatable `--path` or `exclude` in
-`.degreaserrc.json`.
+part of the paths.
 
 `usageScope: all-attempts-per-aspect` means usage sums every recorded attempt of
 an aspect: both stages, every shard and batch, and all retries. The summary `usage` is the total over
@@ -231,8 +232,8 @@ fields are not estimated or filled with zeros. A coordinator-only run has
 unknown usage, not an invented zero.
 
 Stored task `usage` resets to null when a new attempt is admitted, including
-retries and resume, then receives only that attempt's metadata. Reports use the
-attempt records, not that task summary. Earlier `attempts[].usage` records and
+retries and resume, then receives the same sum over all of the task's attempts.
+Reports use the attempt records, not that task summary. Earlier `attempts[].usage` records and
 successful peers remain unchanged, and `report --full` preserves known usage at
 its original position in attempt history. Usage is what workers reported, not
 complete billing coverage.
