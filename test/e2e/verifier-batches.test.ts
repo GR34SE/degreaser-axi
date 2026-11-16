@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
 import test from "node:test";
 import { ASPECT, candidate, found, stage } from "../utils/coverage-fixture.ts";
-import { queueFixture, until } from "../utils/queue-fixture.ts";
+import { alive, queueFixture, until } from "../utils/queue-fixture.ts";
 
 function candidates(
   f: ReturnType<typeof queueFixture>,
@@ -152,5 +154,66 @@ test("a timed-out verifier retains valid verdicts and retries only its remaining
     f.state().tasks[0]?.attempts.find((attempt) => attempt.stage === "verify")
       ?.failure,
     "timeout",
+  );
+});
+
+test("resume after an aspect error outside a finished finder keeps its evidence and verifies only the open candidate", async (t) => {
+  const f = queueFixture(t);
+  f.setPlan({
+    workers: {
+      [ASPECT]: {
+        ...found("findings", candidates(f, 2)),
+        verifier: {
+          attempts: [{ verdicts: ["upheld", "omit"] }, { verdicts: ["omit"] }],
+        },
+      },
+    },
+  });
+  f.start(["--aspects", ASPECT]);
+  assert.equal(f.finish().status, 0);
+  const saved = f.state();
+  const owner = saved.owner;
+  assert.ok(owner);
+  await until(() => !alive(owner.pid), "First owner exits");
+  const [task] = saved.tasks;
+  assert.ok(task?.result);
+  assert.deepEqual(
+    task.result.findings.map((finding) => finding.verdict),
+    ["upheld", "unverified"],
+  );
+  const failure =
+    "Aspect failed (owner-failed): Error: Synthetic verifier fault";
+  task.status = "incomplete";
+  task.unresolved = { cause: "owner-failed" };
+  task.result.status = "incomplete";
+  task.result.limitations.push(failure);
+  task.limitations.push(failure);
+  saved.status = "partial";
+  writeFileSync(
+    join(f.root, ".degreaser/runs", saved.id, "run.json"),
+    JSON.stringify(saved),
+  );
+  const before = f.events().length;
+  f.setPlan();
+  const resumed = f.run(["resume", saved.id, "--wait", "20"]);
+  assert.equal(resumed.status, 0, resumed.stdout);
+  assert.deepEqual(
+    f
+      .events()
+      .slice(before)
+      .map((event) => [event.stage, event.candidates?.map((c) => c.quote)]),
+    [["verify", ["// repeated explanation 2"]]],
+  );
+  const current = f.state();
+  const after = current.tasks[0];
+  assert.equal(current.status, "completed");
+  assert.equal(after?.status, "findings");
+  assert.equal(after?.unresolved, undefined);
+  assert.deepEqual(after?.result?.findings[0], task.result.findings[0]);
+  assert.equal(after?.result?.findings[1]?.verdict, "upheld");
+  assert.deepEqual(after?.result?.examinedPaths, task.result.examinedPaths);
+  assert.deepEqual(
+    after?.attempts.slice(0, task.attempts.length),
+    task.attempts,
   );
 });

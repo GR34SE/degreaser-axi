@@ -377,9 +377,12 @@ starts a new budget. Expired original budgets are not silently renewed.
 
 Resolved tasks without `unverified` findings are never replayed. Resume reruns
 the finder of each pending, interrupted, failed, cancelled or incomplete aspect
-and sends every `unverified` finding to a new verifier session, including those of
-resolved aspects. Candidates and upheld and refuted verdicts are kept, a rerun
-finder's duplicate candidates are kept once, and a verdict is never replayed. Attempt records retain earlier
+whose finder did not finish, and sends every `unverified` finding to a new
+verifier session, including those of resolved aspects. A finder that had
+finished before an unexpected aspect error is not rerun. Candidates and upheld
+and refuted verdicts are kept, a rerun finder's duplicate candidates are kept
+once, and a verdict is never replayed. A finder that continues saved coverage
+also keeps that coverage's quote rejections and limitations. Attempt records retain earlier
 validated evidence, rejection reasons, limitations, session identities and known
 usage. A failed replacement does not erase the previous incomplete evidence.
 Full reports expose this history. A completed unchanged resume is a no-op.

@@ -1,9 +1,16 @@
-import type { Run } from "../../../state/run.ts";
+import { type Run, resumable } from "../../../state/run.ts";
 import type { Factory } from "../../factory.ts";
+
+const began = (run: Run) => run.executions?.at(-1)?.startedAt ?? run.createdAt;
 
 const finished = (run: Run) =>
   run.tasks.filter(
-    (task) => task.status !== "pending" && task.status !== "running",
+    (task) =>
+      task.status !== "pending" &&
+      task.status !== "running" &&
+      (run.status !== "running" ||
+        !resumable(task) ||
+        task.attempts.some((attempt) => attempt.startedAt >= began(run))),
   );
 
 export function progressFor(f: Factory, initial: Run) {
@@ -18,8 +25,7 @@ export function progressFor(f: Factory, initial: Run) {
     const verdicts = candidates.filter(
       (finding) => finding.verdict !== "unverified",
     ).length;
-    const began = run.executions?.at(-1)?.startedAt ?? run.createdAt;
-    const summary = `run: ${run.id}; aspects: ${completed.length}/${run.tasks.length}; candidates: ${candidates.length}; verdicts: ${verdicts}; elapsed: ${Math.max(0, Math.floor((now - began) / 1000))}s`;
+    const summary = `run: ${run.id}; aspects: ${completed.length}/${run.tasks.length}; candidates: ${candidates.length}; verdicts: ${verdicts}; elapsed: ${Math.max(0, Math.floor((now - began(run)) / 1000))}s`;
     if (newly.length)
       for (const task of newly) {
         seen.add(task.assignment.aspect);

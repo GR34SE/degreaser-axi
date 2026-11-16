@@ -77,6 +77,24 @@ test("non-TTY init without verifier flags inherits the finder model and writes c
   assert.match(result.stdout, /verifier/);
 });
 
+test("non-TTY init with only a different verifier agent asks for its model and writes nothing", (t) => {
+  const f = setup(t);
+  const before = f.unchanged();
+  const result = f.run([
+    ...explicit.slice(0, 4),
+    "--harnesses",
+    "claude,pi",
+    "--verifier-agent",
+    "claude",
+  ]);
+  assert.equal(result.status, 2, result.stdout);
+  assert.match(result.stdout, /code: decision-required/);
+  assert.match(result.stdout, /missing\[1\]: verifier-model/);
+  assert.match(result.stdout, /verifierPrefill:\n {2}agent: claude\n/);
+  assert.match(result.stdout, /--verifier-agent claude --verifier-model /);
+  assert.deepEqual(f.unchanged(), before);
+});
+
 test("init writes the verifier as model-only when it shares the worker agent and with its agent otherwise", (t) => {
   const f = setup(t);
   const base = [...explicit.slice(0, 4), "--harnesses", "claude"];

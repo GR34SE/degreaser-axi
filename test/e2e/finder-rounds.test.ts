@@ -289,6 +289,53 @@ test("a quota failure in a later round keeps earlier candidates but leaves the a
   );
 });
 
+test("a resumed finder keeps the quote rejections and limitations of the coverage it continues", (t) => {
+  const f = paddedFixture(t);
+  const limitation = "a.ts was only partly readable.";
+  f.setPlan({
+    workers: {
+      [ASPECT]: {
+        rounds: [
+          round(
+            "findings",
+            [
+              candidate("a.ts", "export const a = 1;"),
+              candidate("a.ts", "invented quote", 2),
+              candidate("a.ts", "another invented quote", 3),
+            ],
+            ["a.ts"],
+            { limitations: [limitation] },
+          ),
+          { error: { message: "Quota exhausted" } },
+        ],
+      },
+    },
+  });
+  const { done, task } = review(f);
+  assert.equal(done.status, 1, done.stdout);
+  const rejected = [
+    { index: 2, reason: "quote-mismatch" },
+    { index: 3, reason: "quote-mismatch" },
+  ];
+  assert.deepEqual(task.rejections, rejected);
+
+  f.setPlan({
+    workers: {
+      [ASPECT]: { rounds: [round("no-findings", [], ["b.ts", "source.ts"])] },
+    },
+  });
+  const resumed = f.run(["resume", f.state().id, "--wait", "20"]);
+  assert.equal(resumed.status, 0, resumed.stdout);
+  const after = f.state().tasks[0];
+  assert.equal(after?.status, "findings");
+  assert.deepEqual(after?.rejections, rejected);
+  assert.deepEqual(after?.result?.limitations, [
+    limitation,
+    "2 candidate(s) were rejected by literal source validation.",
+  ]);
+  assert.match(resumed.stdout, /rejected: 2/);
+});
+
 test("a not-applicable first round ends the finder without following remaining paths", (t) => {
   const f = paddedFixture(t);
   f.write("source.ts", "export const source = 1;\n");

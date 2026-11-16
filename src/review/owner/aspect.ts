@@ -15,8 +15,6 @@ import type { OwnerContext } from "./context.ts";
 import { VERIFIER, verification } from "./verifier.ts";
 
 function finderStatus(task: RunTask): FinderResult["status"] {
-  if (task.status === "incomplete" && task.unresolved?.cause === "owner-failed")
-    return "incomplete";
   const last = task.attempts.findLast((a) => a.stage === "find" && a.result);
   return last?.result && !last.failure ? last.result.status : "incomplete";
 }
@@ -25,6 +23,9 @@ const notesOfOtherStage = (result: WorkerResult, stage: "find" | "verify") =>
   result.limitations.filter(
     (l) => l.startsWith(VERIFIER) !== (stage === "verify"),
   );
+
+const rejectedNote = (count: number) =>
+  `${count} candidate(s) were rejected by literal source validation.`;
 
 const patchFile = (context: OwnerContext) =>
   join(context.dir, "input", "patch.diff");
@@ -78,13 +79,25 @@ async function find(
 ) {
   const { runtime, input } = context;
   const aspect = task.assignment.aspect;
-  let rejections: Rejection[] = [];
-  const checkpoint = (value: FinderResult) => {
+  const saved = task.result?.examinedPaths?.length ? task.result : undefined;
+  let rejections: Rejection[] = saved ? task.rejections : [];
+  const earlier = saved
+    ? notesOfOtherStage(saved, "verify").filter(
+        (note) => note !== rejectedNote(rejections.length),
+      )
+    : [];
+  const merge = (value: FinderResult) => {
     const prior = task.result ?? emptyResult(aspect);
-    task.result = mergeFinder(
-      { ...prior, limitations: notesOfOtherStage(prior, "find") },
+    return mergeFinder(
+      {
+        ...prior,
+        limitations: [...earlier, ...notesOfOtherStage(prior, "find")],
+      },
       value,
     );
+  };
+  const checkpoint = (value: FinderResult) => {
+    task.result = merge(value);
     task.rejections = rejections;
     update(context, task);
     candidatesReady();
@@ -126,25 +139,14 @@ async function find(
   });
   if (!outcome.value) return;
   task.rejections = rejections;
-  const prior = task.result ?? emptyResult(aspect);
-  const merged = mergeFinder(
-    {
-      ...prior,
-      limitations: notesOfOtherStage(prior, "find"),
-    },
-    {
-      ...outcome.value,
-      status: outcome.complete ? outcome.value.status : "incomplete",
-      limitations: [
-        ...outcome.value.limitations,
-        ...(rejections.length
-          ? [
-              `${rejections.length} candidate(s) were rejected by literal source validation.`,
-            ]
-          : []),
-      ],
-    },
-  );
+  const merged = merge({
+    ...outcome.value,
+    status: outcome.complete ? outcome.value.status : "incomplete",
+    limitations: [
+      ...outcome.value.limitations,
+      ...(rejections.length ? [rejectedNote(rejections.length)] : []),
+    ],
+  });
   const left = remaining(context, merged.examinedPaths ?? []).length;
   task.result =
     outcome.complete && outcome.value.status !== "incomplete" && left

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { waitFor } from "../../src/cli/commands/shared/run.ts";
 import { createFactory } from "../../src/cli/factory.ts";
-import { alive, queueFixture, until } from "../utils/queue-fixture.ts";
+import { alive, capture, queueFixture, until } from "../utils/queue-fixture.ts";
 
 test("wait reports the persisted result when the owner finishes after the running snapshot", async (t) => {
   const f = queueFixture(t);
@@ -88,4 +88,59 @@ test("waiting emits a thirty-second heartbeat and reports each completed aspect 
   assert.equal(result.status, "completed");
   assert.match(stderr, /low-value-comments \(no-findings\)/);
   assert.match(stderr, /aspects: 2\/2/);
+});
+
+test("resume reports each rerun aspect when it finishes and counts only the aspects finished by then", async (t) => {
+  const f = queueFixture(t, {
+    limits: { workerTimeoutSeconds: 15, runTimeoutSeconds: 60 },
+  });
+  const rerun = ["masked-errors", "low-value-comments"];
+  const plan = (worker: (aspect: string) => object) =>
+    f.setPlan({
+      workers: Object.fromEntries(
+        rerun.map((aspect) => [aspect, worker(aspect)]),
+      ),
+    });
+  plan(() => ({ result: "" }));
+  f.start(["--aspects", ["missed-reuse", ...rerun].join(",")]);
+  assert.equal(f.finish().status, 1);
+  const old = f.state();
+  assert.deepEqual(
+    Object.fromEntries(
+      old.tasks.map((task) => [task.assignment.aspect, task.status]),
+    ),
+    {
+      "missed-reuse": "no-findings",
+      "masked-errors": "failed",
+      "low-value-comments": "failed",
+    },
+  );
+  plan((aspect) => ({ resultGate: f.gate(aspect) }));
+  const before = f.events().length;
+  const caller = f.launch(["resume", old.id, "--concurrency", "1"]);
+  let stderr = "";
+  caller.stderr.on("data", (data) => {
+    stderr += data;
+  });
+  const resumed = capture(caller);
+  await until(
+    () => f.events().length === before + 1,
+    "One rerun finder holds the only slot",
+  );
+  const first = f.events()[before]?.aspect;
+  const second = rerun.find((aspect) => aspect !== first);
+  assert.ok(first && second);
+  f.release(first);
+  await until(
+    () => stderr.includes(`aspect: ${first} (no-findings)`),
+    "The first rerun aspect is reported when it finishes",
+  );
+  assert.match(stderr, new RegExp(`aspects: 2/3; [^\\n]*aspect: ${first} `));
+  f.release(second);
+  const result = await resumed;
+  assert.equal(result.code, 0, result.stdout + result.stderr);
+  assert.match(
+    result.stderr,
+    new RegExp(`aspects: 3/3; [^\\n]*aspect: ${second} \\(no-findings\\)`),
+  );
 });
