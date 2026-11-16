@@ -5,6 +5,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
+import { ASPECT_IDS } from "../../src/modules/aspect/api.ts";
 import { createRun } from "../../src/review/prepare/create.ts";
 import { prepareReview } from "../../test/utils/input.ts";
 import { runtime } from "../../test/utils/runtime.ts";
@@ -122,7 +123,10 @@ test("an independent schema-validating process observes concurrent owner transit
     },
   });
   assert.equal(f.start().status, 3);
-  await until(() => f.events().length === 17, "Seventeen workers overlap");
+  await until(
+    () => f.events().length === ASPECT_IDS.length,
+    "Every default worker overlaps",
+  );
   const reader = processFixture(t, f, "reader");
   await Promise.race([
     once(reader.child, "message"),

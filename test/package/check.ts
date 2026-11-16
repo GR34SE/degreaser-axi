@@ -165,7 +165,7 @@ try {
           withFileTypes: true,
         })
       ).filter((entry) => entry.isDirectory()).length,
-      17,
+      18,
     );
     for (const resource of [
       "dist/review/attempt/prompt/worker.md",

@@ -4,7 +4,7 @@
 
 # Degreaser
 
-Code review for coding agents. Degreaser checks for unnecessary complexity, broken contracts and misleading verification. It runs 17 focused reviewers in fresh, read-only sessions and returns findings with code quotes and suggested corrections. Your agent decides what to fix.
+Code review for coding agents. Degreaser checks for unnecessary complexity, broken contracts and misleading verification. It runs 18 focused reviewers in fresh, read-only sessions and returns findings with code quotes and suggested corrections. Your agent decides what to fix.
 
 ## Install
 
@@ -43,13 +43,13 @@ degreaser-axi report
 
 If the review returns `running`, follow its `degreaser-axi wait <run-id>` command. Keep the code unchanged until it finishes. A partial review is not a clean result.
 
-Reviews read source; they do not run tests or apply fixes. Review context goes to your selected model provider, uses its quota, and is saved locally in ignored `.degreaser/` files. All 17 reviewers run by default; use `--aspects` to select fewer or `--concurrency` to limit simultaneous calls.
+Reviews read source; they do not run tests or apply fixes. Review context goes to your selected model provider, uses its quota, and is saved locally in ignored `.degreaser/` files. All 18 reviewers run by default; use `--aspects` to select fewer or `--concurrency` to limit simultaneous calls.
 
 See `degreaser-axi --help` for commands and options, or `degreaser-axi doctor` for setup diagnostics. Details: [configuration and scopes](https://github.com/GR34SE/degreaser-axi/blob/main/docs/input-contract.md), [results and limitations](https://github.com/GR34SE/degreaser-axi/blob/main/docs/result-contract.md), [worker restrictions](https://github.com/GR34SE/degreaser-axi/blob/main/docs/harnesses.md).
 
 ## Review aspects
 
-All 17 built-in aspects are enabled by default. Each reviewer checks one question. Reports list aspects in this order: simplicity first, then from the most to the least damaging slop.
+All 18 built-in aspects are enabled by default. Each reviewer checks one question. Reports list aspects in this order: simplicity first, then from the most to the least damaging slop.
 
 | Aspect | Review question |
 | --- | --- |
@@ -58,6 +58,7 @@ All 17 built-in aspects are enabled by default. Each reviewer checks one questio
 | `verification-theater` | Does the check distinguish the valid and invalid states it claims to verify? |
 | `contract-bypass` | Does a cast, suppression or default hide a real mismatch? |
 | `incomplete-integration` | Is the new code connected to the real user path? |
+| `stale-references` | Did the change leave repository text untrue, or silently drop a rule it did not ask to remove? |
 | `low-value-tests` | Would this test detect broken behavior, or just confirm its own mock? |
 | `scope-creep` | Did the change add features or refactoring outside the task? |
 | `reinvented-infrastructure` | Does a handwritten cache, parser or similar mechanism miss required semantics? |

@@ -13,6 +13,7 @@ const all = [
   "verification-theater",
   "contract-bypass",
   "incomplete-integration",
+  "stale-references",
   "low-value-tests",
   "scope-creep",
   "reinvented-infrastructure",
@@ -178,7 +179,7 @@ test("strict public RC schema rejects unknown fields and bounded invalid values 
   );
 });
 
-test("selection narrows all seventeen defaults without re-enabling disabled aspects or mutating RC", () => {
+test("selection narrows all eighteen defaults without re-enabling disabled aspects or mutating RC", () => {
   assert.deepEqual(
     resolveConfig(identity).assignments.map((a) => a.aspect),
     all,
@@ -219,7 +220,7 @@ test("selection narrows all seventeen defaults without re-enabling disabled aspe
     runTimeoutSeconds: 900,
   });
   assert.equal(JSON.stringify(rc), original);
-  assert.equal(resolveConfig(rc).assignments.length, 16);
+  assert.equal(resolveConfig(rc).assignments.length, all.length - 1);
   assert.throws(
     () => resolveConfig(rc, { aspects: ["unnecessary-layers"] }),
     /disabled/,

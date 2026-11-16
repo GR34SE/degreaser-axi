@@ -246,7 +246,7 @@ establish account access or model availability.
 
 ## Execution and lifecycle outcomes
 
-All seventeen aspects run by default, admitted in catalog order. The owner
+All eighteen aspects run by default, admitted in catalog order. The owner
 admits one worker at a time until
 the first prompt has been accepted by the model transport, not merely until a
 process or session is ready. It then fills all selected slots, or the explicitly

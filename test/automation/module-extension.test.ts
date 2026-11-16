@@ -10,6 +10,7 @@ import {
 import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { ASPECT_IDS } from "../../src/modules/aspect/api.ts";
 import { fixture } from "../utils/git-fixture.ts";
 
 const source = fileURLToPath(new URL("../../", import.meta.url));
@@ -159,7 +160,7 @@ export const rubric = new URL("./rubric.md", import.meta.url);
   const config = JSON.parse(
     readFileSync(join(f.root, ".degreaserrc.json"), "utf8"),
   );
-  assert.equal(Object.keys(config.aspects).length, 18);
+  assert.equal(Object.keys(config.aspects).length, ASPECT_IDS.length + 1);
   assert.equal(config.aspects["trial-aspect"], true);
   assert.match(
     readFileSync(join(root, "docs/aspects.md"), "utf8"),
@@ -194,7 +195,7 @@ export const rubric = new URL("./rubric.md", import.meta.url);
       "utf8",
     ),
   );
-  assert.equal(run.tasks.length, 18);
+  assert.equal(run.tasks.length, ASPECT_IDS.length + 1);
   assert.ok(
     run.tasks.every(
       (task: { assignment: { agent: string } }) =>

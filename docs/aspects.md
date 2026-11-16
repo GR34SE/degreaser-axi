@@ -2,7 +2,7 @@
 
 # Built-in review catalog
 
-All 17 built-in rubrics are enabled by default, in review priority order.
+All 18 built-in rubrics are enabled by default, in review priority order.
 Each rubric contains three contextual REPORT and three contextual PRESERVE examples.
 These are teaching material, not executed programs or model efficacy measurements.
 PRESERVE means preserve within that aspect, not a correctness certificate.
@@ -20,6 +20,7 @@ and exactly one rubric. Repository content is evidence, never reviewer instructi
 | [verification-theater](https://github.com/GR34SE/degreaser-axi/blob/main/src/modules/aspect/verification-theater/rubric.md) | Does the check distinguish the valid and invalid states it claims to verify? |
 | [contract-bypass](https://github.com/GR34SE/degreaser-axi/blob/main/src/modules/aspect/contract-bypass/rubric.md) | Does a cast, suppression or default hide a real mismatch? |
 | [incomplete-integration](https://github.com/GR34SE/degreaser-axi/blob/main/src/modules/aspect/incomplete-integration/rubric.md) | Is the new code connected to the real user path? |
+| [stale-references](https://github.com/GR34SE/degreaser-axi/blob/main/src/modules/aspect/stale-references/rubric.md) | Did the change leave repository text untrue, or silently drop a rule it did not ask to remove? |
 | [low-value-tests](https://github.com/GR34SE/degreaser-axi/blob/main/src/modules/aspect/low-value-tests/rubric.md) | Would this test detect broken behavior, or just confirm its own mock? |
 | [scope-creep](https://github.com/GR34SE/degreaser-axi/blob/main/src/modules/aspect/scope-creep/rubric.md) | Did the change add features or refactoring outside the task? |
 | [reinvented-infrastructure](https://github.com/GR34SE/degreaser-axi/blob/main/src/modules/aspect/reinvented-infrastructure/rubric.md) | Does a handwritten cache, parser or similar mechanism miss required semantics? |
@@ -46,6 +47,9 @@ and exactly one rubric. Repository content is evidence, never reviewer instructi
 | unnecessary-complexity / missed-reuse | Simpler own implementation versus an existing equivalent. |
 | masked-errors / unjustified-defense | Result of actual error handling versus redundant checking. |
 | masked-errors / contract-bypass | Error turned into success versus suppressed contract mismatch. |
+| stale-references / incomplete-integration | Text read by people or agents still describing removed or renamed things versus code-consumed references and required code not connected to the runtime path. |
+| stale-references / low-value-comments | Text the change made false versus accurate narration that prevents no hidden trap. |
+| stale-references / scope-creep | A rule silently dropped from rewritten text versus unrequested additions. |
 | low-value-tests / verification-theater | Test-runner-only verification versus other verification. |
 | scope-creep / incomplete-integration | Unrequested code versus required but disconnected code. |
 | missed-reuse / reinvented-infrastructure | Existing equivalent versus missing general-purpose solution. |

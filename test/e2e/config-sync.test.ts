@@ -21,6 +21,7 @@ const allAspects = [
   "verification-theater",
   "contract-bypass",
   "incomplete-integration",
+  "stale-references",
   "low-value-tests",
   "scope-creep",
   "reinvented-infrastructure",

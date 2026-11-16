@@ -13,6 +13,7 @@
 **Not here (another reviewer):**
 - Required code that is not connected to the user path: incomplete-integration.
 - An internal option or parameter without a consumer within the requested feature: speculative-flexibility.
+- A rule or its reason silently dropped while rewriting instructions, prompts or documentation: stale-references. Unrequested additions stay here.
 
 Teaching excerpts; context states omitted setup. These have not been executed as programs or model evaluations.
 

@@ -7,6 +7,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { fixture } from "../../../../test/utils/git-fixture.ts";
 import { prepareReview } from "../../../../test/utils/input.ts";
+import { ASPECT_IDS } from "../../../modules/aspect/api.ts";
 
 const request = ["--scope", "worktree", "--task", "Change fixture"];
 
@@ -174,7 +175,7 @@ test("repository audit has explicit coverage, no patch and coordinator-owned sco
   );
   assert.ok(r.excludedPaths.includes("package.json"));
   assert.ok(r.excludedPaths.includes("dist/generated"));
-  assert.equal(r.workers.length, 16);
+  assert.equal(r.workers.length, ASPECT_IDS.length - 1);
   assert.equal(
     r.workers.some((a) => a.aspect === "scope-creep"),
     false,

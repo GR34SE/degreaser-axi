@@ -5,7 +5,7 @@ import { alive, queueFixture, until } from "../utils/queue-fixture.ts";
 
 const all = [...ASPECT_IDS].sort();
 
-test("default fleet holds at session readiness, then seventeen real workers overlap before any result", async (t) => {
+test("default fleet holds at session readiness, then every default worker overlaps before any result", async (t) => {
   const f = queueFixture(t);
   f.setPlan({
     worker: { invocationGate: f.gate("invoke"), resultGate: f.gate("result") },
@@ -19,8 +19,8 @@ test("default fleet holds at session readiness, then seventeen real workers over
   assert.equal(f.events().length, 0);
   f.release("invoke");
   await until(
-    () => f.events().length === 17,
-    "All seventeen prompts must start without a hidden cap",
+    () => f.events().length === ASPECT_IDS.length,
+    "All default prompts must start without a hidden cap",
   );
   assert.deepEqual(
     f
@@ -35,7 +35,10 @@ test("default fleet holds at session readiness, then seventeen real workers over
   f.release("result");
   const done = f.finish();
   assert.equal(done.status, 0, done.stdout);
-  assert.match(done.stdout, /aspects: 17\/17/);
+  assert.match(
+    done.stdout,
+    new RegExp(`aspects: ${ASPECT_IDS.length}/${ASPECT_IDS.length}`),
+  );
 });
 
 for (const cap of [1, 2, 20]) {
