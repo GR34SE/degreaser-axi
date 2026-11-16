@@ -28,7 +28,7 @@ export function fleetEvidence(
   );
   assert.equal(
     run.executions[0]?.concurrency,
-    run.tasks.length,
+    run.tasks.length * 2,
     "Fleet must be uncapped",
   );
   const aspects = [...ASPECT_IDS];

@@ -1,5 +1,6 @@
-import { appendFileSync } from "node:fs";
+import { appendFileSync, realpathSync } from "node:fs";
 import { registerHooks } from "node:module";
+import { pathToFileURL } from "node:url";
 
 export async function observeWorker(request, profile, execute) {
   const aspect = /Assigned aspect: ([a-z-]+)/.exec(request.prompt)?.[1];
@@ -43,9 +44,10 @@ export async function observeWorker(request, profile, execute) {
   }
 }
 
-const runtime = new URL(
-  "../../../dist/review/attempt/session.js",
-  import.meta.url,
+const runtime = pathToFileURL(
+  realpathSync(
+    new URL("../../../dist/review/attempt/session.js", import.meta.url),
+  ),
 ).href;
 registerHooks({
   load(url, context, nextLoad) {
