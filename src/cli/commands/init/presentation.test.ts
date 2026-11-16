@@ -32,10 +32,11 @@ const decide = (
     help: string[];
   };
 
-test("an unconfirmed verifier is a missing decision, prefilled with the strongest model", () => {
+test("an explicit verifier agent without a model remains a missing decision", () => {
   const result = decide({
     agent: "claude",
     model: "sonnet",
+    verifierAgent: "claude",
     harnesses: ["claude"],
   });
   assert.deepEqual(result.missing, ["verifier-model"]);
@@ -67,9 +68,5 @@ test("a previous verifier is prefill and a different verifier agent is named in 
 });
 
 test("everything missing is reported together", () => {
-  assert.deepEqual(decide({}).missing, [
-    "model",
-    "verifier-model",
-    "harnesses",
-  ]);
+  assert.deepEqual(decide({}).missing, ["model", "harnesses"]);
 });

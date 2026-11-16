@@ -74,7 +74,11 @@ for (const [name, worker, retries, count, status] of [
       },
     });
     f.setPlan({ worker });
-    f.start(["--aspects", "low-value-comments"]);
+    const started = f.start(["--aspects", "low-value-comments"]);
+    assert.ok(
+      [3, status === "completed" ? 0 : 1].includes(started.status ?? -1),
+      started.stdout + started.stderr,
+    );
     const done = f.finish();
     assert.equal(done.status, status === "completed" ? 0 : 1, done.stdout);
     const task = f.state().tasks[0];

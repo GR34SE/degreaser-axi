@@ -54,7 +54,7 @@ test("Pi launcher pins argv model, removes discovery and cannot inherit metered 
     assert.equal(args[args.indexOf("--tools") + 1], "read,grep,find,ls,bash");
     assert.equal(
       args[args.indexOf("--extension") + 1],
-      join(root, "dist/modules/harness/pi/git-gate.js"),
+      await realpath(join(root, "dist/modules/harness/pi/git-gate.js")),
     );
     assert.equal(args.filter((arg: string) => arg === "--extension").length, 1);
     assert.ok(!args.includes("-e") && !args.includes("host-extension.ts"));
@@ -178,7 +178,7 @@ test("Cursor native profile uses the worker ACP launcher at the pinned CLI versi
     assert.equal(profile.nativeVersion, "2026.11.05-86047df");
     assert.deepEqual(profile.command, [
       process.execPath,
-      join(root, "dist/modules/harness/cursor/launcher.js"),
+      await realpath(join(root, "dist/modules/harness/cursor/launcher.js")),
     ]);
     assert.equal(
       profile.environment.DEGREASER_NATIVE_EXECUTABLE,

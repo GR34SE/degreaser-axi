@@ -4,6 +4,7 @@ specs
 .references
 .degreaser
 node_modules/
+dist/
 /dist
 *.tgz
 .env

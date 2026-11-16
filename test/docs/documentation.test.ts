@@ -110,7 +110,9 @@ test("private local material is ignored and absent from tracked files", () => {
     ".env.local",
     "build-output.tgz",
     "coverage/report.html",
-    "dist/main.js",
+    "dist",
+    "nested-package/dist/main.js",
+    ".degreaser-build/revision-example/dist/main.js",
     "node_modules/example/index.js",
   ];
   const ignored = spawnSync("git", ["check-ignore", "--no-index", "--stdin"], {
@@ -128,7 +130,7 @@ test("private local material is ignored and absent from tracked files", () => {
   for (const file of tracked.stdout.split("\0").filter(Boolean))
     assert.doesNotMatch(
       file,
-      /(?:^|\/)(?:specs|\.lavish|\.degreaser|\.references|node_modules|dist|coverage|\.env(?:\.[^/]+)?)(?:\/|$)|\.tgz$/,
+      /(?:^|\/)(?:specs|\.lavish|\.degreaser-build|\.degreaser|\.references|node_modules|dist|coverage|\.env(?:\.[^/]+)?)(?:\/|$)|\.tgz$/,
       file,
     );
 });
