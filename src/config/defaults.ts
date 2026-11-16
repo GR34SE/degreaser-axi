@@ -2,6 +2,8 @@ import type { AspectId } from "../modules/aspect/api.ts";
 import type { AspectSetting, ProjectConfig } from "./types.ts";
 import { validateConfig } from "./validate.ts";
 
+export const DEFAULT_SESSIONS_PER_ASPECT = 2;
+
 export const DEFAULT_LIMITS = {
   workerTimeoutSeconds: 900,
   workerIdleSeconds: 180,

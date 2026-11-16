@@ -11,4 +11,5 @@ export interface OwnerContext {
   startedAt: number;
   control: OwnerControl;
   slots: Slots;
+  verifierSlots: Slots;
 }

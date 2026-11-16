@@ -16,6 +16,7 @@ type Attempt = RunTask["attempts"][number];
 
 interface AttemptSpec<T> {
   stage: "find" | "verify";
+  retries?: number;
   identity: Identity;
   prompt: string;
   ingest: (output: string) => { value: T; rejections?: Rejection[] };
@@ -23,13 +24,6 @@ interface AttemptSpec<T> {
   follow?: (round: T, prior: T | undefined) => { value: T; prompt?: string };
 }
 
-const RESULT_FAILURES = [
-  "environment-blocked",
-  "cleanup",
-  "timeout",
-  "cancelled",
-  "deadline",
-];
 const RETRIED = {
   find: ["invalid-output", "output-limit", "timeout"],
   verify: ["invalid-output", "output-limit"],
@@ -49,31 +43,48 @@ export async function executeAttempt<T>(
   context: OwnerContext,
   task: RunTask,
   spec: AttemptSpec<T>,
-): Promise<{ value: T; complete: boolean } | null> {
+): Promise<{
+  value: T | null;
+  complete: boolean;
+  failure: string | null;
+  cleanupFailed: boolean;
+}> {
   const { stopped } = context.control;
   let prompt = spec.prompt;
-  if (stopped()) return null;
-  const release = await context.slots.acquire();
+  const empty = () => ({
+    value: null,
+    complete: false,
+    failure: context.control.stopReason,
+    cleanupFailed: false,
+  });
+  if (stopped()) return empty();
+  const releaseStage =
+    spec.stage === "verify" ? await context.verifierSlots.acquire() : undefined;
+  let release: (() => void) | undefined;
   try {
-    for (
-      let attempt = 0;
-      attempt <= context.input.config.maxRetries;
-      attempt++
-    ) {
-      if (stopped()) return null;
+    release = await context.slots.acquire();
+    const retries = spec.retries ?? context.input.config.maxRetries;
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      if (stopped()) return empty();
       const outcome = await runOnce(context, task, spec, prompt);
-      const last = attempt === context.input.config.maxRetries;
+      const last = attempt === retries;
       if (outcome.received || outcome.final || last)
         task.limitations = [
           ...new Set([...task.limitations, ...outcome.errors]),
         ];
-      if (outcome.received) return outcome.received;
-      if (outcome.final || last) return null;
+      if (outcome.received || outcome.final || last)
+        return {
+          value: outcome.received?.value ?? null,
+          complete: outcome.received?.complete ?? false,
+          failure: outcome.failure,
+          cleanupFailed: outcome.cleanupFailed,
+        };
       if (outcome.retryPrompt) prompt = outcome.retryPrompt;
     }
-    return null;
+    return empty();
   } finally {
-    release();
+    release?.();
+    releaseStage?.();
   }
 }
 
@@ -196,13 +207,7 @@ async function runOnce<T>(
     limitations.push(...outcome.limitations);
     record.usage = usageOf(outcome.usage as Record<string, unknown> | null);
     if (rounds) record.rounds = rounds;
-    if (
-      gathered ||
-      cleanupFailed ||
-      runStopped ||
-      !record.failure ||
-      RESULT_FAILURES.includes(record.failure)
-    ) {
+    if (gathered || record.failure !== "output-limit") {
       try {
         const { value, rejections = [] } =
           gathered ?? spec.ingest(outcome.output);
@@ -286,6 +291,8 @@ async function runOnce<T>(
   task.usage = sumUsage(task.attempts.map((a) => a.usage));
   persist();
   return {
+    failure: record.failure,
+    cleanupFailed,
     received,
     retryPrompt,
     errors,

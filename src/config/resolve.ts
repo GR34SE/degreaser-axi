@@ -1,7 +1,7 @@
 import type { AspectId } from "../modules/aspect/api.ts";
 import { InputError } from "../util/errors.ts";
 import { schema } from "../util/schema.ts";
-import { completeConfig } from "./defaults.ts";
+import { completeConfig, DEFAULT_SESSIONS_PER_ASPECT } from "./defaults.ts";
 import type {
   EffectiveConfig,
   Identity,
@@ -73,7 +73,10 @@ export function resolveConfig(
   return {
     assignments,
     verifier,
-    concurrency: controls.concurrency ?? rc.concurrency ?? assignments.length,
+    concurrency:
+      controls.concurrency ??
+      rc.concurrency ??
+      DEFAULT_SESSIONS_PER_ASPECT * assignments.length,
     maxRetries: rc.maxRetries,
     limits: rc.limits,
     exclude: [...rc.exclude],

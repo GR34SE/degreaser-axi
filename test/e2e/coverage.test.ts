@@ -200,19 +200,24 @@ test("resume re-verifies only unverified candidates of a completed run and rerun
           candidate("source.ts", "export const value = 1;", 2),
         ]),
         verifier: {
-          result: {
-            aspect: ASPECT,
-            status: "verdicts",
-            verdicts: [
-              {
-                candidate: 1,
-                verdict: "upheld",
-                reason: "The source confirms the candidate.",
-                action: "Remove it.",
+          attempts: [
+            {
+              result: {
+                aspect: ASPECT,
+                status: "verdicts",
+                verdicts: [
+                  {
+                    candidate: 1,
+                    verdict: "upheld",
+                    reason: "The source confirms the candidate.",
+                    action: "Remove it.",
+                  },
+                ],
+                limitations: ["The second candidate could not be checked."],
               },
-            ],
-            limitations: ["The second candidate could not be checked."],
-          },
+            },
+            { verdicts: ["omit"] },
+          ],
         },
       },
       "masked-errors": {
@@ -361,7 +366,7 @@ test("a rejected quote drops only that candidate, is recorded and does not keep 
   }
 });
 
-test("verdicts from a verifier that did not finish cleanly are not applied", (t) => {
+test("valid verifier verdicts survive cleanup failure while the failed finder stays incomplete", (t) => {
   const f = queueFixture(t, {
     agent: "pi",
     model: "openai/gpt-6-luna",
@@ -382,6 +387,6 @@ test("verdicts from a verifier that did not finish cleanly are not applied", (t)
   assert.equal(task.status, "incomplete");
   assert.deepEqual(
     task.result?.findings.map((x) => x.verdict),
-    ["unverified"],
+    ["upheld"],
   );
 });

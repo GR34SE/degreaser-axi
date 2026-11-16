@@ -55,13 +55,13 @@ test("Pi verifiers need provider-qualified models, inherited or explicit", () =>
   );
 });
 
-test("concurrency defaults to one slot per selected aspect; an RC value is only a cap", () => {
+test("concurrency defaults to two slots per selected aspect; an RC value is only a cap", () => {
   const config = resolve(rc);
-  assert.equal(config.concurrency, ASPECT_IDS.length);
+  assert.equal(config.concurrency, 2 * ASPECT_IDS.length);
   assert.equal(
     resolveConfig(rc, { aspects: ["missed-reuse", "scope-creep"] }, ASPECT_IDS)
       .concurrency,
-    2,
+    4,
   );
   assert.equal(resolve({ ...rc, concurrency: 3 }).concurrency, 3);
   assert.throws(() => resolve({ ...rc, concurrency: null }), /concurrency/);

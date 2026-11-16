@@ -18,7 +18,7 @@ test("review warns about configured limits below defaults and sync proposes remo
   const started = f.start();
   assert.equal(f.finish().status, 0);
   for (const [field, value, installed] of [
-    ["concurrency", 16, 18],
+    ["concurrency", 16, 36],
     ["limits.workerTimeoutSeconds", 300, 900],
     ["limits.workerIdleSeconds", 60, 180],
     ["limits.maxTurns", 10, 40],

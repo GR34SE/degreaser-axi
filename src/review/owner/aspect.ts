@@ -1,5 +1,4 @@
 import { join } from "node:path";
-import type { Assignment } from "../../config/types.ts";
 import { openFailure, type RunTask } from "../../state/run.ts";
 import { errorSummary } from "../../util/error-summary.ts";
 import { StateError } from "../../util/errors.ts";
@@ -7,25 +6,13 @@ import { executeAttempt } from "../attempt/index.ts";
 import {
   assembleFinder,
   assembleFollowUp,
-  assembleVerifier,
   promptIdentity,
 } from "../attempt/prompt/assemble.ts";
-import {
-  applyVerdicts,
-  emptyResult,
-  mergeFinder,
-  settle,
-  verdictStatus,
-} from "../ingest/merge.ts";
-import type {
-  FinderResult,
-  Finding,
-  Rejection,
-  VerifierResult,
-  WorkerResult,
-} from "../ingest/types.ts";
-import { ingestFinder, ingestVerifier } from "../ingest/verify-quotes.ts";
+import { emptyResult, mergeFinder, settle } from "../ingest/merge.ts";
+import type { FinderResult, Rejection, WorkerResult } from "../ingest/types.ts";
+import { ingestFinder } from "../ingest/verify-quotes.ts";
 import type { OwnerContext } from "./context.ts";
+import { VERIFIER, verification } from "./verifier.ts";
 
 function finderStatus(task: RunTask): FinderResult["status"] {
   if (task.status === "incomplete" && task.unresolved?.cause === "owner-failed")
@@ -33,11 +20,6 @@ function finderStatus(task: RunTask): FinderResult["status"] {
   const last = task.attempts.findLast((a) => a.stage === "find" && a.result);
   return last?.result && !last.failure ? last.result.status : "incomplete";
 }
-
-const unverified = (findings: readonly Finding[]) =>
-  findings.filter((f) => f.verdict === "unverified");
-
-const VERIFIER = "Verifier: ";
 
 const notesOfOtherStage = (result: WorkerResult, stage: "find" | "verify") =>
   result.limitations.filter(
@@ -49,16 +31,29 @@ const patchFile = (context: OwnerContext) =>
 
 export async function reviewAspect(context: OwnerContext, task: RunTask) {
   const aspect = task.assignment.aspect;
+  const batches = verification(context, task, () => update(context, task));
+  const failures: unknown[] = [];
   try {
     if (promptIdentity(aspect) !== task.promptHash)
       throw new StateError(
         "input-changed",
         `Prompt identity for ${aspect} differs from ${join(context.dir, "run.json")}. Start a new review with the current package.`,
       );
-    if (finderStatus(task) === "incomplete") await find(context, task);
-    const pending = unverified(task.result?.findings ?? []);
-    if (pending.length) await verify(context, task, pending);
+    if (finderStatus(task) === "incomplete") {
+      const finding = find(context, task, batches.enqueue);
+      batches.enqueue();
+      await finding;
+    }
   } catch (error) {
+    failures.push(error);
+  }
+  try {
+    await batches.finish();
+  } catch (error) {
+    failures.push(error);
+  }
+  if (failures.length) {
+    const error = failures[0];
     if (context.control.persistenceError) throw error;
     const cause = error instanceof StateError ? error.code : "owner-failed";
     const message = `Aspect failed (${cause}): ${errorSummary(error)}`;
@@ -76,7 +71,11 @@ export async function reviewAspect(context: OwnerContext, task: RunTask) {
   finish(context, task);
 }
 
-async function find(context: OwnerContext, task: RunTask) {
+async function find(
+  context: OwnerContext,
+  task: RunTask,
+  candidatesReady: () => void,
+) {
   const { runtime, input } = context;
   const aspect = task.assignment.aspect;
   let rejections: Rejection[] = [];
@@ -95,7 +94,15 @@ async function find(context: OwnerContext, task: RunTask) {
       const progress =
         value.examinedPaths.length > (prior?.examinedPaths.length ?? 0) ||
         value.findings.length > (prior?.findings.length ?? 0);
-      const left = remaining(context, value.examinedPaths);
+      const priorResult = task.result ?? emptyResult(aspect);
+      task.result = mergeFinder(
+        { ...priorResult, limitations: notesOfOtherStage(priorResult, "find") },
+        value,
+      );
+      task.rejections = rejections;
+      update(context, task);
+      candidatesReady();
+      const left = remaining(context, task.result.examinedPaths ?? []);
       return {
         value,
         ...(progress && left.length
@@ -104,7 +111,7 @@ async function find(context: OwnerContext, task: RunTask) {
       };
     },
   });
-  if (!outcome) return;
+  if (!outcome.value) return;
   task.rejections = rejections;
   const prior = task.result ?? emptyResult(aspect);
   const merged = mergeFinder(
@@ -179,65 +186,6 @@ function finderRecord(found: FinderResult, complete: boolean): WorkerResult {
         : found.limitations,
     ...(found.reason ? { reason: found.reason } : {}),
     examinedPaths: found.examinedPaths,
-  };
-}
-
-async function verify(
-  context: OwnerContext,
-  task: RunTask,
-  pending: readonly Finding[],
-) {
-  const { runtime, input } = context;
-  const aspect = task.assignment.aspect;
-  const verifier: Assignment = { ...input.config.verifier, aspect };
-  const outcome = await executeAttempt<VerifierResult>(context, task, {
-    stage: "verify",
-    identity: verifier,
-    prompt: assembleVerifier(input, aspect, patchFile(context), pending),
-    ingest: (output) => ({
-      value: ingestVerifier(runtime, output, aspect, input, pending.length),
-    }),
-    record: (verified, complete) =>
-      verifierRecord(
-        pending,
-        complete ? verified : { ...verified, verdicts: [] },
-      ),
-  });
-  if (!outcome || !task.result) return;
-  const judged = outcome.complete
-    ? applyVerdicts(pending, outcome.value.verdicts)
-    : pending;
-  const replaced = new Map(pending.map((f, i) => [f, judged[i] ?? f]));
-  task.result = {
-    ...task.result,
-    findings: task.result.findings.map((f) => replaced.get(f) ?? f),
-    limitations: [
-      ...notesOfOtherStage(task.result, "verify"),
-      ...outcome.value.limitations.map((l) => `${VERIFIER}${l}`),
-      ...(outcome.complete
-        ? []
-        : [
-            `${VERIFIER}worker lifecycle did not finish successfully; its verdicts were not applied.`,
-          ]),
-    ],
-  };
-  update(context, task);
-}
-
-function verifierRecord(
-  pending: readonly Finding[],
-  verified: VerifierResult,
-): WorkerResult {
-  const findings = applyVerdicts(pending, verified.verdicts);
-  const open = unverified(findings).length;
-  return {
-    aspect: verified.aspect,
-    status: verdictStatus(findings),
-    findings,
-    limitations: [
-      ...verified.limitations,
-      ...(open ? [`${open} candidate(s) without a valid verdict.`] : []),
-    ],
   };
 }
 

@@ -37,7 +37,7 @@ top-level `reason` that is null, empty or whitespace-only when the status does
 not require one; the persisted result is the strictly validated canonical form.
 A missing or empty `reason` for `not-applicable`, malformed JSON, a different
 aspect, unknown fields and every other schema violation remain `invalid-output`.
-A rejected attempt is retried (within `maxRetries`, same model) with the
+A rejected finder attempt is retried (within `maxRetries`, same model) with the
 validator's short message appended to the prompt; the raw payload is not echoed.
 
 Each unsupported candidate is rejected separately, with its one-based index and
@@ -75,17 +75,22 @@ attempt; their candidates are merged (exact duplicates kept once), their paths
 are unioned and their usage is summed. A finder status is `findings`,
 `no-findings`, `not-applicable` or `incomplete`.
 
-**Verify.** When the finder ends with candidates, one verifier session for that
-aspect receives all of its unverified candidates, numbered. It gets the task,
-the metadata of the cited paths, the patch reference and the rubric with its
-examples, never the finder's reasoning, and tries to refute each candidate. A
-verdict is `upheld`, with the action to take, or `refuted`, with a reason and
-optional quoted evidence. Evidence quotes are checked like any other quote; a
-verdict whose evidence quote fails is dropped. A candidate that has no valid
-verdict is `unverified`. Verdicts from a verifier session that did not finish
-cleanly (timeout, cleanup failure, cancellation or deadline) are not applied, so
-its candidates stay `unverified`. Verdicts are source judgments, not test or
-runtime evidence.
+**Verify.** After each finder round, candidates that passed literal source
+validation enter that aspect's queue. A batch starts at five queued candidates,
+or when the finder ends; a batch holds at most ten. Independent verifier
+sessions can overlap the finder and each other. Each receives its own numbered
+candidates, the task, the metadata of the cited paths, the patch reference and
+the rubric with its examples, never the finder's reasoning.
+
+A verdict is `upheld`, with an action, or `refuted`, with a reason and optional
+quoted evidence. Evidence quotes are checked like any other quote; a verdict
+whose evidence quote fails is dropped. Valid verdicts are applied even if the
+session later times out or fails to close cleanly. Only candidates without a
+valid verdict are retried, once, in batches at most half the original size
+(minimum one). Authentication, model, account/quota, permission, unsafe cleanup
+and run-stop failures do not cause blind retries. After that bounded recovery,
+a candidate still without a valid verdict remains `unverified`. Verdicts are
+source judgments, not test or runtime evidence.
 
 A stored finding therefore has a location, quote and title, a `verdict` of
 `upheld`, `refuted` or `unverified`, and, once verified, the action or reason and
@@ -288,27 +293,28 @@ establish account access or model availability.
 
 ## Execution and lifecycle outcomes
 
-All eighteen aspects run by default and start together. Each aspect holds at
-most one active session, its finder and then its verifier, so a run starts one
-finder per aspect and at most one verifier per aspect, plus retries. Without a
-cap a run allows as many simultaneous workers as selected aspects; `concurrency`
-lowers that. The owner admits one worker at a time until the first prompt has
+All eighteen aspects run by default. Each starts one finder session.
+Quote-checked candidates are verified in independent batches of at most ten,
+starting when five are queued or the finder ends. The default active-session
+cap is twice the selected aspect count, with at most that aspect count in
+verifier sessions at once. `concurrency` can lower the shared cap. The owner admits one worker at a time until the first prompt has
 been accepted by the model transport, not merely until a process or session is
 ready, or until 15 seconds have passed. It then fills the available slots. A
 pre-invocation failure advances to the next worker without releasing a
 still-cold fleet.
 
-Only missing/malformed results and finder idle timeouts without valid evidence
-receive up to `maxRetries` additional attempts. A worker stopped at its
-`workerTimeoutSeconds` ceiling is not retried, and neither is a verifier
-timeout; its candidates stay `unverified`. An attempt stops when its adapter is
+Only missing/malformed finder results and finder idle timeouts without valid evidence
+receive up to `maxRetries` additional attempts. A finder stopped at its
+`workerTimeoutSeconds` ceiling is not retried. A verifier batch has no inline
+retry; candidates still missing verdicts get the one smaller-batch recovery
+described above, including after a verifier timeout. An attempt stops when its adapter is
 idle for `workerIdleSeconds` or reaches `workerTimeoutSeconds`. Each uses a fresh session, the
 same assignment and exact model, and keeps its slot until cleanup finishes.
 Assistant output over 1,048,576 JavaScript string characters is discarded in
 full, including any earlier valid block. This bounded `output-limit` failure
 gets the same retry budget as missing/malformed output, never a larger buffer
 or unlimited retries. Output exactly at the limit remains eligible for validation.
-Valid incomplete results await explicit resume. Authentication, unavailable-model,
+Valid incomplete finder results await explicit resume. Authentication, unavailable-model,
 permission, account/quota/rate-limit and cleanup failures do not trigger blind
 retries or fallback. Rate-limit reports name the same run and suggest explicit
 resume with concurrency 1 after the selected account becomes available.

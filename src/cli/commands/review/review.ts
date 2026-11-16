@@ -41,7 +41,7 @@ export async function run(f: Factory, options: CommandOptions) {
     };
   const workers = run.tasks.filter((t) => t.promptHash !== null);
   f.io.error.write(
-    `run: ${run.id}; aspects: ${run.tasks.length}; finder sessions: ${workers.length}; verifier sessions: up to ${workers.length}; finders: ${identities(workers) || "coordinator-only"}; verifier: ${input.config.verifier.agent}/${input.config.verifier.model}; concurrency: ${input.config.concurrency}; deadline: ${new Date(run.deadline).toISOString()}\n`,
+    `run: ${run.id}; aspects: ${run.tasks.length}; finder sessions: ${workers.length}; verifier batches: up to 10 candidates each; finders: ${identities(workers) || "coordinator-only"}; verifier: ${input.config.verifier.agent}/${input.config.verifier.model}; concurrency: ${input.config.concurrency}; deadline: ${new Date(run.deadline).toISOString()}\n`,
   );
   const output = await waitFor(f, run, input.waitSeconds);
   return {

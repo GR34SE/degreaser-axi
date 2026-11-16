@@ -1,3 +1,4 @@
+import { DEFAULT_SESSIONS_PER_ASPECT } from "../../config/defaults.ts";
 import { resumable, terminalStatus } from "../../state/run.ts";
 import type { Runtime } from "../../util/exec/types.ts";
 import { loadResultSchemas } from "../ingest/parse.ts";
@@ -24,6 +25,8 @@ export async function ownRun(
   const control = ownerControl(runtime, run, execution, dir);
   const { abort, persist, fail } = control;
   const active = new Set<Promise<void>>();
+  const verifierSlots = slots(run.tasks.length);
+  verifierSlots.warm();
   const context: OwnerContext = {
     runtime,
     repository,
@@ -31,7 +34,10 @@ export async function ownRun(
     dir,
     startedAt: execution.startedAt,
     control,
-    slots: slots(execution.concurrency ?? run.tasks.length),
+    slots: slots(
+      execution.concurrency ?? DEFAULT_SESSIONS_PER_ASPECT * run.tasks.length,
+    ),
+    verifierSlots,
   };
   try {
     loadResultSchemas();
