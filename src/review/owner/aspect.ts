@@ -82,7 +82,13 @@ async function find(
   const outcome = await executeAttempt<FinderResult>(context, task, {
     stage: "find",
     identity: task.assignment,
-    prompt: assembleFinder(input, aspect, patchFile(context)),
+    prompt: () =>
+      assembleFinder(
+        input,
+        aspect,
+        patchFile(context),
+        remaining(context, task.result?.examinedPaths ?? []),
+      ),
     ingest: (output) => {
       const ingested = ingestFinder(runtime, output, aspect, input);
       rejections = [...rejections, ...ingested.rejections];
@@ -105,7 +111,7 @@ async function find(
       const left = remaining(context, task.result.examinedPaths ?? []);
       return {
         value,
-        ...(progress && left.length
+        ...(round.status !== "not-applicable" && progress && left.length
           ? { prompt: assembleFollowUp(input, left) }
           : {}),
       };
@@ -146,8 +152,10 @@ async function find(
   update(context, task);
 }
 
-const remaining = (context: OwnerContext, examined: readonly string[]) =>
-  context.input.paths.filter((p) => !examined.includes(p.path));
+const remaining = (context: OwnerContext, examined: readonly string[]) => {
+  const done = new Set(examined);
+  return context.input.paths.filter((path) => !done.has(path.path));
+};
 
 function gather(round: FinderResult, prior?: FinderResult): FinderResult {
   const merged = prior

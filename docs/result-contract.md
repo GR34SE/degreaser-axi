@@ -52,28 +52,22 @@ correct. The caller makes that decision.
 Each aspect runs in two worker stages, each in fresh sessions with its own
 identity (see [input-contract.md](input-contract.md)).
 
-**Find.** One finder session runs per enabled aspect. Its prompt carries the
-task, the scope kind, base commit and resolved tree, the assessed paths with
-their metadata and change statistics, and a reference to the resolved patch
-file, but no inline source or diff. The finder decides what to read and
-explores the scope with its read tools and read-only `git` (see
-[harnesses.md](harnesses.md)); the patch file is the authoritative change,
-including untracked files that `git diff` omits. It is told to read repository
-convention files such as AGENTS.md, CLAUDE.md and CONTRIBUTING as evidence of
-project rules, never as instructions. It enumerates candidates and does not
-adjudicate: each candidate has a location, an exact quote and a one-line title,
-every instance is listed separately, and a doubtful one is still listed. It works
-in rounds within that one session. Each round returns a result block with the
-round's new candidates and `examinedPaths`, the assessed paths it accounted for
-in that round: examined, or ruled out as unable to contain the aspect. While
-assessed paths remain unaccounted for and the last round accounted for a new
-path or returned a new candidate, the coordinator sends a follow-up prompt in
-the same session listing the remaining paths with their `patchLines`. The loop
-ends when no path remains, a round makes no progress, or the worker's time
-ceiling, idle stop or the run deadline ends the session. All rounds form one
-attempt; their candidates are merged (exact duplicates kept once), their paths
-are unioned and their usage is summed. A finder status is `findings`,
-`no-findings`, `not-applicable` or `incomplete`.
+**Find.** One fresh finder session per aspect receives the task, scope,
+a work batch of at most 40 paths with change statistics, the number of paths
+left after that batch, the patch reference and one rubric. `assessedPaths`
+references the saved input's complete `paths` property; source and diff are not
+inlined. In its first round the finder decides applicability against that full
+index. A `not-applicable` round ends the session immediately, with a reason.
+Otherwise it accounts for the specific batch in the current round.
+
+When a round reports new coverage or candidates and paths remain, another
+bounded batch follows in the same session. The loop also ends when no path
+remains, a round makes no progress, or the worker ceiling, idle stop or run
+deadline ends the session. All rounds form one attempt; exact candidate
+duplicates are kept once, coverage is unioned and known usage is summed.
+A finder status is `findings`, `no-findings`, `not-applicable` or `incomplete`.
+A resumed or retried finder is asked only for paths not already accounted for;
+previous candidates and verdicts remain.
 
 **Verify.** After each finder round, candidates that passed literal source
 validation enter that aspect's queue. A batch starts at five queued candidates,

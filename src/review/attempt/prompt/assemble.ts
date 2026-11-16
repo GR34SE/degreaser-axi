@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { encode } from "@toon-format/toon";
 import type { AspectId } from "../../../modules/aspect/api.ts";
 import { ASPECTS } from "../../../modules/aspect/api.ts";
@@ -8,6 +9,7 @@ import { patchSectionOwners } from "../../prepare/scope/diff.ts";
 import type { ReviewInput } from "../../types.ts";
 
 type PathRecord = ReviewInput["paths"][number];
+const FINDER_BATCH_SIZE = 40;
 
 const assets = new Map<string, string>();
 const asset = (path: string | URL) => {
@@ -121,7 +123,9 @@ export function assembleFinder(
   input: ReviewInput,
   aspect: AspectId,
   patchFile: string,
+  workPaths: readonly PathRecord[] = input.paths,
 ) {
+  const batch = workPaths.slice(0, FINDER_BATCH_SIZE);
   const index = input.patch === null ? null : patchIndex(input.patch, input);
   const evidence = {
     task: input.task,
@@ -129,7 +133,14 @@ export function assembleFinder(
     base: input.base,
     tree: input.tree,
     patch: patchReference(input, patchFile, index),
-    paths: input.paths.map((p) => ({
+    assessedPaths: {
+      file: join(dirname(patchFile), "review.json"),
+      property: "paths",
+      count: input.paths.length,
+    },
+    previouslyExaminedPaths: input.paths.length - workPaths.length,
+    remainingPaths: workPaths.length - batch.length,
+    paths: batch.map((p) => ({
       ...metadata(p),
       ...(index ? changeStats(index, p.path) : {}),
     })),
@@ -152,13 +163,17 @@ export function assembleFollowUp(
   remaining: readonly PathRecord[],
 ) {
   const index = input.patch === null ? null : patchIndex(input.patch, input);
-  const paths = remaining.map((p) => ({
+  const paths = remaining.slice(0, FINDER_BATCH_SIZE).map((p) => ({
     path: p.path,
     ...(index ? { patchLines: index.ranges.get(p.path) ?? null } : {}),
   }));
-  return [asset(FOLLOW_UP), fenced("degreaser-input", encode({ paths }))].join(
-    "\n\n",
-  );
+  return [
+    asset(FOLLOW_UP),
+    fenced(
+      "degreaser-input",
+      encode({ paths, remainingPaths: remaining.length - paths.length }),
+    ),
+  ].join("\n\n");
 }
 
 export function assembleVerifier(

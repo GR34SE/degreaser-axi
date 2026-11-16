@@ -101,12 +101,13 @@ async function verifyBatch(
     stage: "verify",
     retries: 0,
     identity: verifier,
-    prompt: assembleVerifier(
-      input,
-      aspect,
-      join(context.dir, "input", "patch.diff"),
-      pending,
-    ),
+    prompt: () =>
+      assembleVerifier(
+        input,
+        aspect,
+        join(context.dir, "input", "patch.diff"),
+        pending,
+      ),
     ingest: (output) => ({
       value: ingestVerifier(runtime, output, aspect, input, pending.length),
     }),

@@ -18,7 +18,7 @@ cd degreaser-axi
 pnpm install --frozen-lockfile --ignore-scripts
 pnpm build
 pnpm pack --pack-destination /tmp
-pnpm add --global /tmp/degreaser-axi-1.0.0.tgz
+pnpm add --global "/tmp/degreaser-axi-$(node -p 'require("./package.json").version').tgz"
 ```
 
 The archive installation is independent of later checkout builds. `degreaser-axi version` shows its build commit.

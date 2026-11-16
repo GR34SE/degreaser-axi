@@ -18,7 +18,7 @@ interface AttemptSpec<T> {
   stage: "find" | "verify";
   retries?: number;
   identity: Identity;
-  prompt: string;
+  prompt: () => string;
   ingest: (output: string) => { value: T; rejections?: Rejection[] };
   record: (value: T, complete: boolean) => WorkerResult;
   follow?: (round: T, prior: T | undefined) => { value: T; prompt?: string };
@@ -50,7 +50,7 @@ export async function executeAttempt<T>(
   cleanupFailed: boolean;
 }> {
   const { stopped } = context.control;
-  let prompt = spec.prompt;
+  let prompt = spec.prompt();
   const empty = () => ({
     value: null,
     complete: false,
@@ -79,7 +79,7 @@ export async function executeAttempt<T>(
           failure: outcome.failure,
           cleanupFailed: outcome.cleanupFailed,
         };
-      if (outcome.retryPrompt) prompt = outcome.retryPrompt;
+      prompt = outcome.retryPrompt ?? spec.prompt();
     }
     return empty();
   } finally {
@@ -242,7 +242,7 @@ async function runOnce<T>(
   } catch (error) {
     const runStopped = stopped();
     if (error instanceof ResultError && !error.failure)
-      retryPrompt = `${spec.prompt}\n\nYour previous final result block was rejected: ${error.message.slice(0, 500)}\nReturn a corrected block that follows the response contract exactly. Do not invent evidence to satisfy the format.`;
+      retryPrompt = `${spec.prompt()}\n\nYour previous final result block was rejected: ${error.message.slice(0, 500)}\nReturn a corrected block that follows the response contract exactly. Do not invent evidence to satisfy the format.`;
     const failure =
       error instanceof ResultError
         ? (error.failure ?? "invalid-output")
