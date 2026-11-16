@@ -32,7 +32,7 @@ export async function ownRun(
     repository,
     input,
     dir,
-    startedAt: execution.startedAt,
+    execution,
     control,
     slots: slots(
       execution.concurrency ?? DEFAULT_SESSIONS_PER_ASPECT * run.tasks.length,

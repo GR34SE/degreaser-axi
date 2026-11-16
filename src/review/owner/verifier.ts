@@ -7,6 +7,7 @@ import { applyVerdicts, verdictStatus } from "../ingest/merge.ts";
 import type { Finding, VerifierResult, WorkerResult } from "../ingest/types.ts";
 import { ingestVerifier } from "../ingest/verify-quotes.ts";
 import type { OwnerContext } from "./context.ts";
+import { backOffThrottle } from "./throttle.ts";
 
 export const VERIFIER = "Verifier: ";
 const MIN_BATCH = 5;
@@ -41,9 +42,10 @@ export function verification(
       !outcome.pending.length ||
       outcome.cleanupFailed ||
       context.control.stopped() ||
-      PERMANENT_FAILURES.has(outcome.failure ?? "")
+      (PERMANENT_FAILURES.has(outcome.failure ?? "") && !outcome.throttled)
     )
       return;
+    if (outcome.throttled && !(await backOffThrottle(context, task))) return;
     const size = Math.max(1, Math.floor(batch.length / 2));
     task.limitations.push(
       `${VERIFIER}Retrying ${outcome.pending.length} candidate(s) without a verdict once, in batches of at most ${size}.`,
@@ -99,7 +101,6 @@ async function verifyBatch(
   const verifier: Assignment = { ...input.config.verifier, aspect };
   const outcome = await executeAttempt<VerifierResult>(context, task, {
     stage: "verify",
-    retries: 0,
     identity: verifier,
     prompt: () =>
       assembleVerifier(
@@ -143,6 +144,7 @@ async function verifyBatch(
     pending: unverified(judged),
     failure: outcome.failure,
     cleanupFailed: outcome.cleanupFailed,
+    throttled: outcome.throttled,
   };
 }
 

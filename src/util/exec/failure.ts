@@ -117,3 +117,43 @@ export function executionFailure(error: unknown): ExecutionFailure {
     return "network";
   return "runtime";
 }
+
+export function rateLimitRetryable(error: unknown): boolean | undefined {
+  const chain = causeChain(error);
+  const codes = chain
+    .flatMap((record) => [record.code, record.detailCode])
+    .filter((code): code is string => typeof code === "string")
+    .map((code) => code.toUpperCase());
+  const message = chain
+    .flatMap((record) =>
+      typeof record.message === "string" ? [record.message] : [],
+    )
+    .join("\n");
+  if (
+    codes.some((code) =>
+      [
+        "QUOTA_EXCEEDED",
+        "INSUFFICIENT_QUOTA",
+        "ACCOUNT_LIMIT_EXCEEDED",
+      ].includes(code),
+    ) ||
+    /\b(?:quota[ _-](?:exceeded|exhausted|limit)|insufficient[ _]quota|(?:account|usage) (?:usage )?limit|billing|credits? exhausted)\b/i.test(
+      message,
+    )
+  )
+    return false;
+  const explicit = chain
+    .map((record) => record.retryable)
+    .find((value): value is boolean => typeof value === "boolean");
+  if (explicit !== undefined) return explicit;
+  if (
+    codes.some(
+      (code) => code === "RATE_LIMITED" || code === "RATE_LIMIT_EXCEEDED",
+    ) ||
+    /\b(?:rate[ _-]?limit|too many requests|throttl)[^\n]*(?:retry|try again|temporar)/i.test(
+      message,
+    )
+  )
+    return true;
+  return undefined;
+}

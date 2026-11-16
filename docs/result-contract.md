@@ -309,8 +309,14 @@ full, including any earlier valid block. This bounded `output-limit` failure
 gets the same retry budget as missing/malformed output, never a larger buffer
 or unlimited retries. Output exactly at the limit remains eligible for validation.
 Valid incomplete finder results await explicit resume. Authentication, unavailable-model,
-permission, account/quota/rate-limit and cleanup failures do not trigger blind
-retries or fallback. Rate-limit reports name the same run and suggest explicit
+permission, account/quota and cleanup failures do not trigger blind
+retries or fallback. An explicitly transient rate limit gets one recovery
+after a 2-second pause, without changing identity. The shared session cap is
+halved once per owner execution (minimum one), recorded in that execution,
+and existing sessions finish before a retry can exceed the reduced cap.
+Finder recovery stays within `maxRetries`; verifier recovery uses its existing
+one smaller-batch attempt. Explicit quota codes override a retryable hint; an
+opaque HTTP 429 alone is not evidence of transient throttling. Rate-limit reports name the same run and suggest explicit
 resume with concurrency 1 after the selected account becomes available.
 Disabled or suspended accounts are `account-disabled`, not transient quota:
 restore access to the selected account with its provider before resuming.

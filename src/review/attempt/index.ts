@@ -1,22 +1,19 @@
 import type { Identity } from "../../config/types.ts";
 import { nativeProfile } from "../../modules/harness/common/profile.ts";
-import {
-  failureDiagnostic,
-  recoveryFor,
-} from "../../review/attempt/failure.ts";
+import { failureDiagnostic } from "../../review/attempt/failure.ts";
 import { type RunTask, sumUsage } from "../../state/run.ts";
 import { errorSummary } from "../../util/error-summary.ts";
 import { ResultError } from "../../util/errors.ts";
 import { executionFailure } from "../../util/exec/failure.ts";
 import type { Rejection, WorkerResult } from "../ingest/types.ts";
 import type { OwnerContext } from "../owner/context.ts";
+import { backOffThrottle } from "../owner/throttle.ts";
 import { executeWorker } from "./session.ts";
 
 type Attempt = RunTask["attempts"][number];
 
 interface AttemptSpec<T> {
   stage: "find" | "verify";
-  retries?: number;
   identity: Identity;
   prompt: () => string;
   ingest: (output: string) => { value: T; rejections?: Rejection[] };
@@ -24,10 +21,7 @@ interface AttemptSpec<T> {
   follow?: (round: T, prior: T | undefined) => { value: T; prompt?: string };
 }
 
-const RETRIED = {
-  find: ["invalid-output", "output-limit", "timeout"],
-  verify: ["invalid-output", "output-limit"],
-};
+const RETRIED = ["invalid-output", "output-limit", "timeout"];
 
 const usageOf = (usage: Record<string, unknown> | null) => {
   const entries = Object.entries(usage ?? {}).filter(
@@ -48,6 +42,7 @@ export async function executeAttempt<T>(
   complete: boolean;
   failure: string | null;
   cleanupFailed: boolean;
+  throttled: boolean;
 }> {
   const { stopped } = context.control;
   let prompt = spec.prompt();
@@ -56,6 +51,7 @@ export async function executeAttempt<T>(
     complete: false,
     failure: context.control.stopReason,
     cleanupFailed: false,
+    throttled: false,
   });
   if (stopped()) return empty();
   const releaseStage =
@@ -63,11 +59,29 @@ export async function executeAttempt<T>(
   let release: (() => void) | undefined;
   try {
     release = await context.slots.acquire();
-    const retries = spec.retries ?? context.input.config.maxRetries;
+    const retries = spec.stage === "find" ? context.input.config.maxRetries : 0;
+    let retriedThrottle = false;
     for (let attempt = 0; attempt <= retries; attempt++) {
       if (stopped()) return empty();
       const outcome = await runOnce(context, task, spec, prompt);
       const last = attempt === retries;
+      if (
+        spec.stage === "find" &&
+        outcome.throttled &&
+        !retriedThrottle &&
+        !last &&
+        !outcome.cleanupFailed &&
+        !stopped()
+      ) {
+        retriedThrottle = true;
+        const backoff = backOffThrottle(context, task);
+        release();
+        release = undefined;
+        if (!(await backoff)) return empty();
+        release = await context.slots.acquire();
+        prompt = spec.prompt();
+        continue;
+      }
       if (outcome.received || outcome.final || last)
         task.limitations = [
           ...new Set([...task.limitations, ...outcome.errors]),
@@ -78,6 +92,7 @@ export async function executeAttempt<T>(
           complete: outcome.received?.complete ?? false,
           failure: outcome.failure,
           cleanupFailed: outcome.cleanupFailed,
+          throttled: outcome.throttled,
         };
       prompt = outcome.retryPrompt ?? spec.prompt();
     }
@@ -203,7 +218,7 @@ async function runOnce<T>(
             nativeStop,
             "run",
           )
-        : { ...outcome.diagnostic, recovery: recoveryFor(record.failure) };
+        : outcome.diagnostic;
     limitations.push(...outcome.limitations);
     record.usage = usageOf(outcome.usage as Record<string, unknown> | null);
     if (rounds) record.rounds = rounds;
@@ -293,6 +308,9 @@ async function runOnce<T>(
   return {
     failure: record.failure,
     cleanupFailed,
+    throttled:
+      record.failure === "rate-limited" &&
+      record.diagnostic?.retryable === true,
     received,
     retryPrompt,
     errors,
@@ -300,6 +318,6 @@ async function runOnce<T>(
       cleanupFailed ||
       stopped() ||
       record.diagnostic?.stop === "ceiling" ||
-      !RETRIED[spec.stage].includes(record.failure ?? ""),
+      !RETRIED.includes(record.failure ?? ""),
   };
 }

@@ -79,6 +79,17 @@ async function find(
   const { runtime, input } = context;
   const aspect = task.assignment.aspect;
   let rejections: Rejection[] = [];
+  const checkpoint = (value: FinderResult) => {
+    const prior = task.result ?? emptyResult(aspect);
+    task.result = mergeFinder(
+      { ...prior, limitations: notesOfOtherStage(prior, "find") },
+      value,
+    );
+    task.rejections = rejections;
+    update(context, task);
+    candidatesReady();
+    return task.result;
+  };
   const outcome = await executeAttempt<FinderResult>(context, task, {
     stage: "find",
     identity: task.assignment,
@@ -94,21 +105,17 @@ async function find(
       rejections = [...rejections, ...ingested.rejections];
       return { value: ingested.result, rejections: ingested.rejections };
     },
-    record: finderRecord,
+    record: (value, complete) => {
+      checkpoint(value);
+      return finderRecord(value, complete);
+    },
     follow: (round, prior) => {
       const value = gather(round, prior);
       const progress =
         value.examinedPaths.length > (prior?.examinedPaths.length ?? 0) ||
         value.findings.length > (prior?.findings.length ?? 0);
-      const priorResult = task.result ?? emptyResult(aspect);
-      task.result = mergeFinder(
-        { ...priorResult, limitations: notesOfOtherStage(priorResult, "find") },
-        value,
-      );
-      task.rejections = rejections;
-      update(context, task);
-      candidatesReady();
-      const left = remaining(context, task.result.examinedPaths ?? []);
+      const current = checkpoint(value);
+      const left = remaining(context, current.examinedPaths ?? []);
       return {
         value,
         ...(round.status !== "not-applicable" && progress && left.length
@@ -203,9 +210,9 @@ function update(context: OwnerContext, task: RunTask) {
 }
 
 function unresolvedCause(context: OwnerContext, task: RunTask) {
-  const { control, startedAt } = context;
+  const { control, execution } = context;
   if (control.stopped()) return control.stopReason;
-  return openFailure(task, startedAt)?.failure ?? "incomplete";
+  return openFailure(task, execution.startedAt)?.failure ?? "incomplete";
 }
 
 function finish(context: OwnerContext, task: RunTask) {
