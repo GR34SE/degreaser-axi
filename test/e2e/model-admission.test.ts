@@ -207,7 +207,10 @@ test("public unsupported verifier model refuses as invalid input before any run 
   const result = f.run();
   assert.equal(result.status, 2, result.stdout);
   assert.match(result.stdout, /code: invalid-input/);
-  assert.match(result.stdout, /verifier.*neither an advertised model ID/);
+  assert.match(
+    result.stdout,
+    /codex\/withdrawn-verifier is neither an advertised codex model ID/,
+  );
   assert.ok(!existsSync(join(f.root, ".degreaser")));
   assert.deepEqual(readFileSync(join(f.root, ".degreaserrc.json")), rc);
   assert.ok(
