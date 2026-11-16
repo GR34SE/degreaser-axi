@@ -6,7 +6,6 @@ import test from "node:test";
 import { resolveConfig } from "../../../test/utils/config.ts";
 import { fixture } from "../../../test/utils/git-fixture.ts";
 import { prepareReview } from "../../../test/utils/input.ts";
-import { assertSupportedModels } from "../../config/resolve.ts";
 
 const all = [
   "unnecessary-complexity",
@@ -257,25 +256,5 @@ test("selection narrows all seventeen defaults without re-enabling disabled aspe
         aspects: { "missed-reuse": { model: "wrong" } },
       }),
     /provider/,
-  );
-  assertSupportedModels(config, [
-    { agent: "codex", model: "exact-codex-id" },
-    { agent: "claude", model: "claude-haiku-4-5-20251001" },
-    { agent: "pi", model: "openai/gpt-6-luna" },
-  ]);
-  assert.throws(
-    () =>
-      assertSupportedModels(config, [
-        { agent: "codex", model: "exact-codex-id" },
-      ]),
-    /verification-theater.*not available/,
-  );
-  assert.throws(
-    () =>
-      assertSupportedModels(
-        resolveConfig({ agent: "claude", model: "gpt-6-luna" }),
-        [{ agent: "codex", model: "gpt-6-luna" }],
-      ),
-    /not available/,
   );
 });

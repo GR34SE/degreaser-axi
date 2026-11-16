@@ -1,4 +1,4 @@
-import { assertSupportedModels } from "../config/resolve.ts";
+import { unsupportedModel } from "../config/resolve.ts";
 import type { Assignment } from "../config/types.ts";
 import { assertNotWorker } from "../modules/harness/common/isolation.ts";
 import {
@@ -33,18 +33,17 @@ export async function startReview(runtime: Runtime, input: ReviewInput) {
       Math.min(120_000, input.config.limits.workerTimeoutSeconds * 1000),
     );
     if (models.versionNotice) versionNotices.add(models.versionNotice);
-    const selected = modelChoices(
-      assignment.agent,
-      models.availableModelIds,
-    ).find((choice) => choice.model === assignment.model);
-    const resolved = selected?.resolvedModel ?? assignment.model;
-    assertSupportedModels(
-      { assignments: [{ ...assignment, model: resolved }] },
-      models.availableModelIds.map((model) => ({
-        agent: assignment.agent,
-        model,
-      })),
-    );
+    const choices = modelChoices(assignment.agent, models.availableModelIds);
+    const resolved =
+      choices.find((choice) => choice.model === assignment.model)
+        ?.resolvedModel ?? assignment.model;
+    if (!models.availableModelIds.includes(resolved))
+      throw unsupportedModel(assignment, [
+        ...new Set([
+          ...choices.map((choice) => choice.model),
+          ...models.availableModelIds,
+        ]),
+      ]);
     selections.set(key, resolved);
   }
   const pin = (assignment: Assignment): Assignment => {

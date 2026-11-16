@@ -126,7 +126,7 @@ for (const override of [false, true]) {
     assert.match(result.stdout, /code: invalid-input/);
     assert.match(
       result.stdout,
-      /low-value-comments.*pi.*neither an advertised model ID/,
+      /pi\/\S+ is neither an advertised pi model ID.*Available pi models: \S/,
     );
     assert.ok(!existsSync(join(f.root, ".degreaser")));
     assert.ok(

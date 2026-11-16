@@ -98,7 +98,7 @@ for (const override of [false, true]) {
     assert.match(result.stdout, /code: invalid-input/);
     assert.match(
       result.stdout,
-      /low-value-comments.*claude.*neither an advertised model ID/,
+      /claude\/gpt-6-luna is neither an advertised claude model ID.*Available claude models: \S/,
     );
     assert.ok(!existsSync(join(f.root, ".degreaser")));
     assert.deepEqual(readFileSync(join(f.root, ".degreaserrc.json")), rc);

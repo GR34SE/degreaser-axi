@@ -67,19 +67,11 @@ export function resolveConfig(
   };
 }
 
-export function assertSupportedModels(
-  config: Pick<EffectiveConfig, "assignments">,
-  available: readonly Identity[],
-): void {
-  for (const { aspect, agent, model } of config.assignments) {
-    if (
-      !available.some(
-        (candidate) => candidate.agent === agent && candidate.model === model,
-      )
-    ) {
-      throw new InputError(
-        `${aspect}: selected ${agent} model is not available: it is neither an advertised model ID nor a latest selector with an advertised family. No substitute was selected.`,
-      );
-    }
-  }
+export function unsupportedModel(
+  { agent, model }: Identity,
+  available: readonly string[],
+) {
+  return new InputError(
+    `${agent}/${model} is neither an advertised ${agent} model ID nor a latest selector with an advertised family. No substitute was selected. Available ${agent} models: ${available.join(", ") || "none"}.`,
+  );
 }
