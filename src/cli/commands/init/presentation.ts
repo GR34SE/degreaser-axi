@@ -41,7 +41,9 @@ function suggestedVerifier(
   requested: Requested,
   worker: Identity | null,
 ) {
-  const explicit = resolvedVerifier(requested);
+  const explicit =
+    (requested.verifierAgent || requested.verifierModel) &&
+    resolvedVerifier(requested);
   if (explicit) return explicit;
   const owner = requested.verifierAgent ?? requested.agent ?? worker?.agent;
   const matches = (candidate: Identity) =>
