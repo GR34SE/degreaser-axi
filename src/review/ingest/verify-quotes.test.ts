@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { rmSync, symlinkSync } from "node:fs";
+import { symlinkSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 import { fixture as gitFixture } from "../../../test/utils/git-fixture.ts";
@@ -215,7 +215,7 @@ test("symlink quotes validate against the link blob", (t) => {
   symlinkSync("old-target", join(f.root, "moved link"));
   f.git("add", ".");
   f.git("commit", "-m", "Links");
-  rmSync(join(f.root, "moved link"));
+  unlinkSync(join(f.root, "moved link"));
   symlinkSync("new-target", join(f.root, "moved link"));
   symlinkSync("does-not-exist", join(f.root, "dangling"));
   symlinkSync("/etc/hosts", join(f.root, "naïve external"));

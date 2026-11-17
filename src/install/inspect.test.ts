@@ -7,6 +7,7 @@ import {
   realpathSync,
   rmSync,
   symlinkSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -177,7 +178,7 @@ test("linked Claude skills retain ownership and diagnose changed or missing link
   writeFileSync(shared, content);
   const directory = dirname(linked);
   const target = readlinkSync(directory);
-  rmSync(directory);
+  unlinkSync(directory);
   writeFileSync(directory, "foreign file");
   assert.equal(status(), "modified");
   assert.equal(readFileSync(directory, "utf8"), "foreign file");
