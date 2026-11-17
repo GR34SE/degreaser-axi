@@ -123,9 +123,9 @@ Established findings are kept when an aspect is incomplete.
 
 Assignment evidence is TOON inside a tag whose suffix is derived from the
 evidence digest, so embedded text cannot close the block. A change scope also
-writes the raw unified diff to `input/patch.diff`, and each assessed path carries
-`patchLines`, its section's line range there, so workers can read the change in
-slices. `input/patch.json` keeps the exact patch as a JSON string for resume
+writes the raw unified diff to `input/patch.diff`, and each path listed in an
+assignment carries `patchLines`, its section's line range there, so workers can
+read the change in slices. `input/patch.json` keeps the exact patch as a JSON string for resume
 integrity. The prompt hash binds both stages' instructions, response contracts and
 schemas plus the rubric.
 
@@ -379,8 +379,9 @@ starts a new budget. Expired original budgets are not silently renewed.
 
 Resolved tasks without `unverified` findings are never replayed. Resume reruns
 the finder of each pending, interrupted, failed, cancelled or incomplete aspect
-whose finder did not finish, and sends every `unverified` finding to a new
-verifier session, including those of resolved aspects. A finder that had
+whose finder did not finish, and sends every `unverified` finding to new
+verifier sessions in batches of at most ten, including those of resolved
+aspects. A finder that had
 finished before an unexpected aspect error is not rerun. Candidates and upheld
 and refuted verdicts are kept, a rerun finder's duplicate candidates are kept
 once, and a verdict is never replayed. A finder that continues saved coverage
