@@ -2,6 +2,7 @@ import { join } from "node:path";
 import { captureOwner } from "../../state/ownership.ts";
 import type { Run } from "../../state/run.ts";
 import { saveRun } from "../../state/store.ts";
+import { errorSummary } from "../../util/error-summary.ts";
 import { StateError } from "../../util/errors.ts";
 import type { Runtime } from "../../util/exec/types.ts";
 
@@ -65,7 +66,7 @@ export function ownerControl(
     fatalError ??=
       error instanceof StateError
         ? error
-        : new StateError("owner-failed", message);
+        : new StateError("owner-failed", `${message} ${errorSummary(error)}`);
     stopReason = fatalError.code;
     stop();
     return fatalError;

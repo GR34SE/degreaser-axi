@@ -25,7 +25,8 @@ export function renderReport(run: Run, context: ReportContext, full = false) {
   const canResume =
     (status !== "completed" || run.tasks.some(resumable)) &&
     !unverifiedOwner &&
-    failure?.code !== "input-changed";
+    failure?.code !== "input-changed" &&
+    !run.tasks.some((task) => task.unresolved?.cause === "input-changed");
   const all = findings(run);
   const counts = verdictCounts(run.tasks);
   const hidden = counts.refuted;

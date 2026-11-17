@@ -14,6 +14,7 @@ import { observeRun } from "../../../state/status.ts";
 import { loadInput, loadLatestRun, loadRun } from "../../../state/store.ts";
 import { StateError } from "../../../util/errors.ts";
 import type { Factory } from "../../factory.ts";
+import { progressFor } from "./progress.ts";
 
 export const identities = (tasks: RunTask[]) =>
   [
@@ -59,12 +60,14 @@ export function reportContext(f: Factory, snapshot: Run) {
 const STOP_GRACE_MS = 60_000;
 
 export async function waitFor(f: Factory, run: Run, seconds: number | null) {
+  const progress = progressFor(f, run);
   const limit =
     seconds === null ? Number.POSITIVE_INFINITY : f.now() + seconds * 1000;
   const end = () => Math.min(limit, run.deadline + STOP_GRACE_MS);
   while (observeRun(run).status === "running" && f.now() < end()) {
     await setTimeout(Math.min(100, end() - f.now()));
     run = loadRun(run.repository, run.id);
+    progress(run);
   }
   const observed = reportContext(f, run);
   return renderReport(observed.run, observed.context);

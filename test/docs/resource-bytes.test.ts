@@ -40,7 +40,7 @@ test("distribution carries the current rubric bytes without transformation", () 
   }
 });
 
-test("generated product skill retains the independently recorded original bytes", () => {
+test("generated product skill matches the approved guidance snapshot", () => {
   const original = readFileSync(
     new URL("../fixtures/skill-baseline.md", import.meta.url),
     "utf8",

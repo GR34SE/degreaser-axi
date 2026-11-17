@@ -2,6 +2,7 @@ import {
   causeChain,
   type ExecutionFailure,
   executionCodes,
+  rateLimitRetryable,
 } from "../../util/exec/failure.ts";
 
 export type WorkerFailure = ExecutionFailure | "cleanup" | "output-limit";
@@ -106,13 +107,19 @@ export function failureDiagnostic(
   };
   const code = pick("code");
   const detailCode = pick("detailCode");
-  const retryable = chain
-    .map((record) => record.retryable)
-    .find((value): value is boolean => typeof value === "boolean");
+  const retryable =
+    failure === "rate-limited" && !stop
+      ? rateLimitRetryable(error)
+      : chain
+          .map((record) => record.retryable)
+          .find((value): value is boolean => typeof value === "boolean");
   const reason = safeStopReason(stopReason);
   return {
     stage,
-    recovery: recoveryFor(failure),
+    recovery:
+      failure === "rate-limited" && retryable === true
+        ? "retry-later"
+        : recoveryFor(failure),
     ...(stop ? { stop } : {}),
     ...(code ? { code } : {}),
     ...(detailCode ? { detailCode } : {}),

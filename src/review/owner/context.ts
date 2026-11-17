@@ -1,3 +1,4 @@
+import type { Run } from "../../state/run.ts";
 import type { Runtime } from "../../util/exec/types.ts";
 import type { ReviewInput } from "../types.ts";
 import type { OwnerControl } from "./signals.ts";
@@ -8,7 +9,8 @@ export interface OwnerContext {
   repository: string;
   input: ReviewInput;
   dir: string;
-  startedAt: number;
+  execution: NonNullable<Run["executions"]>[number];
   control: OwnerControl;
   slots: Slots;
+  verifierSlots: Slots;
 }

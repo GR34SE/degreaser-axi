@@ -1,5 +1,7 @@
+import { DEFAULT_SESSIONS_PER_ASPECT } from "../../config/defaults.ts";
 import { resumable, terminalStatus } from "../../state/run.ts";
 import type { Runtime } from "../../util/exec/types.ts";
+import { loadResultSchemas } from "../ingest/parse.ts";
 import type { ResumeControls } from "../types.ts";
 import { admitRun } from "./admission.ts";
 import { reviewAspect } from "./aspect.ts";
@@ -23,19 +25,25 @@ export async function ownRun(
   const control = ownerControl(runtime, run, execution, dir);
   const { abort, persist, fail } = control;
   const active = new Set<Promise<void>>();
+  const tasks = run.tasks.filter(resumable);
+  const verifierSlots = slots(tasks.length);
+  verifierSlots.warm();
+  const fleet = DEFAULT_SESSIONS_PER_ASPECT * tasks.length;
   const context: OwnerContext = {
     runtime,
     repository,
     input,
     dir,
-    startedAt: execution.startedAt,
+    execution,
     control,
-    slots: slots(execution.concurrency ?? run.tasks.length),
+    slots: slots(Math.min(execution.concurrency ?? fleet, fleet)),
+    verifierSlots,
   };
   try {
+    loadResultSchemas();
     ready();
     await Promise.all(
-      run.tasks.filter(resumable).map((task) => {
+      tasks.map((task) => {
         const promise = reviewAspect(context, task)
           .catch((error: unknown) => {
             fail(

@@ -7,6 +7,7 @@ import {
   rmdirSync,
   rmSync,
   symlinkSync,
+  unlinkSync,
 } from "node:fs";
 import { dirname, join, parse } from "node:path";
 import { IntegrationConflict, StateError } from "../util/errors.ts";
@@ -109,7 +110,7 @@ export class IntegrationEdits {
     const setLink = (path: string, target: string | null) => {
       const current = readIntegrationLink(path);
       if (current === "") rmdirSync(path);
-      else if (current !== null) rmSync(path);
+      else if (current !== null) unlinkSync(path);
       if (target === "") mkdirSync(path, { recursive: true });
       else if (target !== null) {
         mkdirSync(dirname(path), { recursive: true });

@@ -4,6 +4,11 @@ import { ResultError } from "../../util/errors.ts";
 import { schema, schemaErrors } from "../../util/schema.ts";
 import type { FinderResult, Quoted, VerifierResult } from "./types.ts";
 
+export function loadResultSchemas() {
+  schema(new URL("./find.schema.json", import.meta.url));
+  schema(new URL("./verify.schema.json", import.meta.url));
+}
+
 function resultBlock(text: string): unknown {
   const open = "<degreaser-result>",
     close = "</degreaser-result>";

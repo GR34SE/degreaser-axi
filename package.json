@@ -13,7 +13,8 @@
     "url": "https://github.com/GR34SE/degreaser-axi/issues"
   },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "directory": ".degreaser-build/current"
   },
   "type": "module",
   "engines": {

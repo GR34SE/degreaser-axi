@@ -36,7 +36,7 @@ test("public configuration is strict, root-local and rejects finite invalid valu
     0,
   );
   assert.equal(f.input().task, "First line\nSecond line\n");
-  assert.equal(f.input().config.concurrency, 1);
+  assert.equal(f.input().config.concurrency, 2);
   assert.equal(f.input().waitSeconds, null);
   const runs = readdirSync(join(f.root, ".degreaser/runs")),
     count = f.events().length;

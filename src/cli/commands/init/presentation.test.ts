@@ -32,10 +32,11 @@ const decide = (
     help: string[];
   };
 
-test("an unconfirmed verifier is a missing decision, prefilled with the strongest model", () => {
+test("an explicit verifier agent without a model remains a missing decision", () => {
   const result = decide({
     agent: "claude",
     model: "sonnet",
+    verifierAgent: "claude",
     harnesses: ["claude"],
   });
   assert.deepEqual(result.missing, ["verifier-model"]);
@@ -66,10 +67,28 @@ test("a previous verifier is prefill and a different verifier agent is named in 
   assert.deepEqual(result.missing, ["harnesses"]);
 });
 
+test("a finder choice without verifier flags keeps the separate-verifier suggestion", () => {
+  const finder = { agent: "claude" as const, model: "sonnet" };
+  const fresh = decide(finder);
+  assert.deepEqual(fresh.missing, ["harnesses"]);
+  assert.deepEqual(fresh.verifierPrefill, { agent: "claude", model: "opus" });
+  assert.match(
+    fresh.help[0] ?? "",
+    /--agent claude --model 'sonnet' --verifier-model 'opus' --harnesses /,
+  );
+  assert.deepEqual(
+    decide(finder, { ...finder, verifier: { model: "haiku" } }).verifierPrefill,
+    { agent: "claude", model: "haiku" },
+  );
+  assert.deepEqual(
+    decide(
+      { ...finder, verifierModel: "haiku" },
+      { ...finder, verifier: { model: "opus" } },
+    ).verifierPrefill,
+    { agent: "claude", model: "haiku" },
+  );
+});
+
 test("everything missing is reported together", () => {
-  assert.deepEqual(decide({}).missing, [
-    "model",
-    "verifier-model",
-    "harnesses",
-  ]);
+  assert.deepEqual(decide({}).missing, ["model", "harnesses"]);
 });

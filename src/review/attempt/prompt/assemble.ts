@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { encode } from "@toon-format/toon";
 import type { AspectId } from "../../../modules/aspect/api.ts";
 import { ASPECTS } from "../../../modules/aspect/api.ts";
@@ -8,9 +9,18 @@ import { patchSectionOwners } from "../../prepare/scope/diff.ts";
 import type { ReviewInput } from "../../types.ts";
 
 type PathRecord = ReviewInput["paths"][number];
+const FINDER_BATCH_SIZE = 40;
 
-const asset = (path: string) =>
-  readFileSync(new URL(path, import.meta.url), "utf8");
+const assets = new Map<string, string>();
+const asset = (path: string | URL) => {
+  const url = new URL(path, import.meta.url);
+  let text = assets.get(url.href);
+  if (text === undefined) {
+    text = readFileSync(url, "utf8");
+    assets.set(url.href, text);
+  }
+  return text;
+};
 
 const STAGES = {
   find: ["./finder.md", "./find-response.md", "../../ingest/find.schema.json"],
@@ -36,7 +46,7 @@ export const promptIdentity = (aspect: AspectId) =>
       ...parts("find"),
       asset(FOLLOW_UP),
       ...parts("verify"),
-      readFileSync(ASPECTS[aspect].rubric, "utf8"),
+      asset(ASPECTS[aspect].rubric),
     ]),
   );
 
@@ -113,7 +123,9 @@ export function assembleFinder(
   input: ReviewInput,
   aspect: AspectId,
   patchFile: string,
+  workPaths: readonly PathRecord[] = input.paths,
 ) {
+  const batch = workPaths.slice(0, FINDER_BATCH_SIZE);
   const index = input.patch === null ? null : patchIndex(input.patch, input);
   const evidence = {
     task: input.task,
@@ -121,7 +133,14 @@ export function assembleFinder(
     base: input.base,
     tree: input.tree,
     patch: patchReference(input, patchFile, index),
-    paths: input.paths.map((p) => ({
+    assessedPaths: {
+      file: join(dirname(patchFile), "review.json"),
+      property: "paths",
+      count: input.paths.length,
+    },
+    previouslyExaminedPaths: input.paths.length - workPaths.length,
+    remainingPaths: workPaths.length - batch.length,
+    paths: batch.map((p) => ({
       ...metadata(p),
       ...(index ? changeStats(index, p.path) : {}),
     })),
@@ -135,7 +154,7 @@ export function assembleFinder(
     untrusted,
     fenced("degreaser-input", encode(evidence)),
     `Assigned aspect: ${aspect}`,
-    readFileSync(ASPECTS[aspect].rubric, "utf8"),
+    asset(ASPECTS[aspect].rubric),
   ].join("\n\n");
 }
 
@@ -144,13 +163,17 @@ export function assembleFollowUp(
   remaining: readonly PathRecord[],
 ) {
   const index = input.patch === null ? null : patchIndex(input.patch, input);
-  const paths = remaining.map((p) => ({
+  const paths = remaining.slice(0, FINDER_BATCH_SIZE).map((p) => ({
     path: p.path,
     ...(index ? { patchLines: index.ranges.get(p.path) ?? null } : {}),
   }));
-  return [asset(FOLLOW_UP), fenced("degreaser-input", encode({ paths }))].join(
-    "\n\n",
-  );
+  return [
+    asset(FOLLOW_UP),
+    fenced(
+      "degreaser-input",
+      encode({ paths, remainingPaths: remaining.length - paths.length }),
+    ),
+  ].join("\n\n");
 }
 
 export function assembleVerifier(
@@ -191,6 +214,6 @@ export function assembleVerifier(
     untrusted,
     fenced("degreaser-input", encode(evidence)),
     `Assigned aspect: ${aspect}`,
-    readFileSync(ASPECTS[aspect].rubric, "utf8"),
+    asset(ASPECTS[aspect].rubric),
   ].join("\n\n");
 }

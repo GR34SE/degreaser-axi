@@ -9,6 +9,7 @@ import {
   readFileSync,
   rmSync,
   symlinkSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
 
@@ -272,7 +273,7 @@ test("foreign files, malformed native config and symlink ancestors are never ove
   const result = f.maintenance("claude");
   assert.equal(result.status, 2, result.stdout);
   assert.deepEqual(readdirSync(join(f.home, "outside")), []);
-  rmSync(join(f.root, ".claude"));
+  unlinkSync(join(f.root, ".claude"));
   f.write(".agents/skills/degreaser/SKILL.md", "Foreign skill");
   assert.equal(f.maintenance("codex").status, 2);
   assert.equal(

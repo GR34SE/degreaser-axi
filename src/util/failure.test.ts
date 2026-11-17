@@ -143,3 +143,37 @@ test("diagnostics keep only recognized machine fields", () => {
     },
   );
 });
+
+test("rate-limit diagnostics distinguish explicit temporary throttling from exhausted or unknown quota", () => {
+  for (const [error, retryable, recovery] of [
+    [
+      { code: "RATE_LIMITED", message: "Opaque provider response" },
+      true,
+      "retry-later",
+    ],
+    [{ message: "Too many requests; retry later" }, true, "retry-later"],
+    [{ code: "QUOTA_EXCEEDED", retryable: true }, false, "wait-for-quota"],
+    [
+      { code: "RATE_LIMITED", cause: { code: "INSUFFICIENT_QUOTA" } },
+      false,
+      "wait-for-quota",
+    ],
+    [
+      { status: 429, message: "Unknown provider response" },
+      undefined,
+      "wait-for-quota",
+    ],
+    [
+      {
+        message: "Rate limit temporarily exceeded; retry later",
+        retryable: false,
+      },
+      false,
+      "wait-for-quota",
+    ],
+  ] as const) {
+    const diagnostic = failureDiagnostic("turn-result", "rate-limited", error);
+    assert.equal(diagnostic.retryable, retryable);
+    assert.equal(diagnostic.recovery, recovery);
+  }
+});

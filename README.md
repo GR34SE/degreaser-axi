@@ -10,17 +10,18 @@ Code review for coding agents. Degreaser checks for unnecessary complexity, brok
 
 Requires Linux or macOS, Node 24+, Git, pnpm, and a logged-in Codex, Claude Code, Pi or Cursor. Linux needs a procps-compatible `/bin/ps` (minimal images such as Debian slim need the `procps` package). Claude Code, Pi and Cursor must be on PATH; the Codex worker is bundled.
 
-The package is not published to npm yet. Build a checkout and register its commands globally:
+The package is not published to npm yet. Build a checkout, then install its packed archive globally:
 
 ```sh
 git clone https://github.com/GR34SE/degreaser-axi.git
 cd degreaser-axi
 pnpm install --frozen-lockfile --ignore-scripts
 pnpm build
-pnpm add --global .
+pnpm pack --pack-destination /tmp
+pnpm add --global "/tmp/degreaser-axi-$(node -p 'require("./package.json").version').tgz"
 ```
 
-Keep the checkout at a stable path. (`pnpm link --global` no longer exists in pnpm 11 and later.)
+The archive installation is independent of later checkout builds. `degreaser-axi version` shows its build commit.
 
 ## Use
 
@@ -43,7 +44,7 @@ degreaser-axi report
 
 `review` waits until the review ends. If your terminal or tool call stops first, the review keeps running: `degreaser-axi wait <run-id>` reattaches. Keep the code unchanged until it finishes. A partial review is not a clean result.
 
-Reviews read source; they do not run tests or apply fixes. Review context goes to your selected model provider, uses its quota, and is saved locally in ignored `.degreaser/` files. All 18 reviewers run in parallel by default, each as one agent that explores the change itself and one that verifies its findings; use `--aspects` to select fewer or `--concurrency` to limit simultaneous sessions.
+Reviews read source; they do not run tests or apply fixes. Review context goes to your selected model provider, uses its quota, and is saved locally in ignored `.degreaser/` files. All 18 reviewers run in parallel by default, each with one finder that explores the change itself and separate verifier batches that check candidates while finding continues; use `--aspects` to select fewer or `--concurrency` to limit simultaneous sessions.
 
 See `degreaser-axi --help` for commands and options, or `degreaser-axi doctor` for setup diagnostics. Details: [configuration and scopes](https://github.com/GR34SE/degreaser-axi/blob/main/docs/input-contract.md), [results and limitations](https://github.com/GR34SE/degreaser-axi/blob/main/docs/result-contract.md), [worker restrictions](https://github.com/GR34SE/degreaser-axi/blob/main/docs/harnesses.md).
 
@@ -108,7 +109,7 @@ degreaser-axi review --scope worktree --task "Add CSV import" --aspects missed-r
 
 - `concurrency: 4` caps simultaneous finder and verifier sessions, for example to stay under a provider rate limit. Without it, every selected aspect runs at once.
 - `aspects` accepts `true` (enabled), `false` (disabled), or `{ "model": "<model>" }` to override the finder model for one aspect. Omitted aspects stay enabled. Changing its agent also requires an explicit compatible model.
-- `maxRetries` counts extra attempts. The limits above are defaults; `maxTurns` is enforced natively only by Claude and is advisory for other workers.
+- `maxRetries` counts extra finder attempts; candidates missing a verdict get one smaller-batch recovery attempt. The limits above are defaults; `maxTurns` is enforced natively only by Claude and is advisory for other workers.
 - `exclude` adds literal repository-relative files or directory prefixes, not globs. It narrows assessed coverage, not worker read access.
 
 `degreaser-axi config sync` fills missing settings with installed defaults without changing explicit choices. See the [configuration contract](https://github.com/GR34SE/degreaser-axi/blob/main/docs/input-contract.md) and [JSON schema](https://github.com/GR34SE/degreaser-axi/blob/main/src/config/config.schema.json) for the full format and bounds.

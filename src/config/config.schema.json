@@ -22,7 +22,7 @@
       "allOf": [{ "$ref": "#/definitions/piIdentity" }]
     },
     "concurrency": {
-      "description": "Optional cap on simultaneous workers. Absent means one per selected aspect.",
+      "description": "Optional cap on simultaneous workers. Absent means twice the selected aspect count; finder and verifier batches share this cap.",
       "$ref": "#/definitions/positiveInteger"
     },
     "maxRetries": { "type": "integer", "minimum": 0, "maximum": 10 },

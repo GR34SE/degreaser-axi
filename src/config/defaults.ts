@@ -2,6 +2,15 @@ import type { AspectId } from "../modules/aspect/api.ts";
 import type { AspectSetting, ProjectConfig } from "./types.ts";
 import { validateConfig } from "./validate.ts";
 
+export const DEFAULT_SESSIONS_PER_ASPECT = 2;
+
+export const DEFAULT_LIMITS = {
+  workerTimeoutSeconds: 900,
+  workerIdleSeconds: 180,
+  maxTurns: 40,
+  runTimeoutSeconds: 1800,
+};
+
 export function completeConfig(data: unknown, aspectIds: readonly AspectId[]) {
   const rc = validateConfig(data);
   return {
@@ -12,10 +21,7 @@ export function completeConfig(data: unknown, aspectIds: readonly AspectId[]) {
     ...(rc.concurrency === undefined ? {} : { concurrency: rc.concurrency }),
     maxRetries: rc.maxRetries ?? 1,
     limits: {
-      workerTimeoutSeconds: 900,
-      workerIdleSeconds: 180,
-      maxTurns: 40,
-      runTimeoutSeconds: 1800,
+      ...DEFAULT_LIMITS,
       ...rc.limits,
     },
     aspects: Object.fromEntries(

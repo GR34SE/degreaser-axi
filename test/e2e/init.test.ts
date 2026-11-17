@@ -67,26 +67,32 @@ for (const existing of [false, true]) {
   });
 }
 
-test("non-TTY init without a verifier model asks for it and writes nothing", (t) => {
+test("non-TTY init without verifier flags inherits the finder model and writes configuration", (t) => {
+  const f = setup(t);
+  const result = f.run([...explicit.slice(0, 4), "--harnesses", "claude,pi"]);
+  assert.equal(result.status, 0, result.stdout);
+  assert.equal(f.config().agent, "codex");
+  assert.equal(f.config().model, "gpt-6-luna");
+  assert.equal(f.config().verifier, undefined);
+  assert.match(result.stdout, /verifier/);
+});
+
+test("non-TTY init with only a different verifier agent asks for its model and writes nothing", (t) => {
   const f = setup(t);
   const before = f.unchanged();
-  for (const extra of [[], ["--verifier-agent", "codex"]]) {
-    const result = f.run([
-      ...explicit.slice(0, 4),
-      "--harnesses",
-      "claude,pi",
-      ...extra,
-    ]);
-    assert.equal(result.status, 2, result.stdout);
-    assert.match(result.stdout, /code: decision-required/);
-    assert.match(result.stdout, /missing\[1\]: verifier-model/);
-    assert.match(
-      result.stdout,
-      /verifierPrefill:\n {2}agent: codex\n {2}model: "latest:sol"/,
-    );
-    assert.match(result.stdout, /--verifier-model 'latest:sol'/);
-    assert.deepEqual(f.unchanged(), before);
-  }
+  const result = f.run([
+    ...explicit.slice(0, 4),
+    "--harnesses",
+    "claude,pi",
+    "--verifier-agent",
+    "claude",
+  ]);
+  assert.equal(result.status, 2, result.stdout);
+  assert.match(result.stdout, /code: decision-required/);
+  assert.match(result.stdout, /missing\[1\]: verifier-model/);
+  assert.match(result.stdout, /verifierPrefill:\n {2}agent: claude\n/);
+  assert.match(result.stdout, /--verifier-agent claude --verifier-model /);
+  assert.deepEqual(f.unchanged(), before);
 });
 
 test("init writes the verifier as model-only when it shares the worker agent and with its agent otherwise", (t) => {

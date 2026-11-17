@@ -1,6 +1,6 @@
-import { VERSION } from "../../../version.ts";
+import { BUILD_COMMIT, VERSION } from "../../../version.ts";
 
 export { spec } from "./spec.ts";
 export function run() {
-  return { output: VERSION };
+  return { output: `${VERSION} (commit ${BUILD_COMMIT ?? "unknown"})` };
 }

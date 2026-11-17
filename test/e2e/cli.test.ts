@@ -4,11 +4,12 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { performance } from "node:perf_hooks";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -42,15 +43,17 @@ test("help, version and strict routing work without repo, credentials or side ef
       "invalid RC must not be loaded",
     );
     const initialFiles = readdirSync(cwd);
+    const installedCli = realpathSync(cli);
+    const installedPackage = dirname(dirname(installedCli));
     const run = (args: string[]) => {
       const result = spawnSync(
         process.execPath,
         [
           "--permission",
-          `--allow-fs-read=${join(root, "dist")}`,
+          `--allow-fs-read=${installedPackage}`,
           `--allow-fs-read=${join(root, "node_modules")}`,
           `--allow-fs-read=${join(root, "package.json")}`,
-          cli,
+          installedCli,
           ...args,
         ],
         {
@@ -68,7 +71,16 @@ test("help, version and strict routing work without repo, credentials or side ef
     for (const flag of ["--version", "-v", "-V", "version"]) {
       const result = run([flag]);
       assert.equal(result.status, 0);
-      assert.equal(result.stdout, `${version}\n`);
+      if (flag === "version") {
+        const commit = spawnSync("git", ["rev-parse", "--short=12", "HEAD"], {
+          cwd: root,
+          encoding: "utf8",
+        });
+        assert.equal(
+          result.stdout,
+          `${version} (commit ${commit.stdout.trim()})\n`,
+        );
+      } else assert.equal(result.stdout, `${version}\n`);
     }
     for (const args of [[], ["--help"], ["help"], ["home", "--help"]]) {
       const result = run(args);

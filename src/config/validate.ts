@@ -16,7 +16,7 @@ export function validateConfig(data: unknown): ProjectConfig {
     );
   if ((data as { concurrency?: unknown } | null)?.concurrency === null)
     throw new InputError(
-      ".degreaserrc.json: concurrency null is no longer supported. Remove it to run one worker per selected aspect, or set a positive cap.",
+      ".degreaserrc.json: concurrency null is no longer supported. Remove it to use the default session cap, or set a positive cap.",
     );
   const validate = schema<ProjectConfig>(
     new URL("./config.schema.json", import.meta.url),

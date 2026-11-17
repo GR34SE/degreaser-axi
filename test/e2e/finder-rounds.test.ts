@@ -262,20 +262,101 @@ test("a quota failure in a later round keeps earlier candidates but leaves the a
     ["a.ts"],
   );
 
+  const beforeResume = f.events().length;
   f.setPlan({
     workers: {
       [ASPECT]: {
-        rounds: [round("no-findings", [], ["a.ts", "b.ts", "source.ts"])],
+        rounds: [round("no-findings", [], ["b.ts", "source.ts"])],
       },
     },
   });
   const resumed = f.run(["resume", f.state().id, "--wait", "20"]);
   assert.equal(resumed.status, 0, resumed.stdout);
   assert.equal(f.state().status, "completed");
+  assert.deepEqual(
+    f
+      .events()
+      .slice(beforeResume)
+      .filter((event) => event.stage === "find")
+      .map((event) => event.paths),
+    [["b.ts", "source.ts"]],
+  );
   const after = f.state().tasks[0];
   assert.equal(after?.status, "findings");
   assert.deepEqual(
     after?.result?.findings.map((x) => x.location.path),
     ["a.ts"],
   );
+});
+
+test("a resumed finder keeps the quote rejections and limitations of the coverage it continues", (t) => {
+  const f = paddedFixture(t);
+  const limitation = "a.ts was only partly readable.";
+  f.setPlan({
+    workers: {
+      [ASPECT]: {
+        rounds: [
+          round(
+            "findings",
+            [
+              candidate("a.ts", "export const a = 1;"),
+              candidate("a.ts", "invented quote", 2),
+              candidate("a.ts", "another invented quote", 3),
+            ],
+            ["a.ts"],
+            { limitations: [limitation] },
+          ),
+          { error: { message: "Quota exhausted" } },
+        ],
+      },
+    },
+  });
+  const { done, task } = review(f);
+  assert.equal(done.status, 1, done.stdout);
+  const rejected = [
+    { index: 2, reason: "quote-mismatch" },
+    { index: 3, reason: "quote-mismatch" },
+  ];
+  assert.deepEqual(task.rejections, rejected);
+
+  f.setPlan({
+    workers: {
+      [ASPECT]: { rounds: [round("no-findings", [], ["b.ts", "source.ts"])] },
+    },
+  });
+  const resumed = f.run(["resume", f.state().id, "--wait", "20"]);
+  assert.equal(resumed.status, 0, resumed.stdout);
+  const after = f.state().tasks[0];
+  assert.equal(after?.status, "findings");
+  assert.deepEqual(after?.rejections, rejected);
+  assert.deepEqual(after?.result?.limitations, [
+    limitation,
+    "2 candidate(s) were rejected by literal source validation.",
+  ]);
+  assert.match(resumed.stdout, /rejected: 2/);
+});
+
+test("a not-applicable first round ends the finder without following remaining paths", (t) => {
+  const f = paddedFixture(t);
+  f.write("source.ts", "export const source = 1;\n");
+  f.setPlan({
+    workers: {
+      [ASPECT]: {
+        rounds: [
+          round("not-applicable", [], ["a.ts"], {
+            reason:
+              "No explanatory comments or docstrings exist in the assessed paths.",
+          }),
+          round("no-findings", [], ["b.ts", "source.ts"]),
+        ],
+      },
+    },
+  });
+  const { done, task } = review(f);
+  assert.equal(done.status, 0, done.stdout);
+  assert.equal(task.status, "not-applicable");
+  assert.match(task.result?.reason ?? "", /No explanatory comments/);
+  assert.equal(stage(f, "find").length, 1);
+  assert.equal(task.attempts[0]?.rounds, 1);
+  assert.equal(stage(f, "verify").length, 0);
 });

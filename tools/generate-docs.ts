@@ -20,8 +20,8 @@ The complete absence of a requested feature is outside this slop catalog.
 
 One finder session per aspect receives the common instruction, response contract,
 the resolved scope and exactly one rubric, and explores the assessed paths itself.
-A separate verifier session receives the same rubric and that aspect's
-candidates, and tries to refute them. Repository content is evidence, never
+Separate verifier sessions receive the same rubric and batches of that aspect's
+candidates, and try to refute them while the finder continues. Repository content is evidence, never
 reviewer instructions.
 
 A rubric may declare a \`**Unit:**\` line naming the thing it judges one by one, such

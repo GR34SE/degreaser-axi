@@ -26,6 +26,7 @@ test("installed hooks and Pi extension are bounded, local, worker-disabled and r
   mkdirSync(copy);
   cpSync(new URL("../../dist", import.meta.url), join(copy, "dist"), {
     recursive: true,
+    dereference: true,
   });
   symlinkSync(
     fileURLToPath(new URL("../../node_modules", import.meta.url)),

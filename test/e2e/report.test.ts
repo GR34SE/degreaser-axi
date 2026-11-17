@@ -149,12 +149,15 @@ test("running reports are immediate saved-result observations with same-run acti
       .events()
       .map((e) => `${e.aspect}:${e.stage}`)
       .sort(),
-    ["masked-errors:find", "missed-reuse:find", "missed-reuse:verify"],
+    [
+      "masked-errors:find",
+      "missed-reuse:find",
+      ...Array(4).fill("missed-reuse:verify"),
+    ],
   );
-  assert.equal(start.stderr.trim().split("\n").length, 1);
   assert.ok(
     start.stderr.includes(
-      `run: ${state.id}; aspects: 2; finder sessions: 2; verifier sessions: up to 2; finders: codex/gpt-6-luna; verifier: `,
+      `run: ${state.id}; aspects: 2; finder sessions: 2; verifier batches: up to 10 candidates each; finders: codex/gpt-6-luna; verifier: `,
     ),
     start.stderr,
   );

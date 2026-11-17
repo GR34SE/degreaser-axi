@@ -5,9 +5,12 @@ specs
 .degreaser
 node_modules/
 dist/
+/dist
 *.tgz
 .env
 .env.*
 !.env.example
 coverage/
 .claude/worktrees/
+
+.degreaser-build/

@@ -1,12 +1,16 @@
+import { realpathSync } from "node:fs";
 import { registerHooks } from "node:module";
 import { pathToFileURL } from "node:url";
 
-const profile = process.env.QA_PROFILE
-  ? pathToFileURL(process.env.QA_PROFILE).href
-  : new URL(
-      "../../dist/modules/harness/common/build-profile.js",
-      import.meta.url,
-    ).href;
+const profile = pathToFileURL(
+  realpathSync(
+    process.env.QA_PROFILE ??
+      new URL(
+        "../../dist/modules/harness/common/build-profile.js",
+        import.meta.url,
+      ),
+  ),
+).href;
 const adapter =
   process.env.QA_ADAPTER ??
   new URL("../fixtures/review-acp.mjs", import.meta.url).pathname;

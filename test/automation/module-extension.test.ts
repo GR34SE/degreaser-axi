@@ -23,6 +23,8 @@ test("one new harness and aspect module plus registry entries build and complete
     "src",
     "tools",
     "docs",
+    "README.md",
+    "LICENSE",
     "package.json",
     "pnpm-workspace.yaml",
     "pnpm-lock.yaml",

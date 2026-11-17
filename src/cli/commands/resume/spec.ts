@@ -7,7 +7,8 @@ export const spec: CommandSpec = {
   flags: {
     concurrency: {
       type: "string",
-      description: "Positive active-worker limit (default all enabled aspects)",
+      description:
+        "Positive active-worker cap (default the run's last cap, else twice the number of aspects being resumed)",
     },
     wait: {
       type: "string",

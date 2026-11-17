@@ -2,6 +2,7 @@ const WARM_UP_MS = 15_000;
 
 export function slots(limit: number, warmUpMs = WARM_UP_MS) {
   let active = 0;
+  let reduced = false;
   let warmed = false;
   let timer: NodeJS.Timeout | undefined;
   const waiting: (() => void)[] = [];
@@ -22,6 +23,13 @@ export function slots(limit: number, warmUpMs = WARM_UP_MS) {
   };
   return {
     warm,
+    halve() {
+      if (!reduced) {
+        limit = Math.max(1, Math.floor(limit / 2));
+        reduced = true;
+      }
+      return limit;
+    },
     async acquire() {
       await new Promise<void>((resolve) => {
         waiting.push(resolve);

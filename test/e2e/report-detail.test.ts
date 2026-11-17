@@ -122,9 +122,8 @@ test("short coverage attributes incomplete limitations and full reports separate
   assert.equal(f.events().length, 4);
   assert.match(
     reviewed.stderr,
-    /aspects: 4; finder sessions: 3; verifier sessions: up to 3;/,
+    /aspects: 4; finder sessions: 3; verifier batches: up to 10 candidates each;/,
   );
-  assert.equal(reviewed.stderr.trim().split("\n").length, 1);
   const run = f.state();
   const owner = run.owner;
   if (owner)

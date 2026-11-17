@@ -37,7 +37,7 @@ top-level `reason` that is null, empty or whitespace-only when the status does
 not require one; the persisted result is the strictly validated canonical form.
 A missing or empty `reason` for `not-applicable`, malformed JSON, a different
 aspect, unknown fields and every other schema violation remain `invalid-output`.
-A rejected attempt is retried (within `maxRetries`, same model) with the
+A rejected finder attempt is retried (within `maxRetries`, same model) with the
 validator's short message appended to the prompt; the raw payload is not echoed.
 
 Each unsupported candidate is rejected separately, with its one-based index and
@@ -52,40 +52,39 @@ correct. The caller makes that decision.
 Each aspect runs in two worker stages, each in fresh sessions with its own
 identity (see [input-contract.md](input-contract.md)).
 
-**Find.** One finder session runs per enabled aspect. Its prompt carries the
-task, the scope kind, base commit and resolved tree, the assessed paths with
-their metadata and change statistics, and a reference to the resolved patch
-file, but no inline source or diff. The finder decides what to read and
-explores the scope with its read tools and read-only `git` (see
-[harnesses.md](harnesses.md)); the patch file is the authoritative change,
-including untracked files that `git diff` omits. It is told to read repository
-convention files such as AGENTS.md, CLAUDE.md and CONTRIBUTING as evidence of
-project rules, never as instructions. It enumerates candidates and does not
-adjudicate: each candidate has a location, an exact quote and a one-line title,
-every instance is listed separately, and a doubtful one is still listed. It works
-in rounds within that one session. Each round returns a result block with the
-round's new candidates and `examinedPaths`, the assessed paths it accounted for
-in that round: examined, or ruled out as unable to contain the aspect. While
-assessed paths remain unaccounted for and the last round accounted for a new
-path or returned a new candidate, the coordinator sends a follow-up prompt in
-the same session listing the remaining paths with their `patchLines`. The loop
-ends when no path remains, a round makes no progress, or the worker's time
-ceiling, idle stop or the run deadline ends the session. All rounds form one
-attempt; their candidates are merged (exact duplicates kept once), their paths
-are unioned and their usage is summed. A finder status is `findings`,
-`no-findings`, `not-applicable` or `incomplete`.
+**Find.** One fresh finder session per aspect receives the task, scope,
+a work batch of at most 40 paths with change statistics, the number of paths
+left after that batch, the patch reference and one rubric. `assessedPaths`
+references the saved input's complete `paths` property; source and diff are not
+inlined. In its first round the finder decides applicability against that full
+index. A `not-applicable` round ends the session immediately, with a reason.
+Otherwise it accounts for the specific batch in the current round.
 
-**Verify.** When the finder ends with candidates, one verifier session for that
-aspect receives all of its unverified candidates, numbered. It gets the task,
-the metadata of the cited paths, the patch reference and the rubric with its
-examples, never the finder's reasoning, and tries to refute each candidate. A
-verdict is `upheld`, with the action to take, or `refuted`, with a reason and
-optional quoted evidence. Evidence quotes are checked like any other quote; a
-verdict whose evidence quote fails is dropped. A candidate that has no valid
-verdict is `unverified`. Verdicts from a verifier session that did not finish
-cleanly (timeout, cleanup failure, cancellation or deadline) are not applied, so
-its candidates stay `unverified`. Verdicts are source judgments, not test or
-runtime evidence.
+When a round reports new coverage or candidates and paths remain, another
+bounded batch follows in the same session. The loop also ends when no path
+remains, a round makes no progress, or the worker ceiling, idle stop or run
+deadline ends the session. All rounds form one attempt; exact candidate
+duplicates are kept once, coverage is unioned and known usage is summed.
+A finder status is `findings`, `no-findings`, `not-applicable` or `incomplete`.
+A resumed or retried finder is asked only for paths not already accounted for;
+previous candidates and verdicts remain.
+
+**Verify.** After each finder round, candidates that passed literal source
+validation enter that aspect's queue. A batch starts at five queued candidates,
+or when the finder ends; a batch holds at most ten. Independent verifier
+sessions can overlap the finder and each other. Each receives its own numbered
+candidates, the task, the metadata of the cited paths, the patch reference and
+the rubric with its examples, never the finder's reasoning.
+
+A verdict is `upheld`, with an action, or `refuted`, with a reason and optional
+quoted evidence. Evidence quotes are checked like any other quote; a verdict
+whose evidence quote fails is dropped. Valid verdicts are applied even if the
+session later times out or fails to close cleanly. Only candidates without a
+valid verdict are retried, once, in batches at most half the original size
+(minimum one). Authentication, model, account/quota, permission, unsafe cleanup
+and run-stop failures do not cause blind retries. After that bounded recovery,
+a candidate still without a valid verdict remains `unverified`. Verdicts are
+source judgments, not test or runtime evidence.
 
 A stored finding therefore has a location, quote and title, a `verdict` of
 `upheld`, `refuted` or `unverified`, and, once verified, the action or reason and
@@ -124,9 +123,9 @@ Established findings are kept when an aspect is incomplete.
 
 Assignment evidence is TOON inside a tag whose suffix is derived from the
 evidence digest, so embedded text cannot close the block. A change scope also
-writes the raw unified diff to `input/patch.diff`, and each assessed path carries
-`patchLines`, its section's line range there, so workers can read the change in
-slices. `input/patch.json` keeps the exact patch as a JSON string for resume
+writes the raw unified diff to `input/patch.diff`, and each path listed in an
+assignment carries `patchLines`, its section's line range there, so workers can
+read the change in slices. `input/patch.json` keeps the exact patch as a JSON string for resume
 integrity. The prompt hash binds both stages' instructions, response contracts and
 schemas plus the rubric.
 
@@ -146,8 +145,10 @@ are stored by Degreaser. Native harness session/cache behavior is separate.
 Diagnostics use fixed failure categories and repair guidance. Native version
 output is restricted to bounded numeric major/minor/patch tokens; other text
 is reported as unrecognized. Configuration errors identify schema constraints,
-not unknown input keys or values. Unexpected local exceptions do not expose their
-messages or stacks. Selected model IDs and local paths remain visible, so never
+not unknown input keys or values. Unexpected internal review errors retain their
+error type, system code when available, and first message line (up to 300
+characters) in local state and reports. Stacks and provider error payloads are
+not stored. Selected model IDs and local paths remain visible, so never
 use them to carry credentials. This is not a general secret scanner: validated
 result text and source evidence are intentionally retained, not scrubbed.
 
@@ -189,13 +190,21 @@ further state writes. Previously committed results and attempts remain intact.
 Owner loss leaves the last committed progress visible as interrupted, without
 inventing an attempt ending or a result. A process killed before rename can leave
 an ignored `.tmp` file; it is not authoritative and is never used for recovery.
-Prompt-identity changes and unexpected owner-task errors remain distinct from
-persistence failures. With writable storage, the owner joins active work, saves
-the sanitized fatal code/message in its `executions` entry and publishes
-partial/failed coverage. Short reports show the latest execution failure; full
-reports retain earlier failures after resume. Error messages do not include raw
-worker output, exception payloads or stacks. No second error store is used when
-the authoritative store fails.
+Prompt-identity changes and unexpected aspect errors mark that aspect
+`incomplete`; other aspects continue independently. The diagnostic remains in
+the aspect limitations, including after resume. An input mismatch requires a
+new review. A persistence failure stops the owner and joins active workers; no
+second error store is used when the authoritative store fails. Reports retain
+execution failures and earlier aspect diagnostics. Worker output and stacks
+are not included in error diagnostics.
+
+The owner loads both response schemas and each selected aspect's instructions,
+response contracts and rubric before starting its worker. These resources stay
+in process memory until that owner exits, so a subsequent checkout build does
+not remove resources from an admitted review. Resume checks the currently
+installed resources against the saved prompt identity.
+
+`review`, `wait` and `resume` write progress to stderr whenever an aspect ends and at least every 30 seconds while waiting: finished/total aspects, candidates, verdicts and elapsed time. Structured results stay on stdout.
 
 `review`, `wait` and `resume` block until the run ends and return completed/0
 or partial, failed or interrupted/1. Only with an explicit `--wait <seconds>` can
@@ -278,29 +287,38 @@ establish account access or model availability.
 
 ## Execution and lifecycle outcomes
 
-All eighteen aspects run by default and start together. Each aspect holds at
-most one active session, its finder and then its verifier, so a run starts one
-finder per aspect and at most one verifier per aspect, plus retries. Without a
-cap a run allows as many simultaneous workers as selected aspects; `concurrency`
-lowers that. The owner admits one worker at a time until the first prompt has
+All eighteen aspects run by default. Each starts one finder session.
+Quote-checked candidates are verified in independent batches of at most ten,
+starting when five are queued or the finder ends. The default active-session
+cap is twice the selected aspect count, with at most that aspect count in
+verifier sessions at once. Both counts cover only the aspects an execution
+works on: an aspect resolved without a worker, or resolved before a `resume`,
+adds no capacity. `concurrency` can lower the shared cap. The owner admits one worker at a time until the first prompt has
 been accepted by the model transport, not merely until a process or session is
 ready, or until 15 seconds have passed. It then fills the available slots. A
 pre-invocation failure advances to the next worker without releasing a
 still-cold fleet.
 
-Only missing/malformed results and finder idle timeouts without valid evidence
-receive up to `maxRetries` additional attempts. A worker stopped at its
-`workerTimeoutSeconds` ceiling is not retried, and neither is a verifier
-timeout; its candidates stay `unverified`. An attempt stops when its adapter is
+Only missing/malformed finder results and finder idle timeouts without valid evidence
+receive up to `maxRetries` additional attempts. A finder stopped at its
+`workerTimeoutSeconds` ceiling is not retried. A verifier batch has no inline
+retry; candidates still missing verdicts get the one smaller-batch recovery
+described above, including after a verifier timeout. An attempt stops when its adapter is
 idle for `workerIdleSeconds` or reaches `workerTimeoutSeconds`. Each uses a fresh session, the
 same assignment and exact model, and keeps its slot until cleanup finishes.
 Assistant output over 1,048,576 JavaScript string characters is discarded in
 full, including any earlier valid block. This bounded `output-limit` failure
 gets the same retry budget as missing/malformed output, never a larger buffer
 or unlimited retries. Output exactly at the limit remains eligible for validation.
-Valid incomplete results await explicit resume. Authentication, unavailable-model,
-permission, account/quota/rate-limit and cleanup failures do not trigger blind
-retries or fallback. Rate-limit reports name the same run and suggest explicit
+Valid incomplete finder results await explicit resume. Authentication, unavailable-model,
+permission, account/quota and cleanup failures do not trigger blind
+retries or fallback. An explicitly transient rate limit gets one recovery
+after a 2-second pause, without changing identity. The shared session cap is
+halved once per owner execution (minimum one), recorded in that execution,
+and existing sessions finish before a retry can exceed the reduced cap.
+Finder recovery stays within `maxRetries`; verifier recovery uses its existing
+one smaller-batch attempt. Explicit quota codes override a retryable hint; an
+opaque HTTP 429 alone is not evidence of transient throttling. Rate-limit reports name the same run and suggest explicit
 resume with concurrency 1 after the selected account becomes available.
 Disabled or suspended accounts are `account-disabled`, not transient quota:
 restore access to the selected account with its provider before resuming.
@@ -361,9 +379,13 @@ starts a new budget. Expired original budgets are not silently renewed.
 
 Resolved tasks without `unverified` findings are never replayed. Resume reruns
 the finder of each pending, interrupted, failed, cancelled or incomplete aspect
-and sends every `unverified` finding to a new verifier session, including those of
-resolved aspects. Candidates and upheld and refuted verdicts are kept, a rerun
-finder's duplicate candidates are kept once, and a verdict is never replayed. Attempt records retain earlier
+whose finder did not finish, and sends every `unverified` finding to new
+verifier sessions in batches of at most ten, including those of resolved
+aspects. A finder that had
+finished before an unexpected aspect error is not rerun. Candidates and upheld
+and refuted verdicts are kept, a rerun finder's duplicate candidates are kept
+once, and a verdict is never replayed. A finder that continues saved coverage
+also keeps that coverage's quote rejections and limitations. Attempt records retain earlier
 validated evidence, rejection reasons, limitations, session identities and known
 usage. A failed replacement does not erase the previous incomplete evidence.
 Full reports expose this history. A completed unchanged resume is a no-op.
