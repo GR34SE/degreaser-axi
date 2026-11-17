@@ -25,9 +25,10 @@ export async function ownRun(
   const control = ownerControl(runtime, run, execution, dir);
   const { abort, persist, fail } = control;
   const active = new Set<Promise<void>>();
-  const verifierSlots = slots(run.tasks.length);
+  const tasks = run.tasks.filter(resumable);
+  const verifierSlots = slots(tasks.length);
   verifierSlots.warm();
-  const fleet = DEFAULT_SESSIONS_PER_ASPECT * run.tasks.length;
+  const fleet = DEFAULT_SESSIONS_PER_ASPECT * tasks.length;
   const context: OwnerContext = {
     runtime,
     repository,
@@ -42,7 +43,7 @@ export async function ownRun(
     loadResultSchemas();
     ready();
     await Promise.all(
-      run.tasks.filter(resumable).map((task) => {
+      tasks.map((task) => {
         const promise = reviewAspect(context, task)
           .catch((error: unknown) => {
             fail(

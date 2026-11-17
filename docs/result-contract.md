@@ -291,7 +291,9 @@ All eighteen aspects run by default. Each starts one finder session.
 Quote-checked candidates are verified in independent batches of at most ten,
 starting when five are queued or the finder ends. The default active-session
 cap is twice the selected aspect count, with at most that aspect count in
-verifier sessions at once. `concurrency` can lower the shared cap. The owner admits one worker at a time until the first prompt has
+verifier sessions at once. Both counts cover only the aspects an execution
+works on: an aspect resolved without a worker, or resolved before a `resume`,
+adds no capacity. `concurrency` can lower the shared cap. The owner admits one worker at a time until the first prompt has
 been accepted by the model transport, not merely until a process or session is
 ready, or until 15 seconds have passed. It then fills the available slots. A
 pre-invocation failure advances to the next worker without releasing a
